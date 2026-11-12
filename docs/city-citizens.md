@@ -27,6 +27,18 @@ scripts/city-citizens/build-all.sh inked-warrior                       # just on
 
 This needs Blender 4.2 on PATH. The script refuses any model that isn't CC BY 4.0, downloads the glTF, decimates and rigs it, writes the clips, and regenerates `client/assets/citizens/models.json` and `client/city-credits.html`. The token is only sent as a request header. It is never printed or committed, and isn't used in CI.
 
+## Updating the walk cycle
+
+The renderer advances a shared walk phase using distance traveled, so the close and distant models land on the same step when they swap. The cycle sets a planted-foot trajectory and adjusts stride for the scans with narrower stances. The pocket-side and key-holding arms have reduced swing.
+
+Rebake the shipped rigs after editing the gait, with Blender 4.2 or later:
+
+```sh
+blender -b --python-exit-code 1 -P scripts/city-citizens/rebake_walk.py -- client/assets/citizens
+```
+
+Pass model IDs after the asset directory to rebuild only those models.
+
 ## Life script schema (`client/data/citizens/<id>.json`)
 
 Add the id to `client/data/citizens/index.json`. Scripts that fail validation are skipped, with a console warning. The rules are in `validateCitizen()` in `client/js/citizens-core.mjs` and are tested by `npm run test:citizens`.

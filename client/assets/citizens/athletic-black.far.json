@@ -1,25 +1,25 @@
 {
  "id": "athletic-black",
- "verts": 2197,
- "indices": 3600,
+ "verts": 2184,
+ "indices": 3597,
  "frames": 17,
  "walkFrames": 16,
  "idleFrame": 16,
  "uvOffset": 0,
- "idxOffset": 17576,
- "posOffset": 24776,
- "nrmOffset": 248870,
+ "idxOffset": 17472,
+ "posOffset": 24668,
+ "nrmOffset": 247436,
  "min": [
-  -0.259723961353302,
-  -0.03309149295091629,
-  -0.4953216314315796
+  -0.2418033480644226,
+  -0.012368262745440006,
+  -0.5084699392318726
  ],
  "size": [
-  0.5131666660308838,
-  1.7184690907597542,
-  0.87086021900177
+  0.48338454961776733,
+  1.691595376469195,
+  0.9791734516620636
  ],
- "tris": 1200,
+ "tris": 1199,
  "nearTris": 8986,
  "sourceTris": 218364,
  "height": 1.68,
@@ -29,5 +29,5 @@
  "legWebFacesCut": 13,
  "armsOutRest": [],
  "walkCycleSec": 1.0,
- "strideMetersPerCycle": 1.3439999999999999
+ "strideMetersPerCycle": 1.168128
 }

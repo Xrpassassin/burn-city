@@ -3,12 +3,16 @@
 #   <id>.gltf(+.bin, <id>-tex/*.webp)  near LOD (separate files: the City CSP blocks blob: URLs) (<=10k tris), simple humanoid armature, automatic weights, in-house Walk + Idle clips
 #   <id>.far.bin/json + <id>.far.webp   far LOD (~1.2k tris) with the Walk cycle baked into a vertex-animation table
 # All motion is authored procedurally here (no third-party animation data).
-import bpy, sys, json, math, struct, os
-from mathutils import Vector
+import bpy, sys, json, math, os
+from pathlib import Path
+from mathutils import Matrix, Vector
+sys.path.insert(0, os.path.dirname(__file__))
+from citizen_gait import WALK_FRAMES, make_walk, stride_for
+from citizen_vat import sample_mesh, write_vat
 a = sys.argv[sys.argv.index('--') + 1:]
 SRC, MID, HEIGHT, OUT = a[0], a[1], float(a[2]), a[3]
 QA = a[4] if len(a) > 4 else None
-NEAR_TRIS, FAR_TRIS, FAR_FRAMES, WALK_FRAMES = 9000, 1200, 16, 24
+NEAR_TRIS, FAR_TRIS, FAR_FRAMES = 9000, 1200, 16
 os.makedirs(OUT, exist_ok=True)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -185,7 +189,6 @@ webs_cut = len(web)
 
 # T/A-pose scans: swing the arms down to the sides and make that the new rest pose
 if ARMS_OUT:
-    from mathutils import Matrix
     bpy.context.view_layer.objects.active = arm_ob; bpy.ops.object.mode_set(mode='POSE')
     for side, sg in (('L', 1), ('R', -1)):
         if not ARMS_OUT.get(side): continue
@@ -210,79 +213,46 @@ def keyclip(name, frames, fn):
         for pb in arm_ob.pose.bones: pb.rotation_euler = (0, 0, 0); pb.location = (0, 0, 0)
         fn(f / frames * 2 * math.pi)
         for pb in arm_ob.pose.bones:
-            pb.keyframe_insert('rotation_euler', frame=f); pb.keyframe_insert('location', frame=f)
+            pb.rotation_quaternion = pb.rotation_euler.to_quaternion()
+            pb.keyframe_insert('rotation_quaternion', frame=f); pb.keyframe_insert('location', frame=f)
+    for pb in arm_ob.pose.bones: pb.rotation_mode = 'QUATERNION'
     return act
 PB = arm_ob.pose.bones
-def walk(p):
-    for s, sg in (('L', 1), ('R', -1)):
-        ph = p if s == 'L' else p + math.pi
-        th = -D(24) * math.sin(ph); kn = D(5) + D(36) * max(0, math.cos(ph - .5)) ** 2 + D(6) * max(0, -math.sin(ph))
-        PB['thigh.' + s].rotation_euler.x = th; PB['shin.' + s].rotation_euler.x = kn
-        PB['foot.' + s].rotation_euler.x = -0.75 * (th + kn) + D(6) * math.sin(ph)
-        PB['upperarm.' + s].rotation_euler.x = D(13) * math.sin(ph); PB['forearm.' + s].rotation_euler.x = -D(14) - D(8) * max(0, -math.sin(ph))
-    PB['hips'].location.y = .018 * H / 1.75 * math.cos(2 * p) - .01
-    PB['hips'].rotation_euler.y = D(5) * math.sin(p); PB['chest'].rotation_euler.y = -D(7) * math.sin(p)
-    PB['spine'].rotation_euler.x = D(3); PB['head'].rotation_euler.x = -D(2)
 def idle(p):
     PB['spine'].rotation_euler.x = D(1.2) * math.sin(p); PB['chest'].rotation_euler.x = D(1) * math.sin(p + .6)
     PB['hips'].location.y = .004 * math.sin(p); PB['head'].rotation_euler.y = D(6) * math.sin(p * .5)
     for s, sg in (('L', 1), ('R', -1)):
         PB['upperarm.' + s].rotation_euler.x = D(1.5) * math.sin(p + sg); PB['forearm.' + s].rotation_euler.x = -D(6)
 scn = bpy.context.scene; scn.render.fps = 24
-A_walk = keyclip('Walk', WALK_FRAMES, walk)
 A_idle = keyclip('Idle', 48, idle)
+A_walk = make_walk(arm_ob, H, MID)
+for fc in A_idle.fcurves:
+    for k in fc.keyframe_points: k.interpolation = 'LINEAR'
 for act in (A_walk, A_idle):
-    for fc in act.fcurves:
-        for k in fc.keyframe_points: k.interpolation = 'LINEAR'
     tr = arm_ob.animation_data.nla_tracks.new(); tr.name = act.name; tr.strips.new(act.name, 0, act)
 arm_ob.animation_data.action = None
 
 # ---- far LOD: duplicate near skin, decimate, bake Walk into vertex table
 far = ob.copy(); far.data = ob.data.copy(); scn.collection.objects.link(far); far.name = MID + '_far'
 decimate(far, FAR_TRIS)
+arm_ob.animation_data.use_nla = False
 def frames_of(act, n, span):
-    arm_ob.animation_data.action = act; res = []
+    arm_ob.animation_data.action = act
+    res = []
     for i in range(n):
-        scn.frame_set(int(round(i * span / n))) if span % n == 0 else scn.frame_set(i * span // n, subframe=(i * span / n) % 1)
-        dg = bpy.context.evaluated_depsgraph_get(); e = far.evaluated_get(dg); m = e.to_mesh()
-        res.append(([v.co.copy() for v in m.vertices], [v.normal.copy() for v in m.vertices])); e.to_mesh_clear()
+        frame = i * span / n
+        scn.frame_set(int(frame), subframe=frame % 1)
+        res.append(sample_mesh(far, bpy.context.evaluated_depsgraph_get()))
     return res
 F = frames_of(A_walk, FAR_FRAMES, WALK_FRAMES) + frames_of(A_idle, 1, 48)
 arm_ob.animation_data.action = None; scn.frame_set(0)
-fm = far.data; fm.calc_loop_triangles(); uvl = fm.uv_layers.active.data
-key = {}; verts = []; idx = []
-for lt in fm.loop_triangles:
-    for li in reversed(lt.loops):  # Blender CCW -> keep CCW after axis swap (det +1), reversed() undone below
-        pass
-    for li in lt.loops:
-        vi = fm.loops[li].vertex_index; uv = tuple(round(c, 5) for c in uvl[li].uv)
-        k = (vi, uv)
-        if k not in key: key[k] = len(verts); verts.append(k)
-        idx.append(key[k])
-conv = lambda c: (c.x, c.z, -c.y)  # Blender Z-up -> three Y-up
-allp = [conv(F[f][0][vi]) for f in range(len(F)) for vi, _ in verts]
-mn = [min(p[i] for p in allp) for i in range(3)]; mx = [max(p[i] for p in allp) for i in range(3)]; sz = [mx[i] - mn[i] for i in range(3)]
-nv = len(verts); buf = bytearray()
-for vi, uv in verts: buf += struct.pack('<ff', uv[0], 1 - uv[1])
-uv_bytes = len(buf)
-for i in idx: buf += struct.pack('<H', i)
-while len(buf) % 4: buf += b'\0'
-pos_off = len(buf)
-for f in range(len(F)):
-    for vi, _ in verts:
-        p = conv(F[f][0][vi]); buf += struct.pack('<hhh', *[int(round((p[i] - mn[i]) / sz[i] * 65535 - 32768)) for i in range(3)])
-nrm_off = len(buf)
-for f in range(len(F)):
-    for vi, _ in verts:
-        n = conv(F[f][1][vi]); buf += struct.pack('<bbb', *[max(-127, min(127, int(round(c * 127)))) for c in n])
-open(os.path.join(OUT, MID + '.far.bin'), 'wb').write(bytes(buf))
+arm_ob.animation_data.use_nla = True
 if base_img:
     fi = base_img.copy(); fi.scale(256, 256); fi.filepath_raw = os.path.join(OUT, MID + '.far.webp'); fi.file_format = 'WEBP'; fi.save()
-meta = {'id': MID, 'verts': nv, 'indices': len(idx), 'frames': len(F), 'walkFrames': FAR_FRAMES, 'idleFrame': FAR_FRAMES,
-        'uvOffset': 0, 'idxOffset': uv_bytes, 'posOffset': pos_off, 'nrmOffset': nrm_off, 'min': mn, 'size': sz,
-        'tris': len(idx) // 3, 'nearTris': tris(ob), 'sourceTris': src_tris, 'height': H, 'unweightedFixed': unweighted, 'limbWeightsCleaned': cleaned, 'legSideFixed': side_fixed, 'legWebFacesCut': webs_cut, 'armsOutRest': sorted(ARMS_OUT),
-        'walkCycleSec': WALK_FRAMES / 24, 'strideMetersPerCycle': 1.4 * H / 1.75}
-json.dump(meta, open(os.path.join(OUT, MID + '.far.json'), 'w'), indent=1)
+meta = {'id': MID, 'walkFrames': FAR_FRAMES, 'idleFrame': FAR_FRAMES,
+        'nearTris': tris(ob), 'sourceTris': src_tris, 'height': H, 'unweightedFixed': unweighted, 'limbWeightsCleaned': cleaned, 'legSideFixed': side_fixed, 'legWebFacesCut': webs_cut, 'armsOutRest': sorted(ARMS_OUT),
+        'walkCycleSec': WALK_FRAMES / 24, 'strideMetersPerCycle': stride_for(H, MID)}
+write_vat(Path(OUT) / (MID + '.far.json'), far.data, F, meta)
 bpy.data.objects.remove(far)
 
 # ---- near LOD export
@@ -301,10 +271,11 @@ if QA:
     scn.render.resolution_x, scn.render.resolution_y = 360, 480
     bpy.ops.object.camera_add(); cam = bpy.context.object; scn.camera = cam; cam.data.type = 'ORTHO'; cam.data.ortho_scale = H * 1.15
     w = bpy.data.worlds.new('w'); scn.world = w
+    arm_ob.animation_data.use_nla = False
     for tag, act, fr, loc, rot in [('front_rest', None, 0, (0, -6, H / 2), (90, 0, 0)), ('side_walk0', A_walk, 0, (6, 0, H / 2), (90, 0, 90)),
                                    ('side_walk6', A_walk, 6, (6, 0, H / 2), (90, 0, 90)), ('front_walk6', A_walk, 6, (0, -6, H / 2), (90, 0, 0))]:
         arm_ob.animation_data.action = act; scn.frame_set(fr)
         if act is None:
-            for pb in arm_ob.pose.bones: pb.rotation_euler = (0, 0, 0); pb.location = (0, 0, 0)
+            for pb in arm_ob.pose.bones: pb.matrix_basis = Matrix.Identity(4)
         cam.location = loc; cam.rotation_euler = tuple(math.radians(r) for r in rot)
         scn.render.filepath = os.path.join(QA, f'{MID}_{tag}.png'); bpy.ops.render.render(write_still=True)

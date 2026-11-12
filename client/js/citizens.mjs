@@ -13,6 +13,7 @@ import { validateCitizen, activeEntry, resolvePlace, pickNear, budgetFor } from 
 
 const Q = new URLSearchParams(location.search);
 const ASSETS = new URL('../assets/citizens/', import.meta.url), DATA = new URL('../data/citizens/', import.meta.url);
+const gaitAsset = file => new URL(file + '?gait=2', ASSETS);
 const CC = window.__cityCitizens = { ready: false, stats: {} };
 
 function farMaterial(meta, tex, vatP, vatN) {
@@ -20,11 +21,12 @@ function farMaterial(meta, tex, vatP, vatN) {
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, { vatP: { value: vatP }, vatN: { value: vatN } });
     sh.vertexShader = `attribute float vid;\nattribute vec2 aAnim;\nuniform sampler2D vatP;\nuniform sampler2D vatN;\n` + sh.vertexShader
-      .replace('#include <beginnormal_vertex>', `float vatF = aAnim.y > .5 ? ${meta.idleFrame}.0 : fract(aAnim.x) * ${meta.walkFrames}.0;
-float vf0 = floor(vatF), vft = vatF - vf0, vf1 = aAnim.y > .5 ? vf0 : mod(vf0 + 1.0, ${meta.walkFrames}.0);
+      .replace('#include <beginnormal_vertex>', `float vatF = fract(aAnim.x) * ${meta.walkFrames}.0;
+float vf0 = floor(vatF), vft = vatF - vf0, vf1 = mod(vf0 + 1.0, ${meta.walkFrames}.0);
 vec2 vu0 = vec2((vid + .5) / ${meta.verts}.0, (vf0 + .5) / ${meta.frames}.0), vu1 = vec2(vu0.x, (vf1 + .5) / ${meta.frames}.0);
-vec3 objectNormal = normalize(mix(texture2D(vatN, vu0).xyz, texture2D(vatN, vu1).xyz, vft));`)
-      .replace('#include <begin_vertex>', 'vec3 transformed = mix(texture2D(vatP, vu0).xyz, texture2D(vatP, vu1).xyz, vft);');
+vec2 vuIdle = vec2(vu0.x, (${meta.idleFrame}.0 + .5) / ${meta.frames}.0);
+vec3 objectNormal = normalize(mix(texture2D(vatN, vuIdle).xyz, mix(texture2D(vatN, vu0).xyz, texture2D(vatN, vu1).xyz, vft), aAnim.y));`)
+      .replace('#include <begin_vertex>', 'vec3 transformed = mix(texture2D(vatP, vuIdle).xyz, mix(texture2D(vatP, vu0).xyz, texture2D(vatP, vu1).xyz, vft), aAnim.y);');
   };
   m.customProgramCacheKey = () => 'vat-' + meta.id;
   return m;
@@ -32,8 +34,8 @@ vec3 objectNormal = normalize(mix(texture2D(vatN, vu0).xyz, texture2D(vatN, vu1)
 
 async function loadFar(m, cap) {
   const [meta, bin, tex] = await Promise.all([
-    fetch(new URL(m.id + '.far.json', ASSETS)).then(r => r.json()),
-    fetch(new URL(m.id + '.far.bin', ASSETS)).then(r => r.arrayBuffer()),
+    fetch(gaitAsset(m.id + '.far.json')).then(r => r.json()),
+    fetch(gaitAsset(m.id + '.far.bin')).then(r => r.arrayBuffer()),
     new THREE.TextureLoader().loadAsync(new URL(m.id + '.far.webp', ASSETS).href)]);
   tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace;
   const V = meta.verts, Fr = meta.frames;
@@ -56,7 +58,7 @@ async function loadFar(m, cap) {
   const mesh = new THREE.InstancedMesh(g, farMaterial(meta, tex, vatP, vatN), cap);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0; mesh.name = 'citizens-far-' + m.id;
   mesh.setColorAt(0, new THREE.Color(1, 1, 1));
-  return { meta, mesh, anim, stride: meta.strideMetersPerCycle / meta.walkCycleSec };
+  return { meta, mesh, anim, stride: meta.strideMetersPerCycle };
 }
 
 async function init() {
@@ -79,14 +81,14 @@ async function init() {
   const agents = [], rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
   const tint = i => new THREE.Color().setHSL(rnd(i, 3) * .1, .06 + rnd(i, 4) * .1, .5).multiplyScalar(1.6 + rnd(i, 5) * .35);
   // even mix: crowd member k uses model k mod N
-  const add = (src, i, k) => agents.push({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, sp: 0, ph: rnd(k, 2), lx: NaN, lz: NaN, hidden: true });
+  const add = (src, i, k) => agents.push({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, walkWeight: 0, ph: rnd(k, 2), hidden: true });
   let k = 0;
   if (peds) for (let i = 0; i < peds.count; i++) add(peds, i, k++);
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
   const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
   for (const s of named) {
     const p = resolvePlace(activeEntry(s.schedule, nowMin()).place, world()) || { x: 0, z: 52 };
-    agents.push({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, sp: 0, ph: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 });
+    agents.push({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, walkWeight: 0, ph: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 });
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
   if (peds) peds.visible = false; if (shop) shop.visible = false;
@@ -94,7 +96,7 @@ async function init() {
   // Phones get 512 px textures (<id>-tex-512/) instead of 1024 px.
   const lm = new THREE.LoadingManager(); if (c.MOBILE || c.TIER === 'low') lm.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
   const gl = new GLTFLoader(lm), NEAR = {}, loading = {};
-  const want = model => { if (!loading[model]) loading[model] = gl.loadAsync(new URL(model + '.gltf', ASSETS).href).then(g => { NEAR[model] = g; }).catch(e => { NEAR[model] = null; console.warn('citizens near', model, e); }); };
+  const want = model => { if (!loading[model]) loading[model] = gl.loadAsync(gaitAsset(model + '.gltf').href).then(g => { NEAR[model] = g; }).catch(e => { NEAR[model] = null; console.warn('citizens near', model, e); }); };
   const slots = [];
   const getSlot = model => {
     let s = slots.find(o => !o.agent && o.model === model); if (s) return s;
@@ -102,7 +104,7 @@ async function init() {
     if (!NEAR[model]) { want(model); return null; }   // far LOD keeps drawing them until the near model has loaded
     const g = NEAR[model], root = SkeletonUtils.clone(g.scene); root.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
     const mixer = new THREE.AnimationMixer(root), clip = n => g.animations.find(a => a.name === n) || g.animations[0];
-    const walk = mixer.clipAction(clip('Walk')), idle = mixer.clipAction(clip('Idle')); walk.play(); idle.play(); idle.weight = 0;
+    const walk = mixer.clipAction(clip('Walk')), idle = mixer.clipAction(clip('Idle')); walk.play(); walk.paused = true; idle.play();
     s = { model, root, mixer, walk, idle, agent: null }; root.visible = false; c.S.add(root); slots.push(s); return s;
   };
   // DOM name tags + dialogue for named citizens
@@ -116,10 +118,10 @@ async function init() {
   function stepNamed(a, dt, now) {
     const e = activeEntry(a.named.schedule, nowMin());
     if (a.place !== e.place) { a.place = e.place; a.entry = e; a.tgt = resolvePlace(e.place, world()); a.arrived = false; if (e.say) a.pending = e.say; }
-    if (!a.tgt || a.arrived) { a.sp = 0; return; }
+    if (!a.tgt || a.arrived) return;
     const dx = a.tgt.x - a.x, dz = a.tgt.z - a.z, d = Math.hypot(dx, dz);
-    if (d < 1.2) { a.arrived = true; a.sp = 0; return; }
-    const s = Math.min(d, 1.35 * dt); a.x += dx / d * s; a.z += dz / d * s; a.yaw = Math.atan2(dx, dz); a.sp = 1.35;
+    if (d < 1.2) { a.arrived = true; return; }
+    const s = Math.min(d, 1.35 * dt); a.x += dx / d * s; a.z += dz / d * s; a.yaw = Math.atan2(dx, dz);
     for (const o of c.colliders) { if (!o.r) continue; const ex = a.x - o.x, ez = a.z - o.z, mm = o.r + .5; if (Math.abs(ex) > mm || Math.abs(ez) > mm) continue; const ee = Math.hypot(ex, ez); if (ee < mm) { a.x += ex / (ee || 1) * (mm - ee); a.z += ez / (ee || 1) * (mm - ee); } }
     if (now - a.last > 3000) { if (a.lp && Math.hypot(a.x - a.lp.x, a.z - a.lp.z) < .6) { a.x += (Math.random() - .5) * 4; a.z += (Math.random() - .5) * 4; a.stuck++; if (a.stuck > 6) { a.x = a.tgt.x; a.z = a.tgt.z; a.stuck = 0; } } a.lp = { x: a.x, z: a.z }; a.last = now; }
   }
@@ -129,23 +131,35 @@ async function init() {
     const cam = c.C; cam.updateMatrixWorld(); pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); fr.setFromProjectionMatrix(pm);
     const cx = cam.position.x, cz = cam.position.z;
     for (const a of agents) {
-      if (a.named) { stepNamed(a, dt, now); a.ph += a.sp * dt / FAR[a.model].stride; continue; }
-      const e = a.src.instanceMatrix.array, o = a.i * 16, sx = e[o] * e[o] + e[o + 1] * e[o + 1] + e[o + 2] * e[o + 2];
-      a.hidden = sx < 1e-6 || o >= e.length; if (a.hidden) { a.lx = NaN; continue; }
-      a.x = e[o + 12]; a.z = e[o + 14]; a.yaw = Math.atan2(e[o + 8], e[o + 10]);
-      const sp = Number.isNaN(a.lx) ? 1.3 : Math.hypot(a.x - a.lx, a.z - a.lz) / dt; a.sp += (Math.min(3, sp) - a.sp) * Math.min(1, dt * 6); a.lx = a.x; a.lz = a.z;
-      a.ph += a.sp * dt / FAR[a.model].stride;
+      const prevX = a.x, prevZ = a.z;
+      const wasHidden = a.hidden;
+      if (a.named) {
+        stepNamed(a, dt, now);
+      } else {
+        const e = a.src.instanceMatrix.array, o = a.i * 16;
+        a.hidden = o >= e.length || e[o] * e[o] + e[o + 1] * e[o + 1] + e[o + 2] * e[o + 2] < 1e-6;
+        if (a.hidden) { a.walkWeight = 0; continue; }
+        a.x = e[o + 12]; a.z = e[o + 14]; a.yaw = Math.atan2(e[o + 8], e[o + 10]);
+      }
+      const traveled = wasHidden ? 0 : Math.hypot(a.x - prevX, a.z - prevZ);
+      // Route corrections and shop teleports are not steps. A small tolerance
+      // allows for the crowd and renderer sampling on separate frame callbacks.
+      const distance = traveled <= .08 + 4 * dt ? traveled : 0;
+      a.ph = (a.ph + distance / FAR[a.model].stride) % 1;
+      a.walkWeight += ((distance > .15 * dt ? 1 : 0) - a.walkWeight) * (1 - Math.exp(-10 * dt));
     }
     if ((pickT -= dt) <= 0) {
       pickT = .25; const sel = new Set(pickNear(agents, cx, cz, B.near, B.nearR, vis));
       for (const s of slots) if (s.agent && !sel.has(agents.indexOf(s.agent))) { s.agent.slot = null; s.agent = null; s.root.visible = false; }
-      for (const i of sel) { const a = agents[i]; if (a.slot) continue; let s = null; try { s = getSlot(a.model); } catch (e) { CC.nearError = String(e && e.stack || e); } if (!s) continue; s.agent = a; a.slot = s; s.root.visible = true; s.walk.time = (a.ph % 1) * s.walk.getClip().duration; }
+      for (const i of sel) { const a = agents[i]; if (a.slot) continue; let s = null; try { s = getSlot(a.model); } catch (e) { CC.nearError = String(e && e.stack || e); } if (!s) continue; s.agent = a; a.slot = s; s.idle.reset().play(); }
       nearSet = slots.filter(s => s.agent).length;
     }
     for (const s of slots) if (s.agent) {
       const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.y = a.yaw;
-      const walking = a.sp > .15, w = s.walk.weight + ((walking ? 1 : 0) - s.walk.weight) * Math.min(1, dt * 5);
-      s.walk.setEffectiveWeight(w); s.idle.setEffectiveWeight(1 - w); s.walk.timeScale = walking ? a.sp / FAR[a.model].stride : 1; s.mixer.update(dt);
+      s.root.visible = !a.hidden;
+      if (a.hidden) continue;
+      s.walk.time = a.ph * s.walk.getClip().duration;
+      s.walk.setEffectiveWeight(a.walkWeight); s.idle.setEffectiveWeight(1 - a.walkWeight); s.mixer.update(dt);
     }
     for (const id in FAR) FAR[id].mesh.count = 0;
     let drawn = 0;
@@ -154,7 +168,7 @@ async function init() {
       const dx = a.x - cx, dz = a.z - cz; if (dx * dx + dz * dz > B.farR * B.farR || !vis(a)) continue;
       const F = FAR[a.model], n = F.mesh.count++;
       q.setFromAxisAngle(up, a.yaw); m4.compose(pv.set(a.x, 0, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
-      F.anim.array[n * 2] = a.ph; F.anim.array[n * 2 + 1] = a.sp > .15 ? 0 : 1; drawn++;
+      F.anim.array[n * 2] = a.ph; F.anim.array[n * 2 + 1] = a.walkWeight; drawn++;
     }
     for (const id in FAR) { const M = FAR[id].mesh; M.visible = M.count > 0; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }
     // named-citizen tags & dialogue

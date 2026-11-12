@@ -24,7 +24,7 @@ export function zombieRoomTheme(name='',index=0){
  if(index===0||/spawn bay/.test(s))return 'spawn';
  if(/corridor|service tunnel|steam gallery|conveyor hall/.test(s))return 'corridor';
  for(const [kind,re] of [
-  ['control',/control|command|operations/],['warehouse',/warehouse|stock|storage/],
+  ['control',/control|command|operations/],['warehouse',/warehouse|stock/],
   ['lab',/\blab\b|research|medical|surgical/],['furnace',/furnace|forge|kiln/],
   ['courtyard',/courtyard|yard/],['cold',/cold|freezer|refrigerat/],
   ['archive',/archive|record/],['slag',/slag|smelt/],

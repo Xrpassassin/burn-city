@@ -40,6 +40,7 @@ window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStora
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { mountDefaultPlayerAvatar } from '../js/default-player-avatar.mjs';
 import { ENEMIES } from './data.js';
 import * as S from './sys.js';
 import { advanceExperience } from './progression-core.mjs';
@@ -90,6 +91,8 @@ const foeVerb = e => e.boss ? 'crushes' : e.ranged ? 'blasts' : /rat|worm|maggot
 // ---------- three ----------
 const R = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); R.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2)); R.setSize(innerWidth, innerHeight); document.body.prepend(R.domElement);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 80); scene.add(cam);
+const playerBody = new THREE.Group(); playerBody.visible = false; scene.add(playerBody);
+const playerAvatar = mountDefaultPlayerAvatar(playerBody, { variant: 'firstPerson' });
 addEventListener('resize', () => { R.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 const torch = new THREE.PointLight(0xffb070, 46, 22, 1.4); cam.add(torch); torch.position.set(.3, .1, 0); const amb = new THREE.AmbientLight(0x6a5640, 1.1); scene.add(amb); const hemi = new THREE.HemisphereLight(0x8090b0, 0x201008, .25); scene.add(hemi);
 function stoneTex(base, dark, brick) { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'), b = new THREE.Color(base), d = new THREE.Color(dark);
@@ -289,6 +292,10 @@ function loop() { requestAnimationFrame(loop); const now = performance.now(), dt
   const sprint = (keys.ShiftLeft || keys.ShiftRight || Math.hypot(jv.x, jv.y) > .95) && player.st > 1 && ml > .1, sp = 4.2 * (sprint ? 1.6 : 1) * P.st.spd / 100;
   if (sprint) player.st -= 18 * dt; else player.st = Math.min(100, player.st + (player.sit ? 40 : 14) * dt);
   const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw); tryMove(player, (mx * cy + mz * sy) * sp * dt, (-mx * sy + mz * cy) * sp * dt); player.bob += ml * dt * (sprint ? 12 : 8);
+  playerBody.visible = playerAvatar.ready && !player.sit;
+  playerBody.rotation.y = player.yaw;
+  playerBody.position.set(player.x + Math.sin(player.yaw) * .2, 0, player.z + Math.cos(player.yaw) * .2);
+  playerAvatar.update(dt, ml > .05 ? 'Walk' : 'Idle');
   cam.position.set(player.x, (player.sit ? 1.05 : 1.62) + Math.sin(player.bob) * .045 * Math.min(1, ml), player.z); cam.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
   if (mouseDown) attack(); player.cd -= dt; player.inv -= dt;
   for (const k in player.cds) player.cds[k][0] -= dt;

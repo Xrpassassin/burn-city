@@ -1,6 +1,7 @@
 // Optional, licensed, locally bundled Homefront art upgrade adapter.
 // NOT a model downloader. No external URLs, collision, saves, network state,
 // payment logic or NPC AI. Existing visuals stay visible until a checked GLB loads.
+import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
 import * as THREE from './vendor/three.module.min.js';
 import {enabledCommunityArt} from './community-art-intake.mjs';
 let nftApi=null,nftApiPending=null;
@@ -203,6 +204,7 @@ export function createHomefrontCommunityArt({
  }
  function decorateExplorer(group,walker,{isLocal=false,nft=null,srv=''}={}){
   clearExplorer(group);
+  if (!NFT_PLAYER_AVATARS_ENABLED) return false;
   // NFT holders keep the City look: collection-tinted default walker plus a
   // floating real NFT art card. The licensed survivor is only for players
   // who have not selected an NFT. Eternal Grind is the sole exception and

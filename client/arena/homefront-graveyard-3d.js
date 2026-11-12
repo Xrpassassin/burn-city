@@ -37,9 +37,10 @@ import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
-import { buildWalker, poseWalker } from '../js/walker.js';
+import { buildPlayerWalker, buildWalker, poseWalker } from '../js/walker.js';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
 import {createHomefrontCommunityArt} from './homefront-community-art.mjs';
+import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
 import * as NftPick from '../js/nftpick.js';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
@@ -733,7 +734,7 @@ function boot(host) {
   // Local, credited GLBs replace visuals only after verified files are installed;
   // the default remains the shipped Homefront scene with no third-party fetches.
   void communityArt.load().then(async()=>{
-    try{await communityArt.preloadNftArt()}catch(e){}
+    if (NFT_PLAYER_AVATARS_ENABLED) { try{await communityArt.preloadNftArt()}catch(e){} }
     communityArt.attachWorld({landmarks:LANDMARKS,landmarkSetPieces,cityChunkAt,terrainElevation});
   });
   function pineVoiceObstructed(listener, source) {
@@ -1159,6 +1160,7 @@ function boot(host) {
       const object = group.children[group.children.length - 1];
       group.remove(object);
       object.traverse(node => {
+        node.userData?.defaultAvatar?.dispose();
         if (node.userData?.sharedAsset) return; // walker.js geometry/materials are shared by every avatar
         if (node.geometry) node.geometry.dispose();
         disposeMaterial(node.material);
@@ -1322,12 +1324,12 @@ function boot(host) {
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const isLocalPlayer = p.label === 'You';
       const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
-      const walker = buildWalker({ suit: bodyColor, accent: isLocalPlayer ? 0xffb45c : p.party ? 0x8fd4f4 : 0xc5aa8a, skin: 1, lite: LITE_AVATARS || !isLocalPlayer });
+      const walker = buildPlayerWalker({ suit: bodyColor, accent: isLocalPlayer ? 0xffb45c : p.party ? 0x8fd4f4 : 0xc5aa8a, skin: 1, lite: LITE_AVATARS || !isLocalPlayer });
       applyHomefrontFieldLook(THREE,walker,{lite:LITE_AVATARS || !isLocalPlayer});
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
-      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer,nft:isLocalPlayer?NftPick.current():null,srv:API});
+      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer,nft:NFT_PLAYER_AVATARS_ENABLED&&isLocalPlayer?NftPick.current():null,srv:API});
       if(isLocalPlayer) g.userData.publishLook=true;
       g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
@@ -2643,7 +2645,7 @@ function boot(host) {
     const blend = current + (desired - current) * (1 - Math.exp(-11 * dt));
     explorer.userData.crouchBlend = blend;
     explorer.scale.y = 1 - 0.23 * blend;
-    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000);
+    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000, isLocalPlayer && !!view.running?.());
     if (walker.userData.torso) walker.userData.torso.rotation.x -= 0.22 * blend;
     if (isLocalPlayer) {
       const jump = view.takeJump();

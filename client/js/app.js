@@ -3,7 +3,7 @@ import {mountEstatePurchase} from './estate-purchase-ui.mjs';
 import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
-import {buildWalker,poseWalker} from './walker.js';
+import {buildPlayerWalker,poseWalker} from './walker.js';
 import {MOTION,speedFor,turnToward,JETPACK,jetHorizontal,jetVertical} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
@@ -1349,7 +1349,7 @@ const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.max
 let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};let exploreCamDistance=6.5;const EXPLORE_CAM_MIN=2.5,EXPLORE_CAM_MAX=14;
 const P={pos:new THREE.Vector3(0,0,55),vel:new THREE.Vector3(),onGround:true,fp:false,spawned:0,district:'',walk:0,near:null};
 const me=new PlayerState();
-const avatar=(()=>{const g=buildWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
+const avatar=(()=>{const g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
  const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.add(thr);
  const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.035;g.add(ring);
  const pl=new THREE.PointLight(0x7ee0ff,0,6,2);S.add(pl);g.userData.pl=pl;g.visible=false;S.add(g);return g})();
@@ -1555,7 +1555,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    P.vel.y-=MOTION.gravity*dt;P.pos.y+=P.vel.y*dt;if(P.pos.y<=0){P.pos.y=0;P.vel.y=0;P.onGround=true;}else P.onGround=false;
   }
   island.tick(dt,f,s,run,desiredDelta);if(boardHeading!==null)avatar.rotation.y=boardHeading;
-  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000);}
+  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000,run);}
   avatar.position.copy(P.pos);avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;
  }
  if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run))return;
@@ -1573,7 +1573,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
- P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;const avatarTime=performance.now()/1000;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),avatarTime);if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(avatarTime,ml>.05,!!P.climb);
+ P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;const avatarTime=performance.now()/1000;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),avatarTime,run);if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(avatarTime,ml>.05,!!P.climb);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}
@@ -1882,7 +1882,7 @@ const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Pause
 window.__bcToast=(text,col)=>{const d=document.createElement('span');d.textContent=String(text);toast(d.innerHTML,col)};
 window.__walkTo=(x,z,face)=>{if(tlOn()||window.__estatesIslandLive?.active||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
 // Estates Island live public traversal: renderer + bridge + existing third-person frame loop.
-void installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C,buildWalker,poseWalker,getYaw:()=>yp.yaw,setYaw:y=>{yp.yaw=y;avatar.rotation.y=y},getMode:()=>mode,setMode,isInteractPressed:()=>Boolean(keys.KeyE),cityGate:ESTATE.islandEntrance,onStatus:event=>{if(event.state==='ready')window.__bcToast?.('Estates Island ready · public paths, permission-gated properties','#ffbd68');else if(event.state==='error')window.__bcToast?.('Estates Island could not load: '+event.message,'#ff7755')}}).catch(error=>{console.error('[Estates Island] live integration failed',error);window.__bcToast?.('Estates Island unavailable; see console for details','#ff7755')});
+void installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C,buildWalker:buildPlayerWalker,poseWalker,getYaw:()=>yp.yaw,setYaw:y=>{yp.yaw=y;avatar.rotation.y=y},getMode:()=>mode,setMode,isInteractPressed:()=>Boolean(keys.KeyE),cityGate:ESTATE.islandEntrance,onStatus:event=>{if(event.state==='ready')window.__bcToast?.('Estates Island ready · public paths, permission-gated properties','#ffbd68');else if(event.state==='error')window.__bcToast?.('Estates Island could not load: '+event.message,'#ff7755')}}).catch(error=>{console.error('[Estates Island] live integration failed',error);window.__bcToast?.('Estates Island unavailable; see console for details','#ff7755')});
 
 window.__launchBlacktide=()=>{if(document.body.classList.contains('wl-travel'))return false;try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='blacktide/';return true};
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');

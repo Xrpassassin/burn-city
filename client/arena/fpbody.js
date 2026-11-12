@@ -2,6 +2,7 @@
 // capsule torso + chest plate + belt, hip/knee/ankle legs with boots. Arms stay on the view-model gun (sleeves + gloves).
 // Phone-light: each rigid segment is merged into one vertex-coloured Lambert mesh -> 7 draws (torso, 2 thighs, 2 shins, 2 boots).
 import * as THREE from 'three';
+import { mountDefaultPlayerAvatar } from '../js/default-player-avatar.mjs';
 const SUIT = 0x24232a, PANEL = 0x15141a, BOOT = 0x0e0d10, TRIM = 0xc8901a;
 function merge(parts) { const pos = [], nor = [], col = [], C = new THREE.Color();
   for (const [geo, c, m] of parts) { if (m) geo.applyMatrix4(m); const n = geo.index ? geo.toNonIndexed() : geo; C.setHex(c);
@@ -20,14 +21,20 @@ export function createFPBody(scene, { low = false } = {}) {
     const ankle = new THREE.Group(); ankle.position.y = -.42; knee.add(ankle);
     ankle.add(new THREE.Mesh(merge([[new THREE.BoxGeometry(.11, .075, .26), BOOT, T(0, -.03, -.06)], [new THREE.BoxGeometry(.112, .012, .02), TRIM, T(0, -.04, -.19)], [new THREE.CylinderGeometry(.064, .064, .09, 10), BOOT, T(0, .02, 0)]]), mat));
     return { hip, knee, ankle }; });
+  const parts = [...g.children];
+  const avatar = !low && mountDefaultPlayerAvatar(g, {
+    variant: 'firstPerson',
+    fallback: visible => { for (const part of parts) part.visible = visible; }
+  });
   let walk = 0, bodyYaw = 0, lx = null, lz = 0, spd = 0;
   return {
     group: g,
     update(dt, me) { if (!me || low) { g.visible = false; lx = null; return; } g.visible = true;
       if (lx === null) { lx = me.x; lz = me.z; bodyYaw = me.yaw; } const d = Math.hypot(me.x - lx, me.z - lz); lx = me.x; lz = me.z; spd += ((d < 3 ? d / Math.max(dt, 1e-3) : 0) - spd) * Math.min(1, dt * 10);
+      avatar?.update?.(dt, spd > .5 ? 'Walk' : 'Idle');
       const amt = Math.min(1, spd / 6); walk += dt * spd * 3.1; const sw = Math.sin(walk), cw = Math.cos(walk), A = .5 * amt;   // stride follows real ground speed
       legs.forEach((l, i) => { const s = i ? -1 : 1; l.hip.rotation.x = s * sw * A; l.knee.rotation.x = -Math.max(0, -s * cw) * 1.05 * amt - .03; l.ankle.rotation.x = -s * sw * A * .35; });
       let dy = me.yaw - bodyYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); bodyYaw += dy * Math.min(1, dt * (spd > .3 ? 12 : 6));   // hips settle after turning
       const back = .2; g.position.set(me.x - Math.sin(bodyYaw) * back, (me.y || 0) + (me.down ? -0.6 : 0), me.z - Math.cos(bodyYaw) * back); g.rotation.set(0, bodyYaw + Math.PI, me.lean || 0); },   // rig front is -Z; arena forward is +Z
-    dispose() { scene.remove(g); g.traverse(o => o.geometry?.dispose()); mat.dispose(); } };
+    dispose() { avatar?.dispose?.(); scene.remove(g); g.traverse(o => o.geometry?.dispose()); mat.dispose(); } };
 }

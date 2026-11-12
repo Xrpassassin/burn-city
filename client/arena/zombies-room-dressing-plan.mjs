@@ -63,7 +63,7 @@ export function planZombiesRoomDressing(layout,{low=false}={}){
  for(const v of layout.windows||[])mark(v.c??Math.floor((v.x||0)/cell+gw/2),
   v.r??Math.floor((v.z||0)/cell+gh/2),1);
  const worldToCell=(x,z)=>[Math.floor(x/cell+gw/2),Math.floor(z/cell+gh/2)];
- for(const a of [...(layout.wallbuys||[]),...(layout.perks||[]),
+ for(const a of [...(layout.wallbuys||[]),...(Array.isArray(layout.perks)?layout.perks:Object.values(layout.perks||{})),
   ...(layout.forge?[layout.forge]:[]),...(layout.power?[layout.power]:[])]){
   if(!Number.isFinite(a?.x)||!Number.isFinite(a?.z))continue;
   mark(...worldToCell(a.x,a.z),2);

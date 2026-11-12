@@ -40,6 +40,7 @@ import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
 import {createHomefrontCommunityArt} from './homefront-community-art.mjs';
+import * as NftPick from '../js/nftpick.js';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
 
@@ -731,8 +732,10 @@ function boot(host) {
   }
   // Local, credited GLBs replace visuals only after verified files are installed;
   // the default remains the shipped Homefront scene with no third-party fetches.
-  void communityArt.load().then(()=>communityArt.attachWorld({landmarks:LANDMARKS,
-    landmarkSetPieces,cityChunkAt,terrainElevation}));
+  void communityArt.load().then(async()=>{
+    try{await communityArt.preloadNftArt()}catch(e){}
+    communityArt.attachWorld({landmarks:LANDMARKS,landmarkSetPieces,cityChunkAt,terrainElevation});
+  });
   function pineVoiceObstructed(listener, source) {
     if (!inPineCrossing(listener[0], listener[2], 4)) return false;
     voiceRay.origin.fromArray(listener);
@@ -1324,7 +1327,8 @@ function boot(host) {
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
-      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer});
+      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer,nft:isLocalPlayer?NftPick.current():null,srv:API});
+      if(isLocalPlayer) g.userData.publishLook=true;
       g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
       const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
@@ -1368,6 +1372,16 @@ function boot(host) {
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       if (wantsContinuous && isLocalPlayer) name.visible = false;
       playerGroup.add(g);
+    }
+    if(/[?&]debug=1/.test(location.search)){
+      const local=[...playerGroup.children].find(node=>node.userData?.isLocalPlayer||node.userData?.publishLook);
+      window.__hfLook={
+        scene:'graveyard',
+        nft:!!local?.userData?.nftCharacter,
+        survivor:!!local?.userData?.communityActor,
+        walkerVisible:!!local?.userData?.walker?.visible,
+        card:!!local?.userData?.nftCharacter?.userData?.card
+      };
     }
     // One server-positioned helper per visible account, never a PVP target.
     // Existing world rebuilds, walkers and animation loop are reused.
@@ -2636,7 +2650,7 @@ function boot(host) {
       stepVertical(localJump, dt, 0, jump && !crouched, EXPLORER_SCALE);
       walker.position.y = localJump.y;
     }
-    communityArt.animateExplorer(explorer,movingAvatar,dt,isLocalPlayer?localJump.y:0);
+    communityArt.animateExplorer(explorer,movingAvatar,dt,isLocalPlayer?localJump.y:0, isLocalPlayer&&!!view.running?.());
   }
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery

@@ -28,7 +28,23 @@ for(const spec of COMMUNITY_ART){
   assert.equal(spec.sha256,null,'unapproved downloads must not carry false hashes');
  }
 }
-assert.deepEqual(enabledCommunityArt('homefront').map(x=>x.id),['street-props-pack'],'only the actually vendored street GLB is enabled');
+assert.deepEqual(enabledCommunityArt('homefront').map(x=>x.id),
+ ['homefront-male-survivor','street-props-pack'],
+ 'temporary artist-licensed hero and actual vendored street GLB must be verified');
+const heroProof=JSON.parse(readFileSync(new URL('./assets/community/homefront-survivor-verified.json',import.meta.url),'utf8'));
+assert.equal(heroProof.creator,'codersan');
+assert.equal(heroProof.triangles,10000);
+assert.equal(heroProof.sourceArchiveSha256,'f8c7d876b2386a5ad08d2fb1ca168906e3c342a31f6724f36ccb140d0d3e299a');
+assert.equal(heroProof.sha256,communityArtById('homefront-male-survivor').sha256);
+assert.match(heroProof.motionSource,/Original/);
+const heroBytes=readFileSync(new URL('./assets/community/homefront-male-survivor.glb',import.meta.url));
+const heroDoc=JSON.parse(heroBytes.toString('utf8',20,20+heroBytes.readUInt32LE(12)));
+assert.equal(heroDoc.skins.length,1);
+assert.equal(heroDoc.images.length,1);
+for(const action of ['Idle','Idle2','Idle3','Walk','Run','Jump'])
+ assert(heroDoc.animations.some(a=>a.name===action),'temporary hero must have real '+action+' animation');
+assert(heroDoc.animations.find(a=>a.name==='Run').channels.length>=10);
+assert(heroDoc.animations.find(a=>a.name==='Walk').channels.length>=10);
 assert.equal(enabledCommunityArt('zombies').length,0,'original Zombies must keep its proven GLB trio');
 
 const streetManifest=JSON.parse(readFileSync(new URL('./assets/community/street-props-acquisition.json',import.meta.url),'utf8'));
@@ -173,7 +189,24 @@ const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'ut
 assert(pilot.includes('zombieSpecialModelForType')&&pilot.includes('createZombieInstancedLOD'));
 assert(!pilot.includes("from './homefront-community-art.mjs'"),'original Zombies must not import Homefront artwork');
 const world=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),'utf8');
+const refuge=readFileSync(new URL('./homefront.html',import.meta.url),'utf8');
 assert(world.includes('communityArt.decorateExplorer'));
 assert(world.includes('communityArt.animateExplorer'));
 assert(world.includes('communityArt.clearActors'));
-console.log('Community model intake passed: 6 sources, one real imported/staged street GLB verified, 6 matching real prop classes, missing-asset fallbacks, original Zombies mode isolation');
+assert(world.includes('nft:isLocalPlayer?NftPick.current():null'),
+ 'Graveyard must keep the selected NFT look instead of the licensed survivor');
+assert(refuge.includes('communityArt.decorateExplorer'));
+assert(refuge.includes('communityArt.animateExplorer'));
+assert(refuge.includes('NftPick.current()'),
+ 'Refuge must reuse the City NFT picker for the local player');
+assert(refuge.includes('homefront-credits.html'),'Refuge surfaces the in-game credits list');
+const credits=readFileSync(new URL('./homefront-credits.html',import.meta.url),'utf8');
+assert(credits.includes('codersan'));
+assert(credits.includes('https://sketchfab.com/3d-models/3d-zombie-apocalypse-survivor-male-character-f56ffc64d18c40cf95d17559542ca44c'));
+assert(credits.includes('https://creativecommons.org/licenses/by/4.0/'));
+assert(credits.includes('CC BY 4.0'));
+const lobby=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+assert(lobby.includes('homefront-credits.html'),'arena lobby links the Homefront credits list');
+assert(!existsSync(new URL('../../.github/workflows/homefront-survivor-pilot-vendor.yml',import.meta.url)),
+ 'branch-only vendor workflow must not remain after the asset is staged');
+console.log('Community model intake passed: 6 sources, licensed hero GLB with original Walk/Run/Jump, 1 credited street pack, Refuge+NFT wiring, credits, missing-asset fallbacks and Zombies isolation');

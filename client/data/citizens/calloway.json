@@ -1,0 +1,16 @@
+{
+  "schema": "burn-city-citizen/1",
+  "id": "calloway",
+  "name": "Mr. Calloway",
+  "modelId": "exec-navy",
+  "personality": "Placeholder. Downtown executive with a tight calendar. Polite, brisk, always on his way somewhere.",
+  "schedule": [
+    { "time": "07:30", "place": "shop:coffee", "activity": "Picking up an espresso" },
+    { "time": "08:30", "place": "tower:BURN", "activity": "Morning meetings" },
+    { "time": "12:30", "place": "shop:mart", "activity": "Quick lunch" },
+    { "time": "13:30", "place": "police", "activity": "Dropping off paperwork at the precinct" },
+    { "time": "15:00", "place": "tower:BURN", "activity": "Afternoon meetings" },
+    { "time": "19:00", "place": "spawn", "activity": "Heading home" }
+  ],
+  "dialogue": ["Can't stop, I'm late for a meeting.", "Busy day in the city.", "Good evening."]
+}

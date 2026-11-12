@@ -1,0 +1,33 @@
+{
+ "id": "casual-m-b",
+ "verts": 2028,
+ "indices": 3597,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 16224,
+ "posOffset": 23420,
+ "nrmOffset": 230276,
+ "min": [
+  -0.3085063099861145,
+  -0.056205134838819504,
+  -0.6530900597572327
+ ],
+ "size": [
+  0.5818667113780975,
+  1.8380185179412365,
+  1.100140929222107
+ ],
+ "tris": 1199,
+ "nearTris": 8993,
+ "sourceTris": 239924,
+ "height": 1.78,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 1674,
+ "legSideFixed": 109,
+ "legWebFacesCut": 7,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.424
+}

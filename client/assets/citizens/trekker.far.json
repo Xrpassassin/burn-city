@@ -1,0 +1,33 @@
+{
+ "id": "trekker",
+ "verts": 1928,
+ "indices": 3597,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 15424,
+ "posOffset": 22620,
+ "nrmOffset": 219276,
+ "min": [
+  -0.2795386016368866,
+  -0.12659156322479248,
+  -0.8123539090156555
+ ],
+ "size": [
+  0.6272691488265991,
+  1.9196780920028687,
+  1.5154640674591064
+ ],
+ "tris": 1199,
+ "nearTris": 8999,
+ "sourceTris": 314265,
+ "height": 1.79,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 1220,
+ "legSideFixed": 105,
+ "legWebFacesCut": 0,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.432
+}

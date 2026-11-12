@@ -1,0 +1,33 @@
+{
+ "id": "blonde-black",
+ "verts": 1999,
+ "indices": 3600,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 15992,
+ "posOffset": 23192,
+ "nrmOffset": 227090,
+ "min": [
+  -0.3983105421066284,
+  -0.04098200052976608,
+  -0.5249032974243164
+ ],
+ "size": [
+  0.6386666297912598,
+  1.7419820949435234,
+  0.8620899319648743
+ ],
+ "tris": 1200,
+ "nearTris": 9000,
+ "sourceTris": 315576,
+ "height": 1.69,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 3015,
+ "legSideFixed": 44,
+ "legWebFacesCut": 0,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.3519999999999999
+}

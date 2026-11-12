@@ -82,7 +82,7 @@ panel.innerHTML = `
     <button class="bc-mg-entry" type="button" data-game="wilds"><span class="bc-mg-icon">🌲</span><span><strong>The Wilds</strong><small>Takes you to the forest gate north of town · on foot only inside</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="city"><span class="bc-mg-icon">🔥</span><span><strong>BURN City</strong><small>Return to the live 3D city world</small></span></button>
    </div>
-   <p class="bc-mg-foot">This menu is the complete directory for travel and play.</p>
+   <p class="bc-mg-foot">This menu is the complete directory for travel and play. <a href="city-credits.html" target="_blank" rel="noopener" style="color:#ffbd84">City artists &amp; licenses</a></p>
   </section>
  </section>`;
 const bar=document.getElementById('btns');

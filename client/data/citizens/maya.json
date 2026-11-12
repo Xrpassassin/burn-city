@@ -1,0 +1,15 @@
+{
+  "schema": "burn-city-citizen/1",
+  "id": "maya",
+  "name": "Maya",
+  "modelId": "casual-w",
+  "personality": "Placeholder. Early riser who runs the morning rush at Hot Beans. Warm, quick, knows every regular by name.",
+  "schedule": [
+    { "time": "06:30", "place": "shop:coffee", "activity": "Opening Hot Beans", "say": "Doors open, coffee's on!" },
+    { "time": "11:30", "place": "shop:mart", "activity": "Restocking supplies" },
+    { "time": "13:00", "place": "shop:coffee", "activity": "Afternoon shift" },
+    { "time": "18:00", "place": "shop:arcade", "activity": "Unwinding at the arcade" },
+    { "time": "21:30", "place": "spawn", "activity": "Heading home" }
+  ],
+  "dialogue": ["Morning! First cup's the best one.", "Have you seen the BURN tower glow tonight?", "Hot Beans never closes early."]
+}

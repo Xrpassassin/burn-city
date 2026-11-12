@@ -1,0 +1,36 @@
+{
+ "id": "gothic-elegance",
+ "verts": 2072,
+ "indices": 3600,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 16576,
+ "posOffset": 23776,
+ "nrmOffset": 235120,
+ "min": [
+  -0.3085663318634033,
+  -0.016556227579712868,
+  -0.4296092391014099
+ ],
+ "size": [
+  0.6202487945556641,
+  1.722018564119935,
+  0.7636021673679352
+ ],
+ "tris": 1200,
+ "nearTris": 9000,
+ "sourceTris": 228505,
+ "height": 1.7,
+ "unweightedFixed": 4470,
+ "limbWeightsCleaned": 73,
+ "legSideFixed": 0,
+ "legWebFacesCut": 0,
+ "armsOutRest": [
+  "L",
+  "R"
+ ],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.3599999999999999
+}

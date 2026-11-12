@@ -1,0 +1,33 @@
+{
+ "id": "elegance-black-b",
+ "verts": 2027,
+ "indices": 3600,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 16216,
+ "posOffset": 23416,
+ "nrmOffset": 230170,
+ "min": [
+  -0.24367864429950714,
+  -0.02327626384794712,
+  -0.5077589750289917
+ ],
+ "size": [
+  0.48596587777137756,
+  1.7102128807455301,
+  0.955908477306366
+ ],
+ "tris": 1200,
+ "nearTris": 8992,
+ "sourceTris": 214098,
+ "height": 1.68,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 1543,
+ "legSideFixed": 188,
+ "legWebFacesCut": 8,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.3439999999999999
+}

@@ -376,6 +376,7 @@ function build() {
   if (shopIM) { shopIM.frustumCulled = false; grp.add(shopIM); for (let i = 0; i < NSH; i++) { shopIM.setColorAt(i, new THREE.Color(SHIRT[i % SHIRT.length])); shoppers.push({ x: 0, z: 0, state: 'walk', tgt: null, t: 0, ph: i * 1.3, sp: 1.1 + hsh(i, 7) * .5, inside: 0 }); } shopIM.instanceColor.needsUpdate = true; }
   const sidewalk = (f, k) => { const sp = L.shops[k ?? ((Math.random() * L.shops.length) | 0)]; const m = Math.max(2, Math.min(sp.len - 2, sp.m + (f - .5) * 44)), p = streetAt(sp.s, m / sp.len), rx = -p.tz * sp.side, rz = p.tx * sp.side; return { x: p.x + rx * 4.3, z: p.z + rz * 4.3 }; };
   shoppers.forEach((sh, i) => { const k = i % Math.max(1, L.shops.length), p = sidewalk(hsh(i, 2), k); sh.x = p.x; sh.z = p.z; sh.home = k; sh.tgt = i % 2 ? sidewalk(hsh(i, 5), k) : { x: L.shops[k].door.x - Math.sin(L.shops[k].yaw) * 2.2, z: L.shops[k].door.z - Math.cos(L.shops[k].yaw) * 2.2 }; if (!(i % 2)) { sh.state = 'toShop'; sh.shop = k; } });
+  L.shopperMesh = shopIM; L.spawn = spawn;
   L.shoppersInside = () => shoppers.filter(s => s.state === 'inside').length;
   L.shopperStates = () => shoppers.reduce((o, s) => (o[s.state] = (o[s.state] || 0) + 1, o), {});
   function updShoppers(dt, t) {

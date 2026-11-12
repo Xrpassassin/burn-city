@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { addRefineryEnv, woodTex } from './codenv.js';
 import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
+import {addZombiesRuinedArchitecture} from './zombies-ruined-architecture.mjs';
 import {zombieWallFireDecision} from './zombies-room-dressing-plan.mjs';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
@@ -151,6 +152,9 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // seeded wall-mounted dressing works for handcrafted and random layouts,
   // but never changes the server grid, collision, zombie spawns or exits.
   const roomDressing=addZombiesRoomDressing(root,L,{low,g,basic});
+  // Broken wall-anchored roof panels, cable runs and actual-boardable-window
+  // glass. Reuses original geometry/material pools and CC0 scan. Cosmetic only.
+  const ruinedArchitecture=addZombiesRuinedArchitecture(root,L,{low,g,basic});
   // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
   if (L.kind === 'cosmodrome') {
     const launch = new THREE.Group();
@@ -423,6 +427,9 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   let t = 0;
   return {
     zombieRoomDressing:()=>({sites:roomDressing.sites.length,drawCalls:roomDressing.drawCalls,instances:roomDressing.instances||0}),
+    zombieRuins:()=>({clusters:ruinedArchitecture.clusters.length,
+      windows:ruinedArchitecture.windows.length,drawCalls:ruinedArchitecture.drawCalls,
+      instances:ruinedArchitecture.instances,dust:ruinedArchitecture.motes}),
     wname,
     forged(tier = 1) { forgeFlash = 1.5; forgeTier = tier === 2 ? 2 : 1; },
     enemyShot(e) { if (!e || enemyTracers.length >= (low ? 6 : 14)) return; const geo = g(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, e.y + 1.2, e.z), new THREE.Vector3(e.tx, e.ty, e.tz)])), mat = new THREE.LineBasicMaterial({ color: 0xd66bff, transparent: true, opacity: 0.9, depthWrite: false }); const line = new THREE.Line(geo, mat); root.add(line); enemyTracers.push({ line, left: 0.14 }); } ,
@@ -480,6 +487,6 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },
-    dispose() { for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
+    dispose() { ruinedArchitecture.dispose(); for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
   };
 }

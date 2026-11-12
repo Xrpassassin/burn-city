@@ -4,6 +4,7 @@ on:
     paths:
       - 'client/arena/cod.js'
       - 'client/arena/zombies-room-dressing*.mjs'
+      - 'client/arena/zombies-ruined-architecture*.mjs'
       - 'server/mapgen.js'
       - 'server/cod.js'
       - 'scripts/zombies-map-environment-browser-preview.mjs'
@@ -26,9 +27,14 @@ jobs:
           node --check client/arena/zombies-room-dressing-plan.mjs
           node --check client/arena/zombies-room-dressing.mjs
           node --check client/arena/zombies-room-dressing.test.mjs
+          node --check client/arena/zombies-ruined-architecture-plan.mjs
+          node --check client/arena/zombies-ruined-architecture.mjs
+          node --check client/arena/zombies-ruined-architecture.test.mjs
           node --check client/arena/cod.js
       - name: Test 80 independently generated maps and mobile batch budgets
-        run: node client/arena/zombies-room-dressing.test.mjs
+        run: |
+          node client/arena/zombies-room-dressing.test.mjs
+          node client/arena/zombies-ruined-architecture.test.mjs
       - name: Preserve original Zombies authoritative maps, progression, helicopter and combat
         run: |
           node test/zombie-map-progression-sim.js

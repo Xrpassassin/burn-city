@@ -68,13 +68,25 @@ try{
     camera.lookAt(preferred.x,2.12,preferred.z);
     renderer.render(scene,camera);
     const info=world.zombieRoomDressing();
+    const ruins=world.zombieRuins();
+    const slab=scene.getObjectByName('zombies-ruins-slab');
+    const glass=scene.getObjectByName('zombies-ruins-glass');
+    if(!slab||!slab.isInstancedMesh||!slab.material.map)
+      throw Error('Missing locally loaded CC0 scanned concrete on actual Zombies broken ceilings');
+    if(!ruins.clusters||ruins.drawCalls>6)
+      throw Error('Broken architecture failed WebGL scene instancing budget');
+    if(ruins.windows&&(!glass||!glass.material.transparent))
+      throw Error('Shattered glass must match actual boardable zombie windows');
     window.__zombieRoomPreview={renderer,scene,world,camera};
     return {name,map:layout.name,kind:layout.kind,theme:preferred.theme,
      drawCalls:renderer.info.render.calls,sites:info.sites,instances:info.instances,
-     batches:info.drawCalls,rendererBytes:renderer.domElement.width*renderer.domElement.height*4};
+     batches:info.drawCalls,ruins,cc0ScanUrl:slab.material.map.image?.src||null,
+     rendererBytes:renderer.domElement.width*renderer.domElement.height*4};
    },{name,layout,mobile:view.mobile});
    assert(report.sites>0&&report.batches<=5);
-   assert(report.drawCalls>0&&report.drawCalls<280,
+   assert(report.ruins.clusters>=1&&report.ruins.drawCalls<=6,
+    'genuine ruin geometry is present in screenshot for '+name+'/'+view.name);
+   assert(report.drawCalls>0&&report.drawCalls<292,
      'decorative scene should remain bounded for '+name+'/'+view.name);
    assert(report.instances>=report.sites*4,'rooms must have recognizable detail, not one flat panel');
    assert.equal(errors.length,0,errors.join(';'));

@@ -4,7 +4,8 @@ import {createHash} from 'node:crypto';
 import * as THREE from './vendor/three.module.min.js';
 import {COMMUNITY_ART,communityArtById,enabledCommunityArt,verifyCommunitySpec} from './community-art-intake.mjs';
 import {enabledZombieSpecials,zombieSpecialModelForType,zombieSpecialClipAliases,zombieSpecialModelHeight} from './zombie-special-art.mjs';
-import {createHomefrontCommunityArt,homefrontAssetQuality,communityPropNameMatches,HOMEFRONT_COMMUNITY_LANDMARKS,HOMEFRONT_COMMUNITY_PROP_SITES} from './homefront-community-art.mjs';
+import {createHomefrontCommunityArt,homefrontAssetQuality,communityPropNameMatches,HOMEFRONT_COMMUNITY_LANDMARKS,HOMEFRONT_COMMUNITY_PROP_SITES,HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES} from './homefront-community-art.mjs';
+import {inPineCrossing,pineRouteDistance,PINE_CROSSING_BUILDINGS,PINE_ROADSIDE_SITES} from './homefront-pine-crossing.mjs';
 
 assert.equal(COMMUNITY_ART.length,6,'all six explicitly selected community models have intake records');
 assert.equal(new Set(COMMUNITY_ART.map(a=>a.id)).size,6);
@@ -52,6 +53,24 @@ assert.equal(streetKinds.length,6,'six distinct street prop families are authore
 for(const kind of streetKinds)
  assert(communityPropNameMatches(kind,streetNodes),'actual bundled GLB must contain matched '+kind+' submesh');
 assert.equal(communityPropNameMatches('streetlight',['Completely Unrelated Mesh']),false);
+const pineStreetSites=HOMEFRONT_COMMUNITY_PROP_SITES.filter(site=>site.area==='pine-crossing');
+assert.equal(pineStreetSites.length,6,'all six licensed street prop families now appear beside Pine Crossing Main Street');
+assert.equal(new Set(pineStreetSites.map(site=>site.kind)).size,6);
+assert.equal(HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES.length,6,'phones retain six low-cost real street props');
+assert.equal(new Set(HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES.map(site=>site.kind)).size,6,
+ 'phones still see all six licensed prop families instead of only dumpsters');
+assert.equal(HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES.filter(site=>site.area==='pine-crossing').length,4,
+ 'mobile scenery must include the opening town and also the wider open world');
+for(const site of pineStreetSites){
+ assert(inPineCrossing(site.x,site.z),'town props must actually be inside Pine Crossing');
+ assert(pineRouteDistance(site.x,site.z)>1.2,'street dressing must not obstruct the paved road or trail: '+site.kind);
+ assert(PINE_CROSSING_BUILDINGS.every(building=>Math.hypot(site.x-building.x,site.z-building.z)>5.3),
+  'the general store and clinic entrance approach must remain clear: '+site.kind);
+ assert(PINE_ROADSIDE_SITES.every(solid=>
+   Math.abs(site.x-solid.x)>solid.halfX+1.1||Math.abs(site.z-solid.z)>solid.halfZ+1.1),
+  'real street models must not overlap existing authoritative solid obstacles: '+site.kind);
+}
+
 
 const pretend=[{...communityArtById('mutant-nurse'),installed:true,sha256:'a'.repeat(64)},
  {...communityArtById('living-flesh-blob'),installed:true,sha256:'b'.repeat(64)}];
@@ -127,7 +146,7 @@ const streetResult=streetAdapter.attachWorld({
 assert.deepEqual(streetResult,{replaced:0,props:6},'mobile places six distinct street prop types');
 assert.equal(roadside.children.length,6);
 for(const [i,visual] of roadside.children.entries()){
- const site=HOMEFRONT_COMMUNITY_PROP_SITES[i];
+ const site=HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES[i];
  const bounds=new THREE.Box3().setFromObject(visual,true);
  const center=bounds.getCenter(new THREE.Vector3());
  assert(Math.abs(center.x-site.x)<.05 && Math.abs(center.z-site.z)<.05,
@@ -137,6 +156,18 @@ for(const [i,visual] of roadside.children.entries()){
  assert(originalClone?.position.x>=25,'the original GLB node transform is preserved under a normalization wrapper');
 }
 
+const desktopAdapter=createHomefrontCommunityArt({
+ specs:[fakeStreetSpec],cloneModel:object=>object.clone(true),loader:fakeStreetLoader,mobile:false
+});
+await desktopAdapter.load();
+const allRoadside=new THREE.Group();
+const desktopResult=desktopAdapter.attachWorld({
+ landmarks:[],landmarkSetPieces:new Map(),
+ cityChunkAt(){return allRoadside},terrainElevation(){return 0}
+});
+assert.equal(desktopResult.props,HOMEFRONT_COMMUNITY_PROP_SITES.length,
+ 'desktop receives licensed urban and Pine Crossing street scenery without redundant model downloads');
+assert.equal(allRoadside.children.length,HOMEFRONT_COMMUNITY_PROP_SITES.length);
 assert(HOMEFRONT_COMMUNITY_LANDMARKS.length===2&&HOMEFRONT_COMMUNITY_PROP_SITES.length>=8);
 const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'utf8');
 assert(pilot.includes('zombieSpecialModelForType')&&pilot.includes('createZombieInstancedLOD'));

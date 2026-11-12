@@ -5,11 +5,23 @@ import * as THREE from './vendor/three.module.min.js';
 import {enabledCommunityArt} from './community-art-intake.mjs';
 
 const ROADSIDES=Object.freeze([
- // One of each recognizable street prop is visible on phones, too.
+ // Pine Crossing first: physically visible from the real Main Street and
+ // roadside approach, not scattered 60+ metres from the opening settlement.
+ // Only cosmetics; keep roads, doorways, clinic approach and authored solid
+ // roadside obstacles clear. These nodes share the existing 9.8 MB licensed
+ // street pack — no new model downloads or server collision rules.
+ {x:-51.4,z:-50.4,kind:'dumpster',area:'pine-crossing',mobile:true},
+ {x:-41.4,z:-36.7,kind:'bin',area:'pine-crossing',mobile:false},
+ {x:-30.3,z:-36.7,kind:'bench',area:'pine-crossing',mobile:true},
+ {x:-13.6,z:-35.8,kind:'barrier',area:'pine-crossing',mobile:false},
+ {x:-48.7,z:-36.6,kind:'streetlight',area:'pine-crossing',mobile:true},
+ {x:-53.0,z:-38.2,kind:'trashbag',area:'pine-crossing',mobile:true},
+ // Existing scattered world dressing stays on desktop. Two examples remain
+ // on phones so licensed props aren't confined to the starting settlement.
  {x:31.5,z:-26.3,kind:'dumpster'},
- {x:-66.5,z:17.5,kind:'bin'},
+ {x:-66.5,z:17.5,kind:'bin',mobile:true},
  {x:63.3,z:43.6,kind:'bench'},
- {x:71.2,z:-8.5,kind:'barrier'},
+ {x:71.2,z:-8.5,kind:'barrier',mobile:true},
  {x:-6.8,z:67.3,kind:'streetlight'},
  {x:-71.8,z:-17.4,kind:'trashbag'},
  {x:47.3,z:-62.5,kind:'dumpster'},
@@ -27,6 +39,7 @@ const targetLandmarks=Object.freeze([
  {archetype:'freight_depot',model:'abandoned-garage',width:5.8,height:3.1,depth:5}
 ]);
 export const HOMEFRONT_COMMUNITY_PROP_SITES=ROADSIDES;
+export const HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES=Object.freeze(ROADSIDES.filter(site=>site.mobile));
 export const HOMEFRONT_COMMUNITY_LANDMARKS=targetLandmarks;
 
 export function homefrontAssetQuality(gltf,spec){
@@ -140,8 +153,8 @@ export function createHomefrontCommunityArt({
   }
   const pack=models.get('street-props-pack');
   if(pack){
-   const limit=mobile?6:ROADSIDES.length;
-   for(const site of ROADSIDES.slice(0,limit)){
+   const sites=mobile?HOMEFRONT_COMMUNITY_MOBILE_PROP_SITES:ROADSIDES;
+   for(const site of sites){
     const node=chooseProp(pack.gltf,site.kind);
     if(!node)continue;
     const visual=fitToBox(node,{width:site.kind==='streetlight'?0.8:1.5,

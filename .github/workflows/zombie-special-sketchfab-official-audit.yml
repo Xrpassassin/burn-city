@@ -1,0 +1,50 @@
+name: Manual official Sketchfab Zombies special model source audit
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Creator-licensed original model to inspect (never automatically deploy)
+        required: true
+        type: choice
+        options: [nurse, blob]
+permissions:
+  contents: read
+jobs:
+  review-official-source:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify user-authorized official Sketchfab connection
+        env:
+          SKETCHFAB_OAUTH_TOKEN: ${{ secrets.SKETCHFAB_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$SKETCHFAB_OAUTH_TOKEN" ]; then
+            echo "::error::SKETCHFAB_OAUTH_TOKEN is not configured. Use an OAuth token from your own Sketchfab account for the documented Download API. No viewer ripping or guest bypass."
+            exit 1
+          fi
+          echo "::add-mask::$SKETCHFAB_OAUTH_TOKEN"
+      - name: Download only chosen original CC BY artwork through the OAuth Download API
+        env:
+          SKETCHFAB_OAUTH_TOKEN: ${{ secrets.SKETCHFAB_OAUTH_TOKEN }}
+        run: node scripts/acquire-official-zombies-sketchfab.mjs "${{ inputs.model }}"
+      - name: Install offline Blender model inspector
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends blender python3-numpy
+      - name: Validate archive paths and inspect animated/skinned artist glTF
+        run: blender -b --factory-startup -noaudio --python-exit-code 1 --python scripts/convert-official-zombies-sketchfab.py -- "${{ inputs.model }}"
+      - name: Keep the resulting verified source in REVIEW ONLY artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zombies-sketchfab-official-${{ inputs.model }}-REVIEW-ONLY
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            zombie-special-audit/${{ inputs.model }}/source-manifest.json
+            zombie-special-audit/${{ inputs.model }}/scene-review.json
+            zombie-special-audit/${{ inputs.model }}/${{ inputs.model }}-source-review.glb

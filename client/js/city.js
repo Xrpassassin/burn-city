@@ -147,7 +147,7 @@ let myNft=null;
 function applyMine(){const c=W(),av=c&&c.avatar;if(!av)return setTimeout(applyMine,800);const n=NftPick.current();
   if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children]};
   if(myNft){disposeNftChar(myNft);myNft=null}av.userData.nftCharacter=null;const o=av.userData.orig;
-  if(n){try{myNft=buildNftChar(n,{srv:SRV,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
+  if(n){try{myNft=buildNftChar(n,{srv:SRV,card:true,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
   o.kids.forEach(k=>k.visible=true);av.userData.legs=o.legs;av.userData.arms=o.arms}
 addEventListener('bc-nft',()=>{applyMine();if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'nft'}))});
 (function waitAv(){if(!window.__ready||!W())return setTimeout(waitAv,600);applyMine()})();

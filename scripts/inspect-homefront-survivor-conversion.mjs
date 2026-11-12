@@ -26,13 +26,22 @@ if((doc.images||[]).some(image=>image.uri&& !image.uri.startsWith('data:')))
 const clips=(doc.animations||[]).map(clip=>clip.name||'Unnamed');
 const locomotion=clips.some(name=>/walk|run/i.test(name));
 const textures=doc.images?.length||0;
+const idles=(doc.animations||[]).filter(clip=>/^Idle(?:2|3)?$/i.test(clip.name||''));
+if(textures<1||idles.length!==3)throw Error('Artist texture and all three real idle animation clips are required');
+for(const clip of idles){
+ const sampled=clip.samplers?.some(sampler=>{
+  const a=doc.accessors?.[sampler.input];
+  return a?.count>=10 && (a.max?.[0]??0)-(a.min?.[0]??0)>=0.5;
+ });
+ if(!sampled)throw Error('Author idle clip is not actually animated: '+clip.name);
+}
 const audit={
- status:locomotion&&textures?'REVIEW_REQUIRED_LOCOMOTION_FOUND':'REVIEW_REQUIRED_MISSING_LOCOMOTION_OR_TEXTURES',
+ status:locomotion?'READY_FOR_BROWSER_RIG_REVIEW':'REVIEW_REQUIRED_WALK_RUN',
  name,sha256:createHash('sha256').update(bytes).digest('hex'),
  bytes:bytes.length,vertices:(doc.accessors||[]).filter(a=>a.type==='VEC3').reduce((m,a)=>Math.max(m,a.count||0),0),
  triangles:Math.round(triangles),meshes:meshes.length,skins:doc.skins.length,
  materials:doc.materials?.length||0,images:textures,animations:clips,
- hasLocomotionClip:locomotion,
+ hasLocomotionClip:locomotion,authorIdleClips:idles.map(x=>x.name),
  note:'Provisional source conversion only; no production import. Inspect bind pose, animation playback and actual visible PBR textures in Three.js before setting installed:true.'
 };
 await writeFile(path.join(root,'glb-audit.json'),JSON.stringify(audit,null,2)+'\n');

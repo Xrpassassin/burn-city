@@ -1,0 +1,41 @@
+name: Original Zombies environmental map quality and procedural safety
+on:
+  pull_request:
+    paths:
+      - 'client/arena/cod.js'
+      - 'client/arena/zombies-room-dressing*.mjs'
+      - 'server/mapgen.js'
+      - 'server/cod.js'
+      - '.github/workflows/zombies-map-environment.yml'
+permissions:
+  contents: read
+jobs:
+  seeded-room-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check renderer and pure planner syntax
+        run: |
+          node --check client/arena/zombies-room-dressing-plan.mjs
+          node --check client/arena/zombies-room-dressing.mjs
+          node --check client/arena/zombies-room-dressing.test.mjs
+          node --check client/arena/cod.js
+      - name: Test 80 independently generated maps and mobile batch budgets
+        run: node client/arena/zombies-room-dressing.test.mjs
+      - name: Preserve original Zombies authoritative maps, progression, helicopter and combat
+        run: |
+          node test/zombie-map-progression-sim.js
+          node test/zombie-cosmodrome-sim.js
+          node test/zombie-helicopter-arrival-sim.js
+          node test/zombie-wave-director-sim.js
+      - name: Preserve existing original Zombies animated model/horde regressions
+        run: |
+          node client/arena/zombie-model-policy.test.mjs
+          node client/arena/zombie-model-pilot.test.mjs
+          node client/arena/zombie-sketchfab-cast.test.mjs

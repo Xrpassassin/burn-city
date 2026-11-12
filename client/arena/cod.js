@@ -3,6 +3,8 @@
 // beyond small canvas labels, so it stays cheap on phones and Safari.
 import * as THREE from 'three';
 import { addRefineryEnv, woodTex } from './codenv.js';
+import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
+import {zombieWallFireDecision} from './zombies-room-dressing-plan.mjs';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
   x.font = 'bold 40px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = color; x.shadowBlur = 14; x.fillStyle = color;
@@ -75,7 +77,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     const sg = g(new THREE.BufferGeometry()); sg.setAttribute('position', new THREE.Float32BufferAttribute(S.pos, 3)); sg.setAttribute('color', new THREE.Float32BufferAttribute(S.col, 3)); sg.setAttribute('uv', new THREE.Float32BufferAttribute(S.uv, 2));
     slabMat = basic(0xffffff, { vertexColors: true, map: TEX('floor'), side: THREE.DoubleSide }); root.add(new THREE.Mesh(sg, slabMat));
     const rg_ = g(new THREE.BufferGeometry()); rg_.setAttribute('position', new THREE.Float32BufferAttribute(RL.pos, 3)); rg_.setAttribute('color', new THREE.Float32BufferAttribute(RL.col, 3)); root.add(new THREE.Mesh(rg_, basic(0xffffff, { vertexColors: true, side: THREE.DoubleSide })));
-    const uz = L.zones[UP.zone]; if (uz) { upLabel = label(uz.n, uz.col, 512, low ? 7 : 9); const [c0, c1, r0, r1] = uz.r; upLabel.position.set((WX(c0) + WX(c1)) / 2, H2 + 1.4, (WZ(r0) + WZ(r1)) / 2); upLabel.material.opacity = 0.8; root.add(upLabel); }
+    const uz = L.zones[UP.zone]; if (uz) { upLabel = label(uz.n, uz.col, 512, low ? 5 : 6.8); const [c0, c1, r0, r1] = uz.r; upLabel.position.set((WX(c0) + WX(c1)) / 2, H2 + 1.4, (WZ(r0) + WZ(r1)) / 2); upLabel.material.opacity = 0.8; root.add(upLabel); }
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (UG[r][c] === -1) upFlame.add(r * GW + c); }
   // time of day + weather for procedural maps (classic map: env null, unchanged look)
   const ENV = L.env, LF = !ENV ? 1 : ENV.tod === 'day' ? 1.3 : ENV.tod === 'dusk' ? 0.95 : 0.62; wallMat.color.setScalar(LF);
@@ -83,10 +85,10 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // floors: one plane per room, tinted by the room's colour (dark until opened); glowing trim line along the top of every wall
   const floors = L.zones.map((z, i) => { if (z.lv) return null; const [c0, c1, r0, r1] = z.r, fw = (c1 - c0 + 1) * CELL, fh = (r1 - r0 + 1) * CELL, fgeo = new THREE.PlaneGeometry(fw, fh).rotateX(-Math.PI / 2), fu = fgeo.attributes.uv; for (let k = 0; k < fu.count; k++) fu.setXY(k, fu.getX(k) * fw / 6, fu.getY(k) * fh / 6); const m = new THREE.Mesh(g(fgeo), basic(0x101010, { map: TEX('floor') }));
     m.position.set((WX(c0) + WX(c1)) / 2, 0.01, (WZ(r0) + WZ(r1)) / 2); root.add(m); m.userData.c = new THREE.Color(z.col);
-    const t = label(z.n, z.col, 512, low ? 7 : 9), under = UP && ((UP.atrium && c0 >= UP.atrium[0] && c1 <= UP.atrium[1] && r0 >= UP.atrium[2] && r1 <= UP.atrium[3]) || [...UPZ].some(k => k !== UP.zone && L.zones[k] && L.zones[k].r.join() === z.r.join())); t.position.set(m.position.x, under ? H2 + 3.2 : H + 1.4, m.position.z); t.material.opacity = 0.8; root.add(t); return m; });
+    const t = label(z.n, z.col, 512, low ? 5 : 6.8), under = UP && ((UP.atrium && c0 >= UP.atrium[0] && c1 <= UP.atrium[1] && r0 >= UP.atrium[2] && r1 <= UP.atrium[3]) || [...UPZ].some(k => k !== UP.zone && L.zones[k] && L.zones[k].r.join() === z.r.join())); t.position.set(m.position.x, under ? H2 + 3.2 : H + 1.4, m.position.z); t.material.opacity = 0.8; root.add(t); return m; });
   const trim = []; for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { if (G[r][c] < 0) continue; const x = WX(c), z = WZ(r);   // light strip at 2.9 m on every wall face that borders floor
     for (const [dc, dr, ax, az, bx, bz] of [[1, 0, 1, -1, 1, 1], [-1, 0, -1, -1, -1, 1], [0, 1, -1, 1, 1, 1], [0, -1, -1, -1, 1, -1]]) { const n = G[r + dr]?.[c + dc]; if (n !== -1 || obstH.has((r + dr) * GW + c + dc)) continue; trim.push(x + ax * 0.98, 2.9, z + az * 0.98, x + bx * 0.98, 2.9, z + bz * 0.98); } }
-  const tg = g(new THREE.BufferGeometry()); tg.setAttribute('position', new THREE.Float32BufferAttribute(trim, 3)); const trimM = new THREE.LineBasicMaterial({ color: 0xff7a2a }); mats.push(trimM); root.add(new THREE.LineSegments(tg, trimM));
+  const tg = g(new THREE.BufferGeometry()); tg.setAttribute('position', new THREE.Float32BufferAttribute(trim, 3)); const trimM = new THREE.LineBasicMaterial({ color: 0x905532 }); mats.push(trimM); root.add(new THREE.LineSegments(tg, trimM));
   // furnace mouths: flickering emissive slabs (the hall's "light source")
   const furn = L.obst.filter(o => o[5] === 'furnace').map(([c0, c1, r0, r1]) => { const m = new THREE.Mesh(g(new THREE.BoxGeometry((c1 - c0 + 1) * CELL + 0.1, 0.5, (r1 - r0 + 1) * CELL + 0.1)), basic(0xff6a10)); m.position.set((WX(c0) + WX(c1)) / 2, 1.2, (WZ(r0) + WZ(r1)) / 2); root.add(m); return m; });
   // doors: glowing barricade bars across the doorway with a price tag
@@ -145,6 +147,10 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     frameM.setMatrixAt(i * 3 + 2, Mx.compose(Vp.set(w.x - (w.ax === 'x' ? 1.45 : 0), 1.9 + yo, w.z - (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3))); });
   if (!low) { plank.material.map = woodTex(); plank.material.needsUpdate = true; }
   const envTick = addRefineryEnv(root, L, { low, g, basic });   // High tier: AO, decals, pipes, lamps, barrels/crates, steam (codenv.js)
+  // Theme-aware industrial fixtures for the ORIGINAL Zombies game. The same
+  // seeded wall-mounted dressing works for handcrafted and random layouts,
+  // but never changes the server grid, collision, zombie spawns or exits.
+  const roomDressing=addZombiesRoomDressing(root,L,{low,g,basic});
   // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
   if (L.kind === 'cosmodrome') {
     const launch = new THREE.Group();
@@ -367,7 +373,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   const isWallC = (r, c) => r >= 0 && c >= 0 && r < GH && c < GW && G[r][c] === -1 && !obstH.has(r * GW + c) && !winCell.has(r * GW + c);
   const wallF = [], FMAX = low ? 220 : 520;
   for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { const zi = G[r][c]; if (zi < 0) continue;
-    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWallC(r + dr, c + dc) && wallF.length < FMAX) wallF.push({ x: WX(c) + dc * (CELL / 2 + 0.08), z: WZ(r) + dr * (CELL / 2 + 0.08), gx: WX(c) + dc * 0.2, gz: WZ(r) + dr * 0.2, zi, ph: Math.random() * 20, s: 0.8 + Math.random() * 0.5, h: upFlame.has((r + dr) * GW + c + dc) ? H2 : H }); }
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (isWallC(r + dr, c + dc) && wallF.length < FMAX && zombieWallFireDecision(L,zi,c,r,dc,dr)) wallF.push({ x: WX(c) + dc * (CELL / 2 + 0.08), z: WZ(r) + dr * (CELL / 2 + 0.08), gx: WX(c) + dc * 0.2, gz: WZ(r) + dr * 0.2, zi, ph: Math.random() * 20, s: 0.8 + Math.random() * 0.5, h: upFlame.has((r + dr) * GW + c + dc) ? H2 : H }); }
   const NF = Math.max(1, wallF.length), wfM = new THREE.InstancedMesh(g(new THREE.PlaneGeometry(1, 2).translate(0, 1, 0)), basic(0xffffff, { map: flameTex, transparent: true, blending: add, depthWrite: false, side: THREE.DoubleSide }), NF);
   const fglowM = new THREE.InstancedMesh(g(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), basic(0xffffff, { map: glowTex, transparent: true, blending: add, depthWrite: false }), NF);
   const fsrcM = new THREE.InstancedMesh(g(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), basic(0xffffff, { map: glowTex, transparent: true, blending: add, depthWrite: false }), NF);   // hot spot on the wall top itself
@@ -377,7 +383,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   function tickAtmos(dt, open) { for (let k = 0; k < SN; k++) { const si = k % stacks.length, s_ = stacks[si]; let a = sage[k] + dt * 0.06; if (a > 1) a -= 1; sage[k] = a; spos[k * 3] = s_[0] + a * 28 + Math.sin(a * 9 + k) * 2 * a; spos[k * 3 + 1] = s_[2] + a * 40; spos[k * 3 + 2] = s_[1] + a * 10 + Math.cos(a * 7 + k) * 2 * a; }
     if (SN) smG.attributes.position.needsUpdate = true; const bl = Math.sin(t * 3) > 0.6; blinkM.color.setHex(bl ? 0xff2010 : 0x300404);
     { const cq = scene.userData.camQ, yaw = cq ? FE.setFromQuaternion(cq, 'YXZ').y : 0; FQ.setFromEuler(FE.set(0, yaw, 0));
-      wallF.forEach((f, i) => { const on = (open >> f.zi) & 1, n = 0.75 + 0.25 * Math.sin(t * 9 + f.ph) * Math.sin(t * 5.3 + f.ph * 1.7), hgt = (on ? 1.0 : 0.28) * f.s * n;
+      wallF.forEach((f, i) => { const on = (open >> f.zi) & 1, n = 0.75 + 0.25 * Math.sin(t * 9 + f.ph) * Math.sin(t * 5.3 + f.ph * 1.7), hgt = (on ? 0.82 : 0.18) * f.s * n;
         FM.compose(FV.set(f.x, f.h - 0.05, f.z), FQ, FS.set((on ? 1.25 : 0.5) * f.s * (0.9 + 0.1 * n), hgt, 1)); wfM.setMatrixAt(i, FM);
         const k = on ? n * (1 + flash * 0.4) : 0.35; wfM.setColorAt(i, FC.setHex(on ? 0xffffff : 0xff6a20).multiplyScalar(k)); fsrcM.setColorAt(i, FC.setHex(0xff7a20).multiplyScalar(on ? 0.7 * n : 0.2));
         fglowM.setColorAt(i, FC2.setHex(0xff6a18).multiplyScalar(on ? (TOD === 'day' ? 0.16 : 0.3) * n : 0.03)); });
@@ -416,6 +422,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   const near = (me, x, z, r = 3, lv = 0) => Math.hypot(me.x - x, me.z - z) <= r && Math.abs((me.y || 0) - lv * UH) < 1.6;
   let t = 0;
   return {
+    zombieRoomDressing:()=>({sites:roomDressing.sites.length,drawCalls:roomDressing.drawCalls,instances:roomDressing.instances||0}),
     wname,
     forged(tier = 1) { forgeFlash = 1.5; forgeTier = tier === 2 ? 2 : 1; },
     enemyShot(e) { if (!e || enemyTracers.length >= (low ? 6 : 14)) return; const geo = g(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, e.y + 1.2, e.z), new THREE.Vector3(e.tx, e.ty, e.tz)])), mat = new THREE.LineBasicMaterial({ color: 0xd66bff, transparent: true, opacity: 0.9, depthWrite: false }); const line = new THREE.Line(geo, mat); root.add(line); enemyTracers.push({ line, left: 0.14 }); } ,
@@ -436,7 +443,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
         Q.setFromEuler(E.set(u * 9, u * 4, u * 6)); Mx.compose(Vp.set(w.x + ox / l * u * 4, 0.75 + f.k * 0.27 + u * 2 - u * u * 6 + (w.lv ? UH : 0), w.z + oz / l * u * 4), Q, Sc.set(w.ax === 'x' ? 2.8 : 0.08, 0.2, w.ax === 'x' ? 0.08 : 2.8)); plank.setMatrixAt(pi, Mx); plank.setColorAt(pi, PC[0]); pi++; }
       plank.count = pi;
       plank.instanceMatrix.needsUpdate = true; if (plank.instanceColor) plank.instanceColor.needsUpdate = true; if (!m) return; const [open, spot, st] = m;
-      if (slabMat) slabMat.color.setScalar((((open >> UP.zone) & 1) ? 1 : 0.45) * LF * (1 + flash * 1.5)); floors.forEach((f, i) => f && f.material.color.setHex(0x2a2320).lerp(f.userData.c, 0.18).multiplyScalar(((open >> i) & 1 ? 0.75 : 0.25) * LF * (1 + flash * 1.5)));
+      if (slabMat) slabMat.color.setScalar((((open >> UP.zone) & 1) ? 1 : 0.45) * LF * (1 + flash * 1.5)); floors.forEach((f, i) => f && f.material.color.setHex(0x2a2320).lerp(f.userData.c, 0.09).multiplyScalar(((open >> i) & 1 ? 0.75 : 0.25) * LF * (1 + flash * 1.5)));
       const pw = m[3] ?? 1; if (PW) { lever.rotation.x = pw ? -0.9 : 0.9; pwLight.material.color.setHex(pw ? 0x40ff70 : (Math.sin(t * 6) > 0 ? 0xff2a10 : 0x400804)); }
       for (const p of perks) { p.userData.strip.material.color.set(pw ? p.userData.col : '#222'); if (p.userData.h) p.userData.h.visible = !!pw; }
       for (const [k, f] of furn.entries()) f.material.color.setRGB(1, 0.35 + 0.15 * Math.sin(t * 9 + k * 2) + 0.1 * Math.sin(t * 23 + k), 0.05);

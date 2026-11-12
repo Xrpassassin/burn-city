@@ -1,0 +1,83 @@
+name: Original Zombies environmental map quality and procedural safety
+on:
+  pull_request:
+    paths:
+      - 'client/arena/cod.js'
+      - 'client/arena/zombies-room-dressing*.mjs'
+      - 'server/mapgen.js'
+      - 'server/cod.js'
+      - 'scripts/zombies-map-environment-browser-preview.mjs'
+      - '.github/workflows/zombies-map-environment.yml'
+permissions:
+  contents: read
+jobs:
+  seeded-room-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check renderer and pure planner syntax
+        run: |
+          node --check client/arena/zombies-room-dressing-plan.mjs
+          node --check client/arena/zombies-room-dressing.mjs
+          node --check client/arena/zombies-room-dressing.test.mjs
+          node --check client/arena/cod.js
+      - name: Test 80 independently generated maps and mobile batch budgets
+        run: node client/arena/zombies-room-dressing.test.mjs
+      - name: Preserve original Zombies authoritative maps, progression, helicopter and combat
+        run: |
+          node test/zombie-map-progression-sim.js
+          node test/zombie-cosmodrome-sim.js
+          node test/zombie-helicopter-arrival-sim.js
+          node test/zombie-wave-director-sim.js
+      - name: Preserve existing original Zombies animated model/horde regressions
+        run: |
+          node client/arena/zombie-model-policy.test.mjs
+          node client/arena/zombie-model-pilot.test.mjs
+          node client/arena/zombie-sketchfab-cast.test.mjs
+  screenshot-cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install isolated real WebGL browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/zombie-browser" playwright@1.62.1 --no-audit --no-fund
+          node "$RUNNER_TEMP/zombie-browser/node_modules/playwright/cli.js" install --with-deps ${{ matrix.browser }}
+      - name: Serve isolated BURN City Arena without payments
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js >/tmp/zombies-room-map-preview.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/arena/index.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -n 110 /tmp/zombies-room-map-preview.log
+          exit 1
+      - name: Render the real procedural, Refinery and Cosmodrome maps at eye height
+        run: node scripts/zombies-map-environment-browser-preview.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/zombie-browser
+          ZOMBIE_QA_BROWSER: ${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zombies-map-quality-${{ matrix.browser }}
+          path: zombies-map-quality-previews/
+          if-no-files-found: warn
+      - name: Display server error log on failure
+        if: failure()
+        run: tail -n 130 /tmp/zombies-room-map-preview.log || true

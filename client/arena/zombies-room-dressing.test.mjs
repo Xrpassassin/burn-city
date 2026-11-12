@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 import {planZombiesRoomDressing,zombieRoomTheme,ZOMBIES_ROOM_PALETTE} from './zombies-room-dressing-plan.mjs';
 import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
 const require=createRequire(import.meta.url);

@@ -45,6 +45,7 @@ try{
     window.__zombieRoomPreview?.renderer?.dispose();
     window.__zombieRoomPreview?.renderer?.domElement?.remove();
     const scene=new THREE.Scene();scene.background=new THREE.Color(0x1b2228);
+    scene.fog=new THREE.Fog(0x0a0504,14,95);
     scene.add(new THREE.HemisphereLight(0xffe6c7,0x11121a,1.35));
     const sun=new THREE.DirectionalLight(0xe8ccb2,1.0);sun.position.set(-10,18,7);scene.add(sun);
     const renderer=new THREE.WebGLRenderer({antialias:false,preserveDrawingBuffer:true,powerPreference:'low-power'});

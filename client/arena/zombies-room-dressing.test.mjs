@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import * as THREE from './vendor/three.module.min.js';
-import {planZombiesRoomDressing,zombieRoomTheme,ZOMBIES_ROOM_PALETTE} from './zombies-room-dressing-plan.mjs';
+import {planZombiesRoomDressing,zombieRoomTheme,ZOMBIES_ROOM_PALETTE,zombieWallFireDecision} from './zombies-room-dressing-plan.mjs';
 import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
 const require=createRequire(import.meta.url);
 const {gen}=require('../../server/mapgen.js');
@@ -15,6 +15,23 @@ for(const [name,kind] of Object.entries({
  'Loading Dock':'loading','Deserted Hall':'industrial'
 }))assert.equal(zombieRoomTheme(name,kind==='spawn'?0:2),kind,name);
 assert(Object.keys(ZOMBIES_ROOM_PALETTE).length>=14);
+
+const fireMap={kind:'proc',seed:8724,zones:[{n:'Spawn Bay'},{n:'Furnace Hall'},{n:'Lab'},{n:'Cold Storage'}]};
+const flameDistribution=zone=>{
+ let n=0;
+ for(let r=0;r<100;r++)for(let c=0;c<100;c++)
+  if(zombieWallFireDecision(fireMap,zone,c,r,0,1))n++;
+ return n;
+};
+const industrialFlames=flameDistribution(1),medicalFlames=flameDistribution(2),
+ chilledFlames=flameDistribution(3);
+assert(industrialFlames>=3000&&industrialFlames<5000,'furnace hall keeps dramatic but localized fire');
+assert(medicalFlames>=250&&medicalFlames<650,'labs must not be ablaze on every wall');
+assert(chilledFlames>=250&&chilledFlames<650,'cold storage must remain restrained');
+assert(industrialFlames>medicalFlames*5,'fire belongs primarily in damaged hot zones');
+assert.equal(zombieWallFireDecision(fireMap,1,27,81,-1,0),
+ zombieWallFireDecision(fireMap,1,27,81,-1,0),'all clients pick same wall fire');
+assert(flameDistribution(0)<2000,'spawn lane cannot become an entire glowing wall grid');
 
 let validated=0,total=0;
 for(let seed=1;seed<=80;seed++){

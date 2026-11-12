@@ -2636,7 +2636,7 @@ function boot(host) {
       stepVertical(localJump, dt, 0, jump && !crouched, EXPLORER_SCALE);
       walker.position.y = localJump.y;
     }
-    communityArt.animateExplorer(explorer,movingAvatar,dt,isLocalPlayer?localJump.y:0);
+    communityArt.animateExplorer(explorer,movingAvatar,dt,isLocalPlayer?localJump.y:0, isLocalPlayer&&!!view.running?.());
   }
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery

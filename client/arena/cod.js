@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { addRefineryEnv, woodTex } from './codenv.js';
 import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
 import {addZombiesRuinedArchitecture} from './zombies-ruined-architecture.mjs';
+import {addZombiesBioContainment} from './zombies-bio-containment.mjs';
 import {zombieWallFireDecision} from './zombies-room-dressing-plan.mjs';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
@@ -155,6 +156,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // Broken wall-anchored roof panels, cable runs and actual-boardable-window
   // glass. Reuses original geometry/material pools and CC0 scan. Cosmetic only.
   const ruinedArchitecture=addZombiesRuinedArchitecture(root,L,{low,g,basic});
+  const bioContainment=addZombiesBioContainment(root,L,{low,g});
   // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
   if (L.kind === 'cosmodrome') {
     const launch = new THREE.Group();
@@ -427,6 +429,9 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   let t = 0;
   return {
     zombieRoomDressing:()=>({sites:roomDressing.sites.length,drawCalls:roomDressing.drawCalls,instances:roomDressing.instances||0}),
+    zombieBioContainment:()=>({sites:bioContainment.sites.length,
+      drawCalls:bioContainment.drawCalls,instances:bioContainment.instances,
+      organicMasses:bioContainment.organicMasses||0}),
     zombieRuins:()=>({clusters:ruinedArchitecture.clusters.length,
       windows:ruinedArchitecture.windows.length,drawCalls:ruinedArchitecture.drawCalls,
       instances:ruinedArchitecture.instances,dust:ruinedArchitecture.motes}),
@@ -439,7 +444,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
     board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
     quest(q, myId) { qState = q || null; myIdQ = myId; },
-    update(dt, m, b) { t += dt; roomDressing.update?.(dt); ruinedArchitecture.update?.(dt); for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); enemyTracers.splice(i, 1); } } if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setHex(forgeTier === 2 ? 0x55ddff : 0xff5a10).multiplyScalar(1 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
+    update(dt, m, b) { t += dt; roomDressing.update?.(dt); ruinedArchitecture.update?.(dt); bioContainment.update?.(dt); for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); enemyTracers.splice(i, 1); } } if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setHex(forgeTier === 2 ? 0x55ddff : 0xff5a10).multiplyScalar(1 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
       let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
         const y = 0.75 + k * 0.27 + (w.lv ? UH : 0), tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
         Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;
@@ -487,6 +492,6 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },
-    dispose() { ruinedArchitecture.dispose(); for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
+    dispose() { bioContainment.dispose(); ruinedArchitecture.dispose(); for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
   };
 }

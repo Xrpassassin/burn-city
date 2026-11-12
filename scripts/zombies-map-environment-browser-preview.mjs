@@ -41,6 +41,7 @@ try{
     const THREE=await import('./vendor/three.module.min.js');
     const {createCodWorld}=await import('./cod.js');
     const {planZombiesRoomDressing}=await import('./zombies-room-dressing-plan.mjs');
+    const {planZombiesBioContainment}=await import('./zombies-bio-containment-plan.mjs');
     window.__zombieRoomPreview?.world?.dispose();
     window.__zombieRoomPreview?.renderer?.dispose();
     window.__zombieRoomPreview?.renderer?.domElement?.remove();
@@ -59,7 +60,9 @@ try{
     // not conceal the art. Does not change any live map or networking state.
     world.update(.016,[(1<<Math.min(24,layout.zones.length))-1,0,0,1]);
     const sites=planZombiesRoomDressing(layout,{low:mobile});
-    const preferred=sites.find(s=>['lab','chapel','furnace','generator','control'].includes(s.theme))||sites[0];
+    const containmentSites=planZombiesBioContainment(layout,{low:mobile});
+    const preferred=containmentSites[0]||
+      sites.find(s=>['lab','chapel','furnace','generator','control'].includes(s.theme))||sites[0];
     if(!preferred)throw Error('No actual authored room scenery for map '+name);
     // Face the selected wall fixture from a nearby eye-height camera.
     const nx=Math.sin(preferred.yaw),nz=Math.cos(preferred.yaw);
@@ -69,6 +72,10 @@ try{
     renderer.render(scene,camera);
     const info=world.zombieRoomDressing();
     const ruins=world.zombieRuins();
+    const containment=world.zombieBioContainment();
+    const biological=scene.getObjectByName('zombies-bio-containment-lobe');
+    if(!containment.sites||containment.sites>8||containment.drawCalls>6||!biological?.isInstancedMesh||!biological.material.map)
+      throw Error('Bio containment cannot render animated PBR flesh in existing Zombies map');
     const slab=scene.getObjectByName('zombies-ruins-slab');
     const glass=scene.getObjectByName('zombies-ruins-glass');
     if(!slab||!slab.isInstancedMesh||!slab.material.map)
@@ -77,21 +84,46 @@ try{
       throw Error('Broken architecture failed WebGL scene instancing budget');
     if(ruins.windows&&(!glass||!glass.material.transparent))
       throw Error('Shattered glass must match actual boardable zombie windows');
-    window.__zombieRoomPreview={renderer,scene,world,camera};
+    window.__zombieRoomPreview={renderer,scene,world,camera,preferred};
     return {name,map:layout.name,kind:layout.kind,theme:preferred.theme,
      drawCalls:renderer.info.render.calls,sites:info.sites,instances:info.instances,
-     batches:info.drawCalls,ruins,cc0ScanUrl:slab.material.map.image?.src||null,
+     batches:info.drawCalls,ruins,containment,
+     cc0ScanUrl:slab.material.map.image?.src||null,
      rendererBytes:renderer.domElement.width*renderer.domElement.height*4};
    },{name,layout,mobile:view.mobile});
    assert(report.sites>0&&report.batches<=5);
    assert(report.ruins.clusters>=1&&report.ruins.drawCalls<=6,
     'genuine ruin geometry is present in screenshot for '+name+'/'+view.name);
-   assert(report.drawCalls>0&&report.drawCalls<292,
+   assert(report.containment.sites>=1&&report.containment.drawCalls<=6,
+    'real bio containment scene is present on '+name+'/'+view.name);
+   assert(report.drawCalls>0&&report.drawCalls<306,
      'decorative scene should remain bounded for '+name+'/'+view.name);
    assert(report.instances>=report.sites*4,'rooms must have recognizable detail, not one flat panel');
    assert.equal(errors.length,0,errors.join(';'));
    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'.png',fullPage:false});
    if(!view.mobile){
+    await page.evaluate(async ()=>{
+     const {scene,renderer,camera,preferred}=window.__zombieRoomPreview;
+     const {createZombieOriginalFallback}=await import('./zombies-original-body-horror.mjs');
+     const blob=createZombieOriginalFallback(5);
+     if(!blob||!blob.hidesBaseModel||createZombieOriginalFallback(8)!==null)
+       throw Error('Only the original smooth organic crawler fallback is permitted; no fake nurse');
+     const nx=Math.sin(preferred.yaw),nz=Math.cos(preferred.yaw);
+     blob.group.position.set(preferred.x+nx*2.2,0,preferred.z+nz*2.2);
+     blob.update(.12);
+     scene.add(blob.group);
+     camera.position.set(preferred.x+nx*5.1,1.35,preferred.z+nz*5.1);
+     camera.lookAt(preferred.x+nx*2.1,.46,preferred.z+nz*2.1);
+     renderer.render(scene,camera);
+     window.__zombieRoomPreview.specials=[blob];
+    });
+    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'-original-blob-concept.png',fullPage:false});
+    await page.evaluate(()=>{
+     const v=window.__zombieRoomPreview;
+     for(const a of v.specials||[]){v.scene.remove(a.group);a.dispose();}
+     v.specials=[];
+     v.renderer.render(v.scene,v.camera);
+    });
     await page.evaluate(()=>{
      const {camera,renderer,scene}=window.__zombieRoomPreview;
      const C=scene.children.find(x=>x.name==='zombies-room-dressing-box');

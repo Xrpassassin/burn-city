@@ -6,6 +6,13 @@ on:
       - 'client/arena/zombies-room-dressing*.mjs'
       - 'client/arena/zombies-ruined-architecture*.mjs'
       - 'client/arena/zombies-map-ambience*.mjs'
+      - 'client/arena/zombies-bio-containment*.mjs'
+      - 'client/arena/zombies-original-body-horror.mjs'
+      - 'client/arena/zombie-model-pilot.mjs'
+      - 'client/arena/zombie-official-model-audit.test.mjs'
+      - 'scripts/acquire-official-zombies-sketchfab.mjs'
+      - 'scripts/convert-official-zombies-sketchfab.py'
+      - '.github/workflows/zombie-special-sketchfab-official-audit.yml'
       - 'client/arena/sfx.js'
       - 'client/arena/index.html'
       - 'server/mapgen.js'
@@ -35,6 +42,14 @@ jobs:
           node --check client/arena/zombies-ruined-architecture.test.mjs
           node --check client/arena/zombies-map-ambience.mjs
           node --check client/arena/zombies-map-ambience.test.mjs
+          node --check client/arena/zombies-bio-containment-plan.mjs
+          node --check client/arena/zombies-bio-containment.mjs
+          node --check client/arena/zombies-original-body-horror.mjs
+          node --check client/arena/zombies-bio-containment.test.mjs
+          node --check client/arena/zombie-official-model-audit.test.mjs
+          node --check scripts/acquire-official-zombies-sketchfab.mjs
+          python3 -m py_compile scripts/convert-official-zombies-sketchfab.py
+          node --check client/arena/zombie-model-pilot.mjs
           node --check client/arena/sfx.js
           node --check client/arena/cod.js
       - name: Test 80 independently generated maps and mobile batch budgets
@@ -42,6 +57,8 @@ jobs:
           node client/arena/zombies-room-dressing.test.mjs
           node client/arena/zombies-ruined-architecture.test.mjs
           node client/arena/zombies-map-ambience.test.mjs
+          node client/arena/zombies-bio-containment.test.mjs
+          node client/arena/zombie-official-model-audit.test.mjs
       - name: Preserve original Zombies authoritative maps, progression, helicopter and combat
         run: |
           node test/zombie-map-progression-sim.js

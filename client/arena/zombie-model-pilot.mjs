@@ -8,6 +8,7 @@ import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-se
 import {ARENA_ZOMBIE_SKINS,zombieHumanShape} from './zombie-arena-appearance.mjs';
 import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases} from './zombie-sketchfab-cast.mjs';
 import {enabledZombieSpecials,zombieSpecialModelForType,zombieSpecialClipAliases,zombieSpecialModelHeight} from './zombie-special-art.mjs';
+import {createZombieOriginalFallback} from './zombies-original-body-horror.mjs';
 import {createZombieInstancedLOD} from './zombie-instanced-lod.mjs';
 import {zombieShadowMetrics,infectedShadowPixels} from './zombie-contact-shadow.mjs';
 
@@ -172,9 +173,22 @@ export async function createZombieModelPilot(scene, options = {}) {
     group.scale.setScalar(model.scale * (model.definition.special?1:zombieHumanShape(z.ty)) * (Number.isFinite(z.v)?z.v:1));
     visual.position.y = -model.minY;
     group.add(visual);
+    // Actual creator-made nurse / flesh-blob GLBs take precedence whenever
+    // their license, SHA, animations and binaries have been validated.
+    // Until then, originals are an explicit visual-only concept fallback.
+    const adornment=model.definition.special?null:
+      createZombieOriginalFallback(z.ty,{low:!!options.low});
+    if(adornment){
+      const localScale=group.scale.x;
+      // Keep the authored creature/outfit in METRES even when source FBX
+      // uses tiny/giant native units; avoids the old 200x monster bug.
+      adornment.group.scale.setScalar(localScale>0?1/localScale:1);
+      group.add(adornment.group);
+      if(adornment.hidesBaseModel)visual.visible=false;
+    }
     scene.add(group);
     const mixer = new THREE.AnimationMixer(visual);
-    const item = { group, visual, mixer, model, action: null, clipName: '', reactionUntil: 0, deadUntil: 0, proceduralDeath:false, proceduralHit:false, visualYaw:z.yaw||0 };
+    const item = { group, visual, mixer, model, adornment, action: null, clipName: '', reactionUntil: 0, deadUntil: 0, proceduralDeath:false, proceduralHit:false, visualYaw:z.yaw||0 };
     setAnimation(item, animationFor(z, model.clips, true));
     return item;
   }
@@ -183,6 +197,7 @@ export async function createZombieModelPilot(scene, options = {}) {
     const item = active.get(id);
     if (!item) return;
     scene.remove(item.group);
+    item.adornment?.dispose();
     item.mixer.stopAllAction();
     item.visual.traverse(node => {
       if (!node.isMesh || !node.material) return;
@@ -238,6 +253,7 @@ export async function createZombieModelPilot(scene, options = {}) {
             ? Math.max(0.45, Math.min(1.65, z.speed / (running ? 3.5 : 1.4))) : 1);
         }
         item.mixer.update(Math.min(0.05, Math.max(0, dt)));
+        item.adornment?.update(dt);
       }
       for (const [id, item] of active) {
         if (candidateIds.has(id)) continue;
@@ -268,6 +284,7 @@ export async function createZombieModelPilot(scene, options = {}) {
       const item=active.get(id);
       if(!item)return false;
       const now=performance.now();
+      item.adornment?.react(kind);
       if(item.model.clips.has(kind)){
         setAnimation(item,kind,true);
         if (kind === 'Death') item.deadUntil = item.reactionUntil;

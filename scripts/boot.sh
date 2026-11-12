@@ -11,7 +11,15 @@ REPO=Xrpassassin/burn-city
 PID=
 trap 'echo "boot: stopping"; [ -n "$PID" ] && kill -TERM $PID 2>/dev/null && wait $PID; exit 0' TERM INT
 
-fetch() { node -e "fetch(process.argv[1],{headers:{'Accept':'application/vnd.github.sha','User-Agent':'burn-city-boot'},signal:AbortSignal.timeout(30000)}).then(r=>{if(!r.ok)process.exit(1);return r.arrayBuffer()}).then(b=>{b=Buffer.from(b);if(process.argv[2]==='-')process.stdout.write(b);else require('fs').writeFileSync(process.argv[2],b)}).catch(()=>process.exit(1))" "$1" "$2"; }
+# Stream with wget (busybox) so the ~50MB main tarball is never buffered in Node RAM.
+# The previous Node fetch()+arrayBuffer()+Buffer.from() copy OOMed this 256MB machine.
+fetch() {
+  if [ "$2" = "-" ]; then
+    wget -q -T 30 -O - -U burn-city-boot --header 'Accept: application/vnd.github.sha' "$1"
+  else
+    wget -q -T 120 -O "$2" -U burn-city-boot "$1"
+  fi
+}
 
 pull() {
   REF=$(cat "$G/REF" 2>/dev/null || echo heads/main)

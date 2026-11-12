@@ -105,21 +105,19 @@ try{
     await page.evaluate(async ()=>{
      const {scene,renderer,camera,preferred}=window.__zombieRoomPreview;
      const {createZombieOriginalFallback}=await import('./zombies-original-body-horror.mjs');
-     const [blob,nurse]=[5,8].map(type=>createZombieOriginalFallback(type));
-     if(!blob||!nurse||!blob.hidesBaseModel||nurse.hidesBaseModel)
-       throw Error('Special crawler and nurse concept previews unavailable');
+     const blob=createZombieOriginalFallback(5);
+     if(!blob||!blob.hidesBaseModel||createZombieOriginalFallback(8)!==null)
+       throw Error('Only the original smooth organic crawler fallback is permitted; no fake nurse');
      const nx=Math.sin(preferred.yaw),nz=Math.cos(preferred.yaw);
-     const tx=nz,tz=-nx;
-     blob.group.position.set(preferred.x+nx*2.3-tx*.85,0,preferred.z+nz*2.3-tz*.85);
-     nurse.group.position.set(preferred.x+nx*2.3+tx*.85,0,preferred.z+nz*2.3+tz*.85);
-     blob.update(.12);nurse.update(.12);
-     scene.add(blob.group,nurse.group);
-     camera.position.set(preferred.x+nx*6,1.65,preferred.z+nz*6);
-     camera.lookAt(preferred.x+nx*2.2,1.15,preferred.z+nz*2.2);
+     blob.group.position.set(preferred.x+nx*2.2,0,preferred.z+nz*2.2);
+     blob.update(.12);
+     scene.add(blob.group);
+     camera.position.set(preferred.x+nx*5.1,1.35,preferred.z+nz*5.1);
+     camera.lookAt(preferred.x+nx*2.1,.46,preferred.z+nz*2.1);
      renderer.render(scene,camera);
-     window.__zombieRoomPreview.specials=[blob,nurse];
+     window.__zombieRoomPreview.specials=[blob];
     });
-    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'-concept-specials.png',fullPage:false});
+    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'-original-blob-concept.png',fullPage:false});
     await page.evaluate(()=>{
      const v=window.__zombieRoomPreview;
      for(const a of v.specials||[]){v.scene.remove(a.group);a.dispose();}

@@ -1,25 +1,25 @@
 {
  "id": "elegance-black-b",
- "verts": 2027,
- "indices": 3600,
+ "verts": 2029,
+ "indices": 3597,
  "frames": 17,
  "walkFrames": 16,
  "idleFrame": 16,
  "uvOffset": 0,
- "idxOffset": 16216,
- "posOffset": 23416,
- "nrmOffset": 230170,
+ "idxOffset": 16232,
+ "posOffset": 23428,
+ "nrmOffset": 230386,
  "min": [
-  -0.24367864429950714,
-  -0.02327626384794712,
-  -0.5077589750289917
+  -0.24284331500530243,
+  -0.0015129875391721725,
+  -0.4339299499988556
  ],
  "size": [
-  0.48596587777137756,
-  1.7102128807455301,
-  0.955908477306366
+  0.4803052842617035,
+  1.679949862882495,
+  0.867686003446579
  ],
- "tris": 1200,
+ "tris": 1199,
  "nearTris": 8992,
  "sourceTris": 214098,
  "height": 1.68,
@@ -29,5 +29,5 @@
  "legWebFacesCut": 8,
  "armsOutRest": [],
  "walkCycleSec": 1.0,
- "strideMetersPerCycle": 1.3439999999999999
+ "strideMetersPerCycle": 0.999648
 }

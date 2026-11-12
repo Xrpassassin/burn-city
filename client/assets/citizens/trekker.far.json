@@ -1,25 +1,25 @@
 {
  "id": "trekker",
- "verts": 1928,
- "indices": 3597,
+ "verts": 1931,
+ "indices": 3600,
  "frames": 17,
  "walkFrames": 16,
  "idleFrame": 16,
  "uvOffset": 0,
- "idxOffset": 15424,
- "posOffset": 22620,
- "nrmOffset": 219276,
+ "idxOffset": 15448,
+ "posOffset": 22648,
+ "nrmOffset": 219610,
  "min": [
-  -0.2795386016368866,
-  -0.12659156322479248,
-  -0.8123539090156555
+  -0.2843213975429535,
+  0.0012925355695188046,
+  -0.5119099020957947
  ],
  "size": [
-  0.6272691488265991,
-  1.9196780920028687,
-  1.5154640674591064
+  0.6304215788841248,
+  1.7857777387835085,
+  1.0019742548465729
  ],
- "tris": 1199,
+ "tris": 1200,
  "nearTris": 8999,
  "sourceTris": 314265,
  "height": 1.79,
@@ -29,5 +29,5 @@
  "legWebFacesCut": 0,
  "armsOutRest": [],
  "walkCycleSec": 1.0,
- "strideMetersPerCycle": 1.432
+ "strideMetersPerCycle": 1.196742857142857
 }

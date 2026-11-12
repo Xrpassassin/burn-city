@@ -8,11 +8,28 @@ assert.ok(ids.length >= 10, 'the 10 approved walker models are published');
 for (const m of models.models) {
   assert.equal(m.license, 'CC-BY-4.0', m.id + ' must be CC BY 4.0');
   assert.match(m.url, /^https:\/\/sketchfab\.com\/3d-models\//); assert.ok(m.artist && m.title);
-  for (const f of [m.id + '.gltf', m.id + '.far.bin', m.id + '.far.json', m.id + '.far.webp']) readFileSync(new URL('assets/citizens/' + f, root));
+  readFileSync(new URL('assets/citizens/' + m.id + '.far.webp', root));
   const gltf = JSON.parse(readFileSync(new URL('assets/citizens/' + m.id + '.gltf', root)));
   for (const im of gltf.images || []) { readFileSync(new URL('assets/citizens/' + im.uri, root)); readFileSync(new URL('assets/citizens/' + im.uri.replace('-tex/', '-tex-512/'), root)); }
   assert.deepEqual((gltf.animations || []).map(a => a.name).sort(), ['Idle', 'Walk'], m.id + ' has Walk + Idle');
   const far = JSON.parse(readFileSync(new URL('assets/citizens/' + m.id + '.far.json', root)));
+  const packed = readFileSync(new URL('assets/citizens/' + m.id + '.far.bin', root));
+  assert.equal(far.nrmOffset, far.posOffset + far.verts * far.frames * 6, m.id);
+  assert.equal(packed.length, far.nrmOffset + far.verts * far.frames * 3, m.id);
+  assert.equal(far.idleFrame, far.walkFrames, m.id);
+  assert.ok(far.strideMetersPerCycle > 0, m.id);
+  const buffers = gltf.buffers.map(({ uri, byteLength }) => {
+    const buffer = readFileSync(new URL('assets/citizens/' + uri, root));
+    assert.equal(buffer.length, byteLength, m.id);
+    return buffer;
+  });
+  const walk = gltf.animations.find(a => a.name === 'Walk');
+  for (const { input } of walk.samplers) {
+    const time = gltf.accessors[input];
+    const view = gltf.bufferViews[time.bufferView];
+    const offset = (view.byteOffset || 0) + (time.byteOffset || 0) + (time.count - 1) * 4;
+    assert.ok(Math.abs(buffers[view.buffer].readFloatLE(offset) - far.walkCycleSec) < 1e-6, m.id);
+  }
   assert.ok(far.tris <= 2000, m.id + ' far LOD <= 2k tris'); assert.ok(far.nearTris <= 10000, m.id + ' near LOD <= 10k tris');
 }
 // excluded non-commercial items never appear

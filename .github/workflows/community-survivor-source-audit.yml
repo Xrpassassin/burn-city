@@ -36,6 +36,7 @@ jobs:
           mkdir -p survivor-source-audit/extracted
           unar -q -o survivor-source-audit/extracted survivor-source-audit/fbx.rar
           find survivor-source-audit/extracted -type f -iname '*.fbx' -print
+          find survivor-source-audit/extracted -type f -printf '%P\t%s bytes\n' | head -80
       - name: Convert the rigged author FBX to a provisional locally textured GLB
         run: |
           blender -b --factory-startup -noaudio --python scripts/convert-homefront-survivor-fbx.py -- survivor-source-audit/extracted survivor-source-audit/homefront-male-survivor.glb
@@ -53,3 +54,5 @@ jobs:
             survivor-source-audit/source-manifest.json
             survivor-source-audit/glb-audit.json
             survivor-source-audit/homefront-male-survivor.glb
+            survivor-source-audit/fbx.rar
+            survivor-source-audit/extracted/**

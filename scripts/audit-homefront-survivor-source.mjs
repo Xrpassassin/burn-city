@@ -48,6 +48,26 @@ try{
   file:'fbx.rar',bytes:bytes.length,format:rar5?'RAR5':'RAR4',
   sha256:createHash('sha256').update(bytes).digest('hex'),
   note:'The archived FBX is not an approved playable GLB. Inspect clips, rig, textures and frame costs before activation.'};
+ // The artist also supplies a free Unity controller package. We may
+ // INSPECT its filenames to find genuine walk/run/jump clips, but never execute
+ // Unity scripts or assume third-party controller animation licenses.
+ const unityRow=page.locator('.upload').filter({hasText:/ZombieApocalypseSurvivorMale\\.unitypackage/i}).first();
+ await unityRow.waitFor({timeout:20000});
+ const [unityDownload]=await Promise.all([
+  page.waitForEvent('download',{timeout:90000}),
+  unityRow.locator('a.download_btn').first().click({timeout:25000})
+ ]);
+ if(unityDownload.suggestedFilename()!=='ZombieApocalypseSurvivorMale.unitypackage')
+  throw Error('Unexpected Unity package source filename');
+ const unityFile=path.join(target,'ZombieApocalypseSurvivorMale.unitypackage');
+ await unityDownload.saveAs(unityFile);
+ const unityBytes=await readFile(unityFile);
+ if(unityBytes.length<2_000_000||unityBytes.length>30_000_000||
+    unityBytes[0]!==0x1f||unityBytes[1]!==0x8b)
+  throw Error('Author Unity package is not the expected gzip/tar archive');
+ manifest.controllerPackage={file:'ZombieApocalypseSurvivorMale.unitypackage',
+  bytes:unityBytes.length,sha256:createHash('sha256').update(unityBytes).digest('hex'),
+  reviewOnly:true};
  await writeFile(path.join(target,'source-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
  console.log(JSON.stringify(manifest,null,2));
 }finally{await browser.close();}

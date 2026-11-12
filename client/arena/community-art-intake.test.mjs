@@ -28,7 +28,23 @@ for(const spec of COMMUNITY_ART){
   assert.equal(spec.sha256,null,'unapproved downloads must not carry false hashes');
  }
 }
-assert.deepEqual(enabledCommunityArt('homefront').map(x=>x.id),['street-props-pack'],'only the actually vendored street GLB is enabled');
+assert.deepEqual(enabledCommunityArt('homefront').map(x=>x.id),
+ ['homefront-male-survivor','street-props-pack'],
+ 'temporary artist-licensed hero and actual vendored street GLB must be verified');
+const heroProof=JSON.parse(readFileSync(new URL('./assets/community/homefront-survivor-verified.json',import.meta.url),'utf8'));
+assert.equal(heroProof.creator,'codersan');
+assert.equal(heroProof.triangles,10000);
+assert.equal(heroProof.sourceArchiveSha256,'f8c7d876b2386a5ad08d2fb1ca168906e3c342a31f6724f36ccb140d0d3e299a');
+assert.equal(heroProof.sha256,communityArtById('homefront-male-survivor').sha256);
+assert.match(heroProof.motionSource,/Original/);
+const heroBytes=readFileSync(new URL('./assets/community/homefront-male-survivor.glb',import.meta.url));
+const heroDoc=JSON.parse(heroBytes.toString('utf8',20,20+heroBytes.readUInt32LE(12)));
+assert.equal(heroDoc.skins.length,1);
+assert.equal(heroDoc.images.length,1);
+for(const action of ['Idle','Idle2','Idle3','Walk','Run','Jump'])
+ assert(heroDoc.animations.some(a=>a.name===action),'temporary hero must have real '+action+' animation');
+assert(heroDoc.animations.find(a=>a.name==='Run').channels.length>=10);
+assert(heroDoc.animations.find(a=>a.name==='Walk').channels.length>=10);
 assert.equal(enabledCommunityArt('zombies').length,0,'original Zombies must keep its proven GLB trio');
 
 const streetManifest=JSON.parse(readFileSync(new URL('./assets/community/street-props-acquisition.json',import.meta.url),'utf8'));
@@ -176,4 +192,4 @@ const world=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),
 assert(world.includes('communityArt.decorateExplorer'));
 assert(world.includes('communityArt.animateExplorer'));
 assert(world.includes('communityArt.clearActors'));
-console.log('Community model intake passed: 6 sources, one real imported/staged street GLB verified, 6 matching real prop classes, missing-asset fallbacks, original Zombies mode isolation');
+console.log('Community model intake passed: 6 sources, licensed hero GLB with original Walk/Run/Jump, 1 credited street pack, missing-asset fallbacks and Zombies isolation');

@@ -150,6 +150,35 @@ export const sfx = {
   setMuted(m) { muted = !!m; localStorage[MUTE] = muted ? '1' : '0'; if (master) master.gain.value = muted ? 0 : vol; },
   loadBank, play, loop, listen, heartbeat, has: k => !!BUF[k]?.length,
   roverMotor,
+  // Sparse original, fully synthesized environmental horror cues for the
+  // original Zombies mode. Same user-gesture AudioContext, positional panner,
+  // master volume/mute and low-pass heartbeat bus as other game sounds.
+  // No separate loops, samples, third-party audio, leaked audio contexts or
+  // audio generated when the user has muted sound.
+  zombieEnvironmentCue(kind,x,y,z,gain=0.45){
+    if(!ready()||![x,y,z,gain].every(Number.isFinite))return false;
+    const recipes={
+      metal:{f:690,f1:135,q:1.3,a:.009,dec:.43,v:.11,low:138,to:64,type:'triangle'},
+      creak:{f:460,f1:165,q:3.0,a:.16,dec:.86,v:.055,low:86,to:42,type:'sawtooth'},
+      steam:{f:1350,f1:550,q:.56,a:.13,dec:1.15,v:.085,low:0,to:0},
+      pressure:{f:1720,f1:340,q:.74,a:.045,dec:.83,v:.069,low:91,to:53,type:'sine'},
+      arc:{f:3200,f1:650,q:2.0,a:.005,dec:.26,v:.08,low:510,to:170,type:'square'}
+    };
+    const r=recipes[kind];
+    if(!r)return false;
+    const pan=panner(x,y,z,3.3,24,1.25);
+    pan.connect(bus);
+    const scalar=Math.max(.05,Math.min(.7,gain)),pitch=.91+Math.random()*.18;
+    // Noise has the longest tail and cleans up the spatial node. The optional
+    // tone deliberately finishes before it so Safari never hears a cut-off.
+    const source=noise({f:r.f*pitch,f1:r.f1*pitch,q:r.q,
+      a:r.a,dec:r.dec,v:r.v*scalar,type:'bandpass',out:pan});
+    if(r.low)tone(r.low*pitch,{type:r.type,a:.015,
+      dec:Math.min(.32,r.dec*.7),v:.075*scalar,f1:r.to*pitch,out:pan});
+    if(source)source.onended=()=>pan.disconnect();
+    else pan.disconnect();
+    return !!source;
+  },
   fieldWind() {
     return fieldNoiseBed(530, 0.58);
   },

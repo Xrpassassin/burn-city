@@ -93,11 +93,23 @@ for(let seed=1;seed<=80;seed++){
    assert(child.userData.cosmeticOnly,'no collision or network effects');
    assert(child.boundingSphere?.radius>0&&Number.isFinite(child.boundingSphere.radius));
   }
+  const lamp=root.children.find(x=>x.name==='zombies-room-dressing-lamp');
+  assert(lamp?.instanceColor,'scene must retain instanced practical lights');
+  const prevLamp=lamp.instanceColor.array.slice();
+  visual.update(.1);visual.update(.1);visual.update(.1);
+  assert(lamp.instanceColor.array.some((v,i)=>Math.abs(v-prevLamp[i])>0.0001),
+   'failed-ballast practical lights change color during actual world ticks');
+  assert.equal(visual.drawCalls,root.children.length,
+   'light flicker must not add a mesh or postprocessing draw call');
+  visual.update(NaN);visual.update(-1);
+  assert(lamp.instanceColor.array.every(Number.isFinite),
+   'weird frame delta cannot corrupt fixture GPU colors');
   for(const x of usedGeos)x.dispose();
   for(const x of usedMats)x.dispose();
   const lowRoot=new THREE.Group();
   const lowVisual=addZombiesRoomDressing(lowRoot,layout,{low:true});
   assert(lowVisual.sites.length<=desktop.length&&lowVisual.drawCalls<=5);
+  lowVisual.update(.1);lowVisual.update(.1);lowVisual.update(.1);
   lowRoot.traverse(x=>{if(x.isMesh){x.geometry.dispose();x.material.dispose();}});
  }
  validated++;total+=desktop.length;

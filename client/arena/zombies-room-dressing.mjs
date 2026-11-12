@@ -100,7 +100,7 @@ export function addZombiesRoomDressing(root,layout,{low=false,g=x=>x,basic=(c,o)
  const pos=new THREE.Vector3(),sc=new THREE.Vector3(),q=new THREE.Quaternion();
  const face=new THREE.Quaternion(),tilt=new THREE.Quaternion();
  const mtx=new THREE.Matrix4(),axisY=new THREE.Vector3(0,1,0);
- let draws=0,instances=0;
+ let draws=0,instances=0,lampMesh=null;
  for(const [name,arr] of Object.entries(entries)){
   if(!arr.length)continue;
   const [geo,mat]=modes[name];
@@ -125,6 +125,28 @@ export function addZombiesRoomDressing(root,layout,{low=false,g=x=>x,basic=(c,o)
   if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   mesh.computeBoundingSphere();
   root.add(mesh);draws++;instances+=arr.length;
+  if(name==='lamp')lampMesh=mesh;
  }
- return {sites,drawCalls:draws,instances};
+ let t=0,acc=0;
+ const flickerColor=new THREE.Color();
+ return {sites,drawCalls:draws,instances,
+  // Deterministic damaged ballast and intermittent generator brownouts.
+  // Recolor existing instanced lamps: ZERO new lights, draws, postprocessing
+  // or network events. Existing lamp meshes retain their original geometry.
+  update(dt){
+   if(!lampMesh||!Number.isFinite(dt)||dt<=0)return;
+   const step=low?.20:.10;
+   t+=Math.min(.1,dt);acc+=Math.min(.1,dt);
+   if(acc<step)return;
+   acc=0;
+   const lamps=entries.lamp;
+   for(let i=0;i<lamps.length;i++){
+    const part=lamps[i],phase=((part.s.hash%997)+i*53)*.014;
+    const flicker= Math.sin(t*4.3+phase)>.96 && i%4===0;
+    const intensity=flicker?.22:.83+.13*Math.sin(t*1.3+phase);
+    lampMesh.setColorAt(i,flickerColor.setHex(part.col).multiplyScalar(intensity));
+   }
+   if(lampMesh.instanceColor)lampMesh.instanceColor.needsUpdate=true;
+  }
+ };
 }

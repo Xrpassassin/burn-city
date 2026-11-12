@@ -149,9 +149,10 @@ export function addZombiesRuinedArchitecture(root,layout,{
     s.z-dx*Math.sin(a)+dz*Math.cos(a));
   }
  }
- let dustMaterial=null;
+ let dustMaterial=null,dustGeometry=null,dustTime=0,dustAcc=0;
  if(motes.length){
   const geo=g(new THREE.BufferGeometry());
+  dustGeometry=geo;
   geo.setAttribute('position',new THREE.Float32BufferAttribute(motes,3));
   dustMaterial=new THREE.PointsMaterial({size:low?.052:.075,
    color:0xa9a194,transparent:true,opacity:low?.24:.34,
@@ -163,5 +164,21 @@ export function addZombiesRuinedArchitecture(root,layout,{
  }
  return {clusters:plan.clusters,windows:plan.windows,drawCalls:draws,
   instances,motes:motes.length/3,source:'CC0 scanned concrete + original geometry',
+  update(dt){
+   // Shared Points geometry: small local motion, no per-particle meshes,
+   // no additional materials and never updates collision/navigation.
+   if(!dustGeometry||!Number.isFinite(dt)||dt<=0)return;
+   dustTime+=Math.min(dt,.1);dustAcc+=Math.min(dt,.1);
+   if(dustAcc<(low?.24:.12))return;
+   dustAcc=0;
+   const position=dustGeometry.getAttribute('position');
+   for(let i=0;i<motes.length/3;i++){
+    const j=i*3,phase=i*.73;
+    position.setXYZ(i,motes[j]+Math.sin(dustTime*.27+phase)*.12,
+     motes[j+1]+Math.sin(dustTime*.47+phase)*.10,
+     motes[j+2]+Math.cos(dustTime*.22+phase)*.11);
+   }
+   position.needsUpdate=true;
+  },
   dispose(){dustMaterial?.dispose();}};
 }

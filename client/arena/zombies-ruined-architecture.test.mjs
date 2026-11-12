@@ -81,6 +81,19 @@ function validate(layout,low=false,strict=false){
    'actual window remnants cannot become opaque panels');
  }
  if(strict)assert(result.motes>=3);
+ const dust=root.children.find(x=>x.name==='zombies-ruins-local-dust');
+ assert(dust?.geometry?.getAttribute('position')?.count===result.motes,
+  'dust remains exactly one batched point cloud');
+ const beforeDust=dust.geometry.attributes.position.array.slice();
+ for(let j=0;j<5;j++)result.update(.1);
+ const nextDust=dust.geometry.attributes.position.array;
+ assert(nextDust.some((v,i)=>Math.abs(v-beforeDust[i])>.00001),
+  'ruined-ceiling dust must actually move during gameplay');
+ assert(nextDust.every(Number.isFinite),'dust update must be finite after frame-capping');
+ assert.equal(root.children.length,result.drawCalls,
+  'dust motion must never create more draw calls or particles');
+ result.update(-1);result.update(Infinity);result.update(NaN);
+ assert(nextDust.every(Number.isFinite),'bad deltas must be ignored');
  result.dispose();
  for(const g of geos)g.dispose();
  for(const m of materials)m.dispose();

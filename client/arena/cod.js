@@ -3,6 +3,7 @@
 // beyond small canvas labels, so it stays cheap on phones and Safari.
 import * as THREE from 'three';
 import { addRefineryEnv, woodTex } from './codenv.js';
+import {addZombiesRoomDressing} from './zombies-room-dressing.mjs';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
   x.font = 'bold 40px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = color; x.shadowBlur = 14; x.fillStyle = color;
@@ -145,6 +146,10 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     frameM.setMatrixAt(i * 3 + 2, Mx.compose(Vp.set(w.x - (w.ax === 'x' ? 1.45 : 0), 1.9 + yo, w.z - (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3))); });
   if (!low) { plank.material.map = woodTex(); plank.material.needsUpdate = true; }
   const envTick = addRefineryEnv(root, L, { low, g, basic });   // High tier: AO, decals, pipes, lamps, barrels/crates, steam (codenv.js)
+  // Theme-aware industrial fixtures for the ORIGINAL Zombies game. The same
+  // seeded wall-mounted dressing works for handcrafted and random layouts,
+  // but never changes the server grid, collision, zombie spawns or exits.
+  const roomDressing=addZombiesRoomDressing(root,L,{low,g,basic});
   // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
   if (L.kind === 'cosmodrome') {
     const launch = new THREE.Group();
@@ -416,6 +421,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   const near = (me, x, z, r = 3, lv = 0) => Math.hypot(me.x - x, me.z - z) <= r && Math.abs((me.y || 0) - lv * UH) < 1.6;
   let t = 0;
   return {
+    zombieRoomDressing:()=>({sites:roomDressing.sites.length,drawCalls:roomDressing.drawCalls,instances:roomDressing.instances||0}),
     wname,
     forged(tier = 1) { forgeFlash = 1.5; forgeTier = tier === 2 ? 2 : 1; },
     enemyShot(e) { if (!e || enemyTracers.length >= (low ? 6 : 14)) return; const geo = g(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, e.y + 1.2, e.z), new THREE.Vector3(e.tx, e.ty, e.tz)])), mat = new THREE.LineBasicMaterial({ color: 0xd66bff, transparent: true, opacity: 0.9, depthWrite: false }); const line = new THREE.Line(geo, mat); root.add(line); enemyTracers.push({ line, left: 0.14 }); } ,

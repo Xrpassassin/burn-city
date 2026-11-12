@@ -30,7 +30,7 @@ jobs:
       - name: Install offline FBX extraction and Blender conversion tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends unar blender
+          sudo apt-get install -y --no-install-recommends unar blender python3-numpy
       - name: Extract the downloaded archive without executing bundled scripts
         run: |
           mkdir -p survivor-source-audit/extracted
@@ -39,6 +39,7 @@ jobs:
       - name: Convert the rigged author FBX to a provisional locally textured GLB
         run: |
           blender -b --factory-startup -noaudio --python scripts/convert-homefront-survivor-fbx.py -- survivor-source-audit/extracted survivor-source-audit/homefront-male-survivor.glb
+          test -s survivor-source-audit/homefront-male-survivor.glb
       - name: Audit converted mesh, rig, texture dependencies and real action clips
         run: node scripts/inspect-homefront-survivor-conversion.mjs
       - name: Publish conversion for manual provenance and Three.js review (NOT production)

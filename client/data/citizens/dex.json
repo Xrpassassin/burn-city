@@ -1,0 +1,16 @@
+{
+  "schema": "burn-city-citizen/1",
+  "id": "dex",
+  "name": "Dex",
+  "modelId": "trekker",
+  "personality": "Placeholder. Outdoorsy trekker who maps every corner of the city on foot. Curious and easygoing.",
+  "schedule": [
+    { "time": "06:00", "place": "spawn", "activity": "Stretching before a long walk" },
+    { "time": "08:00", "place": "power", "activity": "Walking out to the power plant" },
+    { "time": "11:00", "place": "fire", "activity": "Chatting with the fire crew" },
+    { "time": "14:00", "place": "shop:mart", "activity": "Buying trail snacks" },
+    { "time": "16:00", "place": "ems", "activity": "Volunteering at the medical center" },
+    { "time": "20:00", "place": "spawn", "activity": "Back to base" }
+  ],
+  "dialogue": ["I've walked every street in this city twice.", "Nice day for a hike.", "The wind farm's quite a sight from up close."]
+}

@@ -1,0 +1,30 @@
+{
+ "id": "exec-navy",
+ "verts": 2125,
+ "indices": 3597,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 17000,
+ "posOffset": 24196,
+ "nrmOffset": 240946,
+ "min": [
+  -0.32857364416122437,
+  -0.1024167612195015,
+  -0.7705285549163818
+ ],
+ "size": [
+  0.6091698408126831,
+  1.9130218103528023,
+  1.157717227935791
+ ],
+ "tris": 1199,
+ "nearTris": 8999,
+ "sourceTris": 232515,
+ "height": 1.8,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 2139,
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.44
+}

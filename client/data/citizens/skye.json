@@ -1,0 +1,15 @@
+{
+  "schema": "burn-city-citizen/1",
+  "id": "skye",
+  "name": "Skye",
+  "modelId": "blonde-black",
+  "personality": "Placeholder. Arcade regular and city explorer. Competitive, friendly, always chasing a high score.",
+  "schedule": [
+    { "time": "09:00", "place": "shop:coffee", "activity": "Grabbing a coffee" },
+    { "time": "10:00", "place": "shop:arcade", "activity": "Practising for the leaderboard" },
+    { "time": "14:00", "place": "tower:BURN", "activity": "Watching the burns" },
+    { "time": "17:00", "place": "shop:arcade", "activity": "Evening matches" },
+    { "time": "23:00", "place": "spawn", "activity": "Calling it a night" }
+  ],
+  "dialogue": ["One more round, then I'm done. Probably.", "The arcade's busiest after sunset.", "It's all skill. Practice beats luck."]
+}

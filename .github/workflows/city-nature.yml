@@ -13,4 +13,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node client/js/city-nature-plan.test.mjs
+      - run: node --check client/js/city-nature-shapes.mjs && node --check client/js/city-nature-render.mjs
+      - run: node client/js/city-nature-plan.test.mjs && node client/js/city-nature-shapes.test.mjs

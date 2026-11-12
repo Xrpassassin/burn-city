@@ -1,0 +1,63 @@
+name: Review-only official Homefront male survivor source conversion
+on:
+  push:
+    branches:
+      - feat/homefront-survivor-source-audit-20261111
+    paths:
+      - scripts/audit-homefront-survivor-source.mjs
+      - scripts/convert-homefront-survivor-fbx.py
+      - scripts/inspect-homefront-survivor-conversion.mjs
+      - scripts/inspect-survivor-unitypackage.py
+      - .github/workflows/community-survivor-source-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/feat/homefront-survivor-source-audit-20261111'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser for official free artist download
+        run: |
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Obtain and hash official author-hosted FBX (read-only artifact)
+        run: node scripts/audit-homefront-survivor-source.mjs
+      - name: Inspect official Unity package controller asset paths without executing scripts
+        run: python3 scripts/inspect-survivor-unitypackage.py
+      - name: Install offline FBX extraction and Blender conversion tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends unar blender python3-numpy
+      - name: Extract the downloaded archive without executing bundled scripts
+        run: |
+          mkdir -p survivor-source-audit/extracted
+          unar -q -o survivor-source-audit/extracted survivor-source-audit/fbx.rar
+          find survivor-source-audit/extracted -type f -iname '*.fbx' -print
+          find survivor-source-audit/extracted -type f -printf '%P\t%s bytes\n' | head -80
+      - name: Convert the rigged author FBX to a provisional locally textured GLB
+        run: |
+          blender -b --factory-startup -noaudio --python scripts/convert-homefront-survivor-fbx.py -- survivor-source-audit/extracted survivor-source-audit/homefront-male-survivor.glb
+          test -s survivor-source-audit/homefront-male-survivor.glb
+      - name: Audit converted mesh, rig, texture dependencies and real action clips
+        run: node scripts/inspect-homefront-survivor-conversion.mjs
+      - name: Publish conversion for manual provenance and Three.js review (NOT production)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: official-survivor-audit-only
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            survivor-source-audit/source-manifest.json
+            survivor-source-audit/glb-audit.json
+            survivor-source-audit/homefront-male-survivor.glb
+            survivor-source-audit/fbx.rar
+            survivor-source-audit/extracted/**
+            survivor-source-audit/ZombieApocalypseSurvivorMale.unitypackage
+            survivor-source-audit/unity-package-audit.json

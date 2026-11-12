@@ -46,7 +46,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <script type="module">
 import { readZombieStick } from './zombie-stick.mjs';
 import { zombieMoveVector, ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED, ZOMBIE_CRAWL_SPEED } from './zombie-locomotion.mjs';
-import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
+import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createZombiesMapAmbience } from './zombies-map-ambience.mjs'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const CITY_RETURN = ['airport', 'aegis-pyramid-plaza'].includes(P.get('from'));
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
@@ -149,7 +149,7 @@ const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0
 const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };
 let net, mode, yaw = 0, keys = {}, fire = false;
 function leave(msg) {               // full teardown so the next mode (or the city) starts clean
-  showDraft(null); ZA?.stop(); MUSIC?.stop(); showNote(null); qNote = null; { const b = document.getElementById('notebtn'); if (b) b.hidden = true; }
+  showDraft(null); ZA?.stop(); ZENV.stop(); MUSIC?.stop(); showNote(null); qNote = null; { const b = document.getElementById('notebtn'); if (b) b.hidden = true; }
   const n = net; net = null; mode = null; if (lobbyEl) lobbyEl.hidden = true; if (n) { n.handlers = {}; try { n.ws.readyState === 1 && n.ws.send(JSON.stringify({ t: 'leave' })); n.ws.close(1000, 'menu'); } catch {} }
   document.pointerLockElement && document.exitPointerLock?.(); keys = {}; fire = false; yaw = 0; overUntil = 0; lastHp = 100;
   for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
@@ -205,8 +205,8 @@ function start(m, ranked = null, extra = '') {
     .on('lobby', () => tronMsg('Lobby: pick teams, then the creator starts', 2500))
     .on('lobby_state', showLobby).on('ranked_start', hideLobby)
     .on('match_start', () => { hideLobby(); tronMsg('GO!', 1200) })
-    .on('init', m => { if (m.qnote) qNote = m.qnote; if (mode === 'zombie' && m.map) { world?.dispose(); world = createCodWorld(scene, m.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); document.body.classList.add('zmood'); toast('📍 ' + world.title(), 3500); } })
-    .on('map', e => { if (mode !== 'zombie' || !e.map) return; world?.dispose(); world = createCodWorld(scene, e.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); toast('🗺️ New map: ' + world.title(), 4000); })
+    .on('init', m => { if (m.qnote) qNote = m.qnote; if (mode === 'zombie' && m.map) { world?.dispose(); world = createCodWorld(scene, m.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); ZENV.start(m.map); document.body.classList.add('zmood'); toast('📍 ' + world.title(), 3500); } })
+    .on('map', e => { if (mode !== 'zombie' || !e.map) return; world?.dispose(); world = createCodWorld(scene, e.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); ZENV.start(e.map); toast('🗺️ New map: ' + world.title(), 4000); })
     .on('draft', e => { if (e.id === net?.me) { showDraft(e.o); sfx.perk(); } }).on('drafted', e => { if (e.id === net?.me) { showDraft(null); toast((e.ic || '✨') + ' ' + e.n + (e.lv > 1 ? ' ' + 'I'.repeat(e.lv) : ''), 1800); } }).on('jcharge', e => { toast('⚠️ Juggernaut charging!', 1200); sfx.rip?.(0.9); ZA.roar(net?.state()?.zombies?.find(z => z.id === e.id)); })
     .on('note', e => { qNote = { n: e.n, t: e.t, x: e.x }; sfx.radio(); showNote(qNote, !!e.again); }).on('qpick', e => { toast(e.id === net?.me ? `${e.ic} You picked up the ${e.n}. Take it to the Flare Console` : `${e.ic} ${esc(net.roster.get(e.id)?.name || 'A teammate')} has the ${e.n}`, 3200); sfx.buy(); if (e.k === 3) setTimeout(() => toast('⚠️ Something big is coming for the key card…', 2600), 1400); })
     .on('qdrop', () => toast('📻 The quest part was dropped. Pick it back up!', 2400)).on('qfit', e => { sfx.perk(); toast(`🔩 ${e.n} fitted${e.k < 3 ? ' · listen for the radio after this round' : ''}`, 3000); })
@@ -364,6 +364,7 @@ let groanT = 2; $('#tbar').append($('#gear'), $('#exit'), $('#returnCity'));
 $('#returnCity').hidden = !CITY_RETURN;
 // ---- Zombies audio director (positional CC0 samples, heartbeat) + match music ----
 const ZA = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile }), MUSIC = createMusic(sfx, { root: new URL('../music/', import.meta.url).href });
+const ZENV = createZombiesMapAmbience(sfx,{mobile}); // original Zombies map acoustics; stops on leave or map change
 { const ml = document.createElement('label'), mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = MUSIC.on; mc.onchange = () => { sfx.unlock(); MUSIC.setOn(mc.checked); }; ml.append(mc, ' 🎵 Music (Burn City Lives, then the BURN playlist)'); $('#set').append(ml); }
 // ---- Night Shift radio notes: a readable transmission between rounds; 📻 (or N) re-opens the last one ----
 let qNote = null, noteT = 0;
@@ -505,6 +506,7 @@ r.setAnimationLoop(() => {
       if (hammerT > 0) { hammerT = Math.max(0, hammerT - dt); FX.gun.rotation.x = Math.sin((0.3 - hammerT) / 0.3 * Math.PI) * 0.9; } else FX.gun.rotation.x = 0;   // hammer swing
       if (mode === 'zombie' && pred) { if (!sfx.has('flame_loop') && me?.firing && me.alive && !me.down && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w)) sfx.shot(me.w || 0);
         ZA.tick(dt, me ? { x: pred.x, y: pred.y || 0, z: pred.z, yaw, hp: me.hp, max: me.perks & 1 ? 250 : 100, alive: !!me.alive, down: !!me.down } : null, st.zombies, st.players.map(p => p.id === net.me ? { ...p, x: pred.x, z: pred.z, y: pred.y } : p), net.me);
+        ZENV.tick(dt,pred,!!me?.alive&&!me?.down); // subdued local industrial cues, not a separate sound engine
         if (!sfx.has('groan') && (groanT -= dt) <= 0) { groanT = 1.6 + Math.random() * 2.6; let best = null, bd = 1e9; for (const z of st.zombies || []) { const d = Math.hypot(z.x - pred.x, z.z - pred.z); if (d < bd && Math.random() < 0.7) { bd = d; best = z; } }
           if (best) sfx.groan(bd, Math.max(-0.8, Math.min(0.8, Math.sin(Math.atan2(best.x - pred.x, best.z - pred.z) - yaw) * -0.8))); } }
       FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, y: pred.y || 0, yaw, pitch, lean: roll, firing: !!me.firing, moving: pred.moving, w: me.w, up: me.up || 0 } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);

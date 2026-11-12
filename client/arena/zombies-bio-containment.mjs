@@ -5,7 +5,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import {planZombiesBioContainment} from './zombies-bio-containment-plan.mjs';
 
-function tissueTexture(){
+export function tissueTexture(){
  const size=128,rgba=new Uint8Array(size*size*4);
  // Layered deterministic marbling and bruised tissue, with subtle dark veins.
  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
@@ -30,7 +30,7 @@ function tissueTexture(){
  t.userData.originalArt='Original BURN City procedural organic horror texture';
  return t;
 }
-function lobeGeometry(){
+export function lobeGeometry(){
  const geo=new THREE.IcosahedronGeometry(1,3);
  const pos=geo.getAttribute('position');
  for(let i=0;i<pos.count;i++){

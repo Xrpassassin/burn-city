@@ -8,7 +8,8 @@ OAuth token has been configured. No viewer ripping and no third-party URLs.
 from __future__ import annotations
 import json, pathlib, shutil, sys, zipfile
 
-kind=sys.argv[1] if len(sys.argv)>1 else ''
+args=sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
+kind=args[0] if args else ''
 if kind not in ('nurse','blob'):
     raise RuntimeError('Select an explicitly approved source identity')
 folder=pathlib.Path('zombie-special-audit')/kind

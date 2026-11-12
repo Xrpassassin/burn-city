@@ -55,13 +55,17 @@ try{
     const camera=new THREE.PerspectiveCamera(64,innerWidth/innerHeight,.1,250);
     const world=createCodWorld(scene,layout,{low:mobile});
     world.applyEnv();
+    // Visual QA uses a finished/unlocked match so dark-zone floor tint does
+    // not conceal the art. Does not change any live map or networking state.
+    world.update(.016,[(1<<Math.min(24,layout.zones.length))-1,0,0,1]);
     const sites=planZombiesRoomDressing(layout,{low:mobile});
     const preferred=sites.find(s=>['lab','chapel','furnace','generator','control'].includes(s.theme))||sites[0];
     if(!preferred)throw Error('No actual authored room scenery for map '+name);
     // Face the selected wall fixture from a nearby eye-height camera.
     const nx=Math.sin(preferred.yaw),nz=Math.cos(preferred.yaw);
-    camera.position.set(preferred.x+nx*3.4,1.92,preferred.z+nz*3.4);
-    camera.lookAt(preferred.x,2.14,preferred.z);
+    const tx=nz,tz=-nx;
+    camera.position.set(preferred.x+nx*5.8+tx*1.25,2.0,preferred.z+nz*5.8+tz*1.25);
+    camera.lookAt(preferred.x,2.12,preferred.z);
     renderer.render(scene,camera);
     const info=world.zombieRoomDressing();
     window.__zombieRoomPreview={renderer,scene,world,camera};
@@ -75,6 +79,17 @@ try{
    assert(report.instances>=report.sites*4,'rooms must have recognizable detail, not one flat panel');
    assert.equal(errors.length,0,errors.join(';'));
    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'.png',fullPage:false});
+   if(!view.mobile){
+    await page.evaluate(()=>{
+     const {camera,renderer,scene}=window.__zombieRoomPreview;
+     const C=scene.children.find(x=>x.name==='zombies-room-dressing-box');
+     const site=C?.boundingSphere?.center||{x:0,z:0};
+     camera.position.set(site.x+11,13,site.z+12);
+     camera.lookAt(site.x,0,site.z);
+     renderer.render(scene,camera);
+    });
+    await page.screenshot({path:out+'/'+browserName+'-'+view.name+'-'+name+'-overview.png',fullPage:false});
+   }
    output.push({...report,view:view.name,browser:browserName});
   }
   await ctx.close();

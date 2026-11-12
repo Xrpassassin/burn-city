@@ -1,7 +1,7 @@
 // Original Zombies map appearance upgrade: four to five InstancedMesh draws,
 // regardless of how many procedural rooms are generated. Geometry, materials
 // and disposal live inside createCodWorld's existing asset pools.
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 import {planZombiesRoomDressing,ZOMBIES_ROOM_PALETTE} from './zombies-room-dressing-plan.mjs';
 
 export function addZombiesRoomDressing(root,layout,{low=false,g=x=>x,basic=(c,o)=>new THREE.MeshBasicMaterial({color:c,...o})}={}){

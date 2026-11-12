@@ -5,6 +5,9 @@ on:
       - 'client/arena/cod.js'
       - 'client/arena/zombies-room-dressing*.mjs'
       - 'client/arena/zombies-ruined-architecture*.mjs'
+      - 'client/arena/zombies-map-ambience*.mjs'
+      - 'client/arena/sfx.js'
+      - 'client/arena/index.html'
       - 'server/mapgen.js'
       - 'server/cod.js'
       - 'scripts/zombies-map-environment-browser-preview.mjs'
@@ -30,11 +33,15 @@ jobs:
           node --check client/arena/zombies-ruined-architecture-plan.mjs
           node --check client/arena/zombies-ruined-architecture.mjs
           node --check client/arena/zombies-ruined-architecture.test.mjs
+          node --check client/arena/zombies-map-ambience.mjs
+          node --check client/arena/zombies-map-ambience.test.mjs
+          node --check client/arena/sfx.js
           node --check client/arena/cod.js
       - name: Test 80 independently generated maps and mobile batch budgets
         run: |
           node client/arena/zombies-room-dressing.test.mjs
           node client/arena/zombies-ruined-architecture.test.mjs
+          node client/arena/zombies-map-ambience.test.mjs
       - name: Preserve original Zombies authoritative maps, progression, helicopter and combat
         run: |
           node test/zombie-map-progression-sim.js

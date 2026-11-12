@@ -189,7 +189,24 @@ const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'ut
 assert(pilot.includes('zombieSpecialModelForType')&&pilot.includes('createZombieInstancedLOD'));
 assert(!pilot.includes("from './homefront-community-art.mjs'"),'original Zombies must not import Homefront artwork');
 const world=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),'utf8');
+const refuge=readFileSync(new URL('./homefront.html',import.meta.url),'utf8');
 assert(world.includes('communityArt.decorateExplorer'));
 assert(world.includes('communityArt.animateExplorer'));
 assert(world.includes('communityArt.clearActors'));
-console.log('Community model intake passed: 6 sources, licensed hero GLB with original Walk/Run/Jump, 1 credited street pack, missing-asset fallbacks and Zombies isolation');
+assert(world.includes('nft:isLocalPlayer?NftPick.current():null'),
+ 'Graveyard must keep the selected NFT look instead of the licensed survivor');
+assert(refuge.includes('communityArt.decorateExplorer'));
+assert(refuge.includes('communityArt.animateExplorer'));
+assert(refuge.includes('NftPick.current()'),
+ 'Refuge must reuse the City NFT picker for the local player');
+assert(refuge.includes('homefront-credits.html'),'Refuge surfaces the in-game credits list');
+const credits=readFileSync(new URL('./homefront-credits.html',import.meta.url),'utf8');
+assert(credits.includes('codersan'));
+assert(credits.includes('https://sketchfab.com/3d-models/3d-zombie-apocalypse-survivor-male-character-f56ffc64d18c40cf95d17559542ca44c'));
+assert(credits.includes('https://creativecommons.org/licenses/by/4.0/'));
+assert(credits.includes('CC BY 4.0'));
+const lobby=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+assert(lobby.includes('homefront-credits.html'),'arena lobby links the Homefront credits list');
+assert(!existsSync(new URL('../../.github/workflows/homefront-survivor-pilot-vendor.yml',import.meta.url)),
+ 'branch-only vendor workflow must not remain after the asset is staged');
+console.log('Community model intake passed: 6 sources, licensed hero GLB with original Walk/Run/Jump, 1 credited street pack, Refuge+NFT wiring, credits, missing-asset fallbacks and Zombies isolation');

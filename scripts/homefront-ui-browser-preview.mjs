@@ -19,9 +19,22 @@ const game = document.getElementById('game');
 game.hidden = false;
 document.body.classList.add('rpg-mode-home');
 const canvas = document.createElement('canvas');
-canvas.setAttribute('aria-label', '3D test-world placeholder');
-canvas.style.cssText = 'display:block;width:100%;height:100%;background:#252e27';
+canvas.setAttribute('aria-label', 'HUD layout preview placeholder');
+canvas.width = 1280; canvas.height = 800;
+canvas.style.cssText = 'display:block;width:100%;height:100%';
 document.getElementById('world').append(canvas);
+const ctx = canvas.getContext('2d');
+ctx.fillStyle = '#3a2a22'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+ctx.fillStyle = '#5a4638'; ctx.fillRect(0, canvas.height * 0.62, canvas.width, canvas.height * 0.38);
+ctx.fillStyle = '#c4a27a'; ctx.fillRect(canvas.width * 0.47, canvas.height * 0.42, 70, 170);
+ctx.fillStyle = '#f0d7b0'; ctx.font = 'bold 28px system-ui,sans-serif';
+ctx.fillText('HUD layout preview', 36, 64);
+ctx.font = '18px system-ui,sans-serif'; ctx.fillStyle = '#d9c4a8';
+ctx.fillText('This test does not load the 3D world. Real Refuge and Graveyard shots come from the WebGL smoke.', 36, 96);
+const caption = document.createElement('div');
+caption.textContent = 'HUD layout preview — 3D world is not loaded in this test';
+caption.style.cssText = 'position:absolute;left:12px;top:56px;z-index:4;padding:6px 10px;border-radius:8px;background:#1a140fe6;color:#f0d7b0;font:13px system-ui,sans-serif;pointer-events:none';
+document.getElementById('world').append(caption);
 // Layout-only controls: the actual scene adds equivalent overlays at runtime.
 // They let Chromium reject positions that would cover the thumb joystick.
 const camera = document.createElement('button');

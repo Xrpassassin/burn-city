@@ -3,6 +3,14 @@
 // payment logic or NPC AI. Existing visuals stay visible until a checked GLB loads.
 import * as THREE from './vendor/three.module.min.js';
 import {enabledCommunityArt} from './community-art-intake.mjs';
+let nftApi=null,nftApiPending=null;
+function preloadNftArt(){
+ if(nftApi)return Promise.resolve(nftApi);
+ if(!nftApiPending){
+  nftApiPending=import('../js/nftchar.js').then(mod=>{nftApi=mod;return mod;},err=>{nftApiPending=null;throw err});
+ }
+ return nftApiPending;
+}
 
 const ROADSIDES=Object.freeze([
  // Pine Crossing first: physically visible from the real Main Street and
@@ -179,7 +187,46 @@ export function createHomefrontCommunityArt({
   }
   return {replaced,props};
  }
- function decorateExplorer(group,walker,{isLocal=false}={}){
+ function clearExplorer(group){
+  const actor=group?.userData?.communityActor;
+  if(actor){
+   actor.mixer?.stopAllAction();
+   actor.visual?.removeFromParent();
+   actors.delete(actor);
+   group.userData.communityActor=null;
+  }
+  if(group?.userData?.nftCharacter){
+   nftApi?.disposeNftChar(group.userData.nftCharacter);
+   group.userData.nftCharacter=null;
+  }
+  if(group?.userData?.walker)group.userData.walker.visible=true;
+ }
+ function decorateExplorer(group,walker,{isLocal=false,nft=null,srv=''}={}){
+  clearExplorer(group);
+  // NFT holders keep the City look: collection-tinted default walker plus a
+  // floating real NFT art card. The licensed survivor is only for players
+  // who have not selected an NFT. Eternal Grind is the sole exception and
+  // is not rendered through this Homefront adapter.
+  if(nft){
+   if(!nftApi){
+    preloadNftArt().then(()=>{ if(group.parent || group.userData.walker) decorateExplorer(group,walker,{isLocal,nft,srv}); });
+    return false;
+   }
+   try{
+    const character=nftApi.buildNftChar(nft,{srv,card:true,lite:!!(mobile||!isLocal)});
+    character.name='homefront-nft-look';
+    if(walker?.scale)character.scale.copy(walker.scale);
+    group.add(character);
+    if(walker)walker.visible=false;
+    group.userData.nftCharacter=character;
+    group.userData.look='nft';
+    return true;
+   }catch(e){
+    if(walker)walker.visible=true;
+    group.userData.look='walker';
+    return false;
+   }
+  }
   const asset=models.get('homefront-male-survivor');
   if(!asset||(mobile&&!isLocal)||actors.size>=8)return false;
   const animations=asset.gltf.animations||[];
@@ -199,9 +246,16 @@ export function createHomefrontCommunityArt({
   const actor={group,visual:fitted.group,mixer,idle,walk,run,jump,current:idle,action:fitted.poseAction};
   actors.add(actor);
   group.userData.communityActor=actor;
+  group.userData.look='survivor';
   return true;
  }
  function animateExplorer(explorer,moving,dt,jumpY=0,running=false){
+  const nft=explorer?.userData?.nftCharacter;
+  if(nft?.userData?.anim){
+   nft.userData.anim((typeof performance!=='undefined'?performance.now():0)/1000,!!moving,false);
+   nft.position.y=Number.isFinite(jumpY)?jumpY:0;
+   return;
+  }
   const actor=explorer?.userData?.communityActor;
   if(!actor)return;
   // This remains cosmetic: authoritative movement, jumping and aiming come
@@ -221,5 +275,5 @@ export function createHomefrontCommunityArt({
   for(const actor of actors)actor.mixer.stopAllAction();
   actors.clear();
  }
- return {load,attachWorld,decorateExplorer,animateExplorer,clearActors,models};
+ return {load,attachWorld,decorateExplorer,animateExplorer,clearExplorer,clearActors,preloadNftArt,models};
 }

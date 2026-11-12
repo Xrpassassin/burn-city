@@ -33,6 +33,25 @@ export function zombieRoomTheme(name='',index=0){
  ])if(re.test(s))return kind;
  return 'industrial';
 }
+// Concentrated, authored-looking burns rather than the legacy grid of
+// identical flame billboards on every wall. Pure, deterministic, seed-stable.
+export function zombieWallFireDecision(layout,zone,c,r,dc,dr){
+ const kind=zombieRoomTheme(layout?.zones?.[zone]?.n??'',zone);
+ const chance=layout?.kind==='cosmodrome'?65:
+  kind==='furnace'||kind==='slag'?400:
+  kind==='chapel'?140:
+  kind==='cold'||kind==='lab'||kind==='archive'?40:
+  kind==='control'||kind==='generator'?80:
+  kind==='spawn'?105:130;
+ const seed=Number.isFinite(layout?.seed)?layout.seed|0:0;
+ let h=(Math.imul(c+97,73856093)^Math.imul(r+53,19349663)^
+       Math.imul(dc+3,83492791)^Math.imul(dr+3,15485863)^
+       Math.imul(zone+1,3234846615)^seed)>>>0;
+ h=Math.imul(h^(h>>>16),0x7feb352d)>>>0;
+ h=Math.imul(h^(h>>>15),0x846ca68b)>>>0;
+ return ((h^(h>>>16))>>>0)%1000<chance;
+}
+
 function seedHash(value){
  let h=2166136261;
  for(const char of String(value)){h^=char.charCodeAt(0);h=Math.imul(h,16777619);}

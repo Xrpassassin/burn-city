@@ -27,7 +27,7 @@ for(const type of [5,8]){
  for(const mesh of fx.group.children){
   assert(mesh.isMesh);
   const shape=mesh.geometry;
-  triangles+=shape.index?.count/3??shape.getAttribute('position').count/3;
+  triangles+=shape.index?shape.index.count/3:shape.getAttribute('position').count/3;
   assert(mesh.material.roughness>=.5,'no shiny low-poly plastic');
  }
  assert(triangles>800,'real smooth anatomy detail, not primitive block creatures');

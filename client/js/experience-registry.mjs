@@ -122,7 +122,7 @@ export function createBurnCityExperienceRegistry({ launchers = {}, ...options } 
   });
   if (typeof launchers['orbital-flight'] === 'function') registry.register({
     id: 'orbital-flight',
-    label: 'ISS Flight Preview',
+    label: 'CB1 Flight to the ISS',
     status: 'available',
     launch: launchers['orbital-flight'],
     returnTo: 'airport'

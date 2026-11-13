@@ -1,3 +1,5 @@
+export const NFT_PLAYER_AVATARS_ENABLED = true;
+
 // Cross-experience avatar eligibility. Visual choice is separate from verified NFT ownership.
 export const AVATAR_POLICIES = Object.freeze({
   city: 'shared-nft',
@@ -12,10 +14,11 @@ export const AVATAR_POLICIES = Object.freeze({
 });
 export function avatarPolicyFor(experienceId) {
   return Object.prototype.hasOwnProperty.call(AVATAR_POLICIES, experienceId)
-    ? AVATAR_POLICIES[experienceId] : 'unregistered';
+    ? (NFT_PLAYER_AVATARS_ENABLED ? AVATAR_POLICIES[experienceId] : 'default') : 'unregistered';
 }
 export function resolveExperienceAvatar(experienceId, selectedNft, verifiedOwnedTokenIds = []) {
   const policy = avatarPolicyFor(experienceId);
+  if (policy === 'default') return { mode: 'default', nft: null };
   if (policy === 'class-specific') return { mode: 'class-specific', nft: null };
   if (policy !== 'shared-nft') return { mode: 'unregistered', nft: null };
   const tokenId = selectedNft?.tokenId;

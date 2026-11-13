@@ -894,7 +894,7 @@ export async function installEstatesIslandLive({
     if(!response.ok || !result.ok) throw new Error(result.error || 'instance_unavailable');
     return result;
   }
-  function clearPeers(){for(const peer of remotePeers.values())root.remove(peer.mesh);remotePeers.clear();}
+  function clearPeers(){for(const peer of remotePeers.values()){peer.mesh.userData.defaultAvatar?.dispose();root.remove(peer.mesh);}remotePeers.clear();}
   function stopPresence(){
     presenceStopped=true;
     if(presenceTimer!==null)clearInterval(presenceTimer);presenceTimer=null;
@@ -923,7 +923,7 @@ export async function installEstatesIslandLive({
       socket.onmessage=event=>{let msg;try{msg=JSON.parse(event.data);}catch{return;}
         if(msg.t==='w'&&msg.instanceId===instanceId&&Array.isArray(msg.peers)){clearPeers();for(const peer of msg.peers)updatePeer(peer.id,peer);}
         else if(msg.t==='j'||msg.t==='p')updatePeer(msg.id,msg);
-        else if(msg.t==='l'){const peer=remotePeers.get(msg.id);if(peer){root.remove(peer.mesh);remotePeers.delete(msg.id);}}
+        else if(msg.t==='l'){const peer=remotePeers.get(msg.id);if(peer){peer.mesh.userData.defaultAvatar?.dispose();root.remove(peer.mesh);remotePeers.delete(msg.id);}}
       };
       socket.onclose=event=>{if(presenceSocket!==socket)return;presenceSocket=null;if(presenceTimer!==null)clearInterval(presenceTimer);presenceTimer=null;clearPeers();
         if(!presenceStopped&&active&&leaseToken===token&&event.code!==1008)reconnectTimer=setTimeout(connect,2000);

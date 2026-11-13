@@ -1,6 +1,7 @@
 // Shared walker model (own avatar + other players). Shared geometries/materials, ~22 meshes full / ~11 lite (phones, crowds).
 // Front is -Z. legs/arms are hip/shoulder pivots (rotation.x swings); userData.legs/arms keep the old API.
 import * as THREE from 'three';
+import { mountDefaultPlayerAvatar } from './default-player-avatar.mjs';
 const G = {}, M = {}, SK = [0xf1c8a5, 0xd9a47c, 0xb97c54, 0x8a5636, 0x5e3a24];
 const geo = (k, f) => G[k] || (G[k] = f());
 const std = (c, r = .55, m = .25, e = 0) => { const k = c + '_' + r + '_' + m + '_' + e; return M[k] || (M[k] = new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, emissive: e })) };
@@ -46,8 +47,22 @@ export function buildWalker({ suit = 0x1b2338, accent = 0x7ee0ff, skin = 0, lite
   g.userData = { legs, arms, head, torso, chest, visor, wk: 1 };
   return g;
 }
+export function buildPlayerWalker(options) {
+  const walker = buildWalker(options);
+  const body = walker.children.filter(child => child.renderOrder !== -1);
+  walker.userData.defaultAvatar = mountDefaultPlayerAvatar(walker, {
+    tint: options?.suit,
+    lod: !!options?.lite,
+    fallback: visible => { for (const child of body) child.visible = visible; }
+  });
+  return walker;
+}
+
 // pose: ph = walk phase, amp 0..1 (0 = idle), t = seconds. Writes legs/arms rotation.x (compatible with NFT chars: extras apply only if present)
-export function poseWalker(g, ph, amp, t = 0) {
+export function poseWalker(g, ph, amp, t = 0, running = false) {
+  const previous = g.userData.avatarTime ?? t;
+  g.userData.avatarTime = t;
+  g.userData.defaultAvatar?.update(t - previous, amp > .12 ? (running ? 'Run' : 'Walk') : 'Idle');
   const u = g.userData, L = u.legs, A = u.arms, sw = Math.sin(ph) * .7 * amp;
   L[0].rotation.x = sw; L[1].rotation.x = -sw; A[0].rotation.x = -sw * .8; A[1].rotation.x = sw * .8;
   if (L[0].userData.knee) { L[0].userData.knee.rotation.x = -Math.max(0, Math.cos(ph)) * .9 * amp; L[1].userData.knee.rotation.x = -Math.max(0, -Math.cos(ph)) * .9 * amp }

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { mountDefaultPlayerAvatar } from '../js/default-player-avatar.mjs';
+import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
 import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
 import * as Trade from './trade.js';
 import * as Boats from './boats.js';
@@ -93,16 +95,19 @@ for(const side of [-1,1]) for(let i=0;i<3;i++){
   cannon.rotation.z=Math.PI/2;cannon.position.set(side*1.55,.75,1.5-i*1.7);ship.add(cannon);
 }
 ship.position.set(0,0,0);scene.add(ship);
+const helmAvatar = mountDefaultPlayerAvatar(ship, { offset: [0, 1.1, 1.2] });
 
 // Game bootstrap may call this after verifying ownership, approving the GLB and loading its model.
 // BlackTide does not load an unverified NFT URI or invent a player identity.
 export function attachPlayerNftCrew(loadedModel, approvedAvatarRuntime) {
+  if (!NFT_PLAYER_AVATARS_ENABLED) return { ok: false, reason: 'player-nft-avatars-paused' };
   return mountApprovedCrew({ ship, model: loadedModel, avatarRuntime: approvedAvatarRuntime });
 }
 
 // Caller must obtain the approved runtime record from an authenticated server endpoint.
 // No client-provided ownership list or query string is accepted as proof.
 export async function loadPlayerNftCrew(approvedAvatarRuntime) {
+  if (!NFT_PLAYER_AVATARS_ENABLED) return { ok: false, reason: 'player-nft-avatars-paused' };
   return bootstrapApprovedCrew({ runtime: approvedAvatarRuntime, loader: new GLTFLoader(), attach: attachPlayerNftCrew });
 }
 
@@ -167,16 +172,17 @@ Trade.onDockChange({
   dock:()=>{speed=0;ship.visible=false;},
   depart:(_port,departure)=>{if(departure){ship.position.x=departure.x;ship.position.z=departure.z;}speed=0;ship.visible=true;}
 });
-const shoreWalk=createShoreWalk({THREE,scene,camera,game,ship,trade:Trade});
+const shoreWalk=createShoreWalk({mountAvatar:mountDefaultPlayerAvatar,THREE,scene,camera,game,ship,trade:Trade});
 const maraInteraction=createMaraInteraction({THREE,scene,game});
 const clueTrail=createClueTrail({THREE,scene,game});
 const coveAmbience=createCoveAmbience({THREE,scene});
-const tavernVisit=createTavernVisit({THREE,scene,camera,game});
+const tavernVisit=createTavernVisit({mountAvatar:mountDefaultPlayerAvatar,THREE,scene,camera,game});
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
   elapsed+=dt;
+  helmAvatar.update(dt);
   if (crewAnimator?.ok) crewAnimator.update(dt);
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started,started?ship.position:null);

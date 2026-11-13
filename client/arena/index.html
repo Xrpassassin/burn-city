@@ -47,6 +47,8 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <script type="module">
 import { readZombieStick } from './zombie-stick.mjs';
 import { zombieMoveVector, ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED, ZOMBIE_CRAWL_SPEED } from './zombie-locomotion.mjs';
+import { mountDefaultPlayerAvatar } from '../js/default-player-avatar.mjs';
+import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
 import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createZombiesMapAmbience } from './zombies-map-ambience.mjs'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const CITY_RETURN = ['airport', 'aegis-pyramid-plaza'].includes(P.get('from'));
@@ -128,7 +130,7 @@ async function enterRanked(opts, game = 'zombie') {
 }
 $('#safefoot').append(document.createTextNode(NOTICE + ' '), badge());
 loadRanked(); setInterval(() => $('#menu').hidden || loadRanked(), 30000);
-{ const b = document.createElement('button'); b.id = 'nftbtn'; b.hidden = true; $('#signin').after(' ', b); window.__nftp = NftPick.mount(API, { button: b }); }
+{ const b = document.createElement('button'); b.id = 'nftbtn'; b.hidden = true; $('#signin').after(' ', b); if (NFT_PLAYER_AVATARS_ENABLED) window.__nftp = NftPick.mount(API, { button: b }); }
 loadShop(); $('#price').textContent = localStorage.bcAcct ? 'Signed in ' + localStorage.bcAcct.slice(0, 8) + '…' : 'Playing as guest (not on leaderboard)';
 $('#signin').onclick = async () => { try { const v = await signIn(API, { onQr: qr }); $('#qr').innerHTML = ''; $('#price').textContent = 'Signed in ' + v.account.slice(0, 8) + '…'; loadShop(); window.__nftp?.refresh(); } catch (e) { $('#price').textContent = e.message; } };
 const r = new THREE.WebGLRenderer({ antialias: !mobile, powerPreference: 'high-performance' });
@@ -327,10 +329,19 @@ function makeBike() { RIM = RIM || rimG(LOW); const tint = new THREE.MeshBasicMa
   for (const z of [-0.9, 0.88]) { const r = new THREE.Mesh(RIM, tint); r.position.set(0, 0.42, z); const h = new THREE.Mesh(BIKE.hub, BIKE.hullM); h.position.set(0, 0.42, z); c.add(h, r); }
   for (const x of [-0.245, 0.245]) { const st = new THREE.Mesh(BIKE.stripe, acc); st.position.set(x, 0.5, 0); c.add(st); }
   const glow = new THREE.Mesh(BIKE.glow, glowM); glow.position.y = 0.03; c.add(glow); c.userData.glow = glow; c.userData.line = line; c.userData.lean = 0; return c; }
-function disposeBike(c) { for (const m of c.userData.mats || []) m.dispose(); }
+function disposeBike(c) { c.userData.defaultAvatar?.dispose(); for (const m of c.userData.mats || []) m.dispose(); }
 // NFT characters: the server only attaches look.nft for a signed-in wallet that holds that NFT (re-checked on the ledger)
-const NFTOF = id => net?.roster.get(id)?.look?.nft || null;
-function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
+const NFTOF = id => NFT_PLAYER_AVATARS_ENABLED ? net?.roster.get(id)?.look?.nft || null : null;
+function riderNft(p, c) {
+  if (!NFT_PLAYER_AVATARS_ENABLED) {
+    c.userData.defaultAvatar ??= mountDefaultPlayerAvatar(c, {
+      height: 1.12, seated: true, offset: [0, .25, -.2],
+      fallback: visible => { c.children[0].visible = visible; }
+    });
+    c.userData.defaultAvatar.update(0);
+    return;
+  }
+  const n = NFTOF(p.id), cur = c.userData.nc;
   if (n && (!cur || cur.userData.nftId !== n.id)) { if (cur) disposeNftChar(cur); try { const g = buildNftChar(n, { srv: API, card: true, panel: false }); g.scale.setScalar(0.62); g.position.set(0, 0.25, -0.2); g.userData.legs.forEach(l => l.rotation.x = -1.3); g.userData.arms.forEach(a => a.rotation.x = -1.1); c.add(g); c.userData.nc = g; } catch (e) {} }
   if (c.children[0] && c.children[0] !== c.userData.nc) c.children[0].visible = !c.userData.nc;   // NFT rider replaces the stock rider block
   if (c.userData.nc) { c.userData.nc.visible = !!p.alive; const cd = c.userData.nc.userData.card; if (cd) { cd.position.y = c.userData.nc.userData.frame.position.y = 5.2; cd.scale.set(1.5, 1.5, 1); c.userData.nc.userData.frame.scale.set(1.68, 1.68, 1); } } }

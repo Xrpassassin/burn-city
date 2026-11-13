@@ -1,7 +1,7 @@
 import {walkingIntent} from '../js/walking-input.mjs';
 import {createWalkingPad} from '../js/walking-pad.mjs';
 // First playable Cinder Cove shore walk. Client visuals only; never grants quests/rewards.
-export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
+export function createShoreWalk({THREE,scene,camera,game,ship,trade,mountAvatar}) {
   const island={x:-56,z:-84};
   const avatar=new THREE.Group();
   const cloth=new THREE.MeshStandardMaterial({color:0x384a57,roughness:.9});
@@ -15,6 +15,11 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
     leg.position.set(x,.48,0);avatar.add(leg);
   }
   avatar.visible=false;scene.add(avatar);
+ const fallback = [...avatar.children];
+ const model = mountAvatar?.(avatar, { height: 2.4, yaw: 0, fallback: visible => {
+   for (const child of fallback) child.visible = visible;
+ } });
+
   const button=document.createElement('button');
   button.type='button';button.textContent='DISEMBARK · CINDER COVE';
   button.style.cssText='position:absolute;bottom:110px;left:50%;transform:translateX(-50%);z-index:25;padding:12px 18px;border:1px solid #b98a4e;border-radius:8px;background:#17202b;color:#fff;font-weight:700;cursor:pointer';
@@ -37,7 +42,7 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   });
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   return {
-    dispose(){pad.dispose();if(helmControls)helmControls.style.display=helmDisplay;button.remove();scene.remove(avatar);},
+    dispose(){model?.dispose();pad.dispose();if(helmControls)helmControls.style.display=helmDisplay;button.remove();scene.remove(avatar);},
     get ashore(){return ashore;},
     get position(){return avatar.position;},
     update(dt,keys) {
@@ -53,6 +58,7 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
         avatar.position.z=clamp(avatar.position.z+dz*dt*4,island.z-17,island.z+10);
         angle=Math.atan2(-dx,-dz);avatar.rotation.y=angle;
       }
+      model?.update(dt,moving?'Walk':'Idle');
       const target=avatar.position.clone().add(new THREE.Vector3(0,1.4,0));
       const behind=new THREE.Vector3(Math.sin(angle)*5,3.5,Math.cos(angle)*5);
       camera.position.lerp(target.clone().add(behind),1-Math.pow(.001,dt));

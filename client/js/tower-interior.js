@@ -15,6 +15,7 @@
 // The Midnightbluff lift asks the server (/api/tower/midnightbluff); the allowlist never reaches the client.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mountDefaultPlayerAvatar } from './default-player-avatar.mjs';
 import * as NftPick from './nftpick.js';
 
 const Q = new URLSearchParams(location.search);
@@ -702,10 +703,16 @@ function makeBody() {
     const cuff = new THREE.Mesh(new THREE.CylinderGeometry(.047, .047, .02, 12), M.gold); cuff.position.y = -.27; el.add(cuff);
     return { sh, el };
   });
+  const parts = [...g.children];
+  L.defaultAvatar = mountDefaultPlayerAvatar(g, {
+    variant: 'firstPerson',
+    fallback: visible => { for (const part of parts) part.visible = visible; }
+  });
   g.userData = L; return g;
 }
 function poseBody(dt) {
   const L = body.userData, amt = Math.min(1, P.speed / WALK), air = !P.onGround;
+  L.defaultAvatar?.update(dt, P.seated ? 'Sit' : air ? 'Jump' : amt > .12 ? 'Walk' : 'Idle');
   if (P.seated) {
     for (const l of L.legs) { l.hip.rotation.x = 1.45; l.knee.rotation.x = -1.45; l.ankle.rotation.x = 0; }
     for (const a of L.arms) { a.sh.rotation.x = .5; a.el.rotation.x = .4; }

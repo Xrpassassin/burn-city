@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { AVATAR_POLICIES, avatarPolicyFor, resolveExperienceAvatar } from './experience-avatar-policy.mjs';
+import { AVATAR_POLICIES, NFT_PLAYER_AVATARS_ENABLED, avatarPolicyFor, resolveExperienceAvatar } from './experience-avatar-policy.mjs';
+assert.equal(NFT_PLAYER_AVATARS_ENABLED, true);
 const token={tokenId:'TOKEN-1',collectionKey:'racc'};
 for (const id of ['city','zombies','homefront','light-cycles','estates-island','blacktide','fishing','cinder-wilds']) {
   assert.equal(avatarPolicyFor(id),'shared-nft');

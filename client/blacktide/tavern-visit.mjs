@@ -3,7 +3,7 @@ import {nextTavernPosition,nearSilas} from './tavern-walk.mjs';
 export function canEnterTavern(ashore,pos) {
  return !!ashore&&!!pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z)&&Math.hypot(pos.x+61,pos.z+85.5)<3;
 }
-export function createTavernVisit({THREE,scene,camera,game}) {
+export function createTavernVisit({mountAvatar,THREE,scene,camera,game}) {
  const {room}=buildCoveTavern(THREE);scene.add(room);
  const walker=new THREE.Group();
  const coat=new THREE.MeshStandardMaterial({color:0x41566a,roughness:1});
@@ -11,6 +11,11 @@ export function createTavernVisit({THREE,scene,camera,game}) {
  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.35,.8,4,8),coat);torso.position.y=1.15;walker.add(torso);
  const head=new THREE.Mesh(new THREE.SphereGeometry(.28,8,7),skin);head.position.y=1.95;walker.add(head);
  walker.position.set(0,0,-3);room.add(walker);
+ const fallback = [...walker.children];
+ const model = mountAvatar?.(walker, { height: 2.2, yaw: 3.141592653589793, fallback: visible => {
+   for (const child of fallback) child.visible = visible;
+ } });
+
  const enter=document.createElement('button');enter.type='button';enter.textContent='ENTER · THE SALT LANTERN';
  enter.style.cssText='position:absolute;bottom:260px;left:50%;transform:translateX(-50%);z-index:35;padding:12px;background:#291b15;color:#ffdda4;border:1px solid #c48c50;border-radius:8px';
  enter.hidden=true;game.append(enter);
@@ -45,7 +50,9 @@ export function createTavernVisit({THREE,scene,camera,game}) {
      const forward=Number(keys.has('w')||keys.has('arrowup')||held.has('w'))-Number(keys.has('s')||keys.has('arrowdown')||held.has('s'));
      const side=Number(keys.has('d')||keys.has('arrowright')||held.has('d'))-Number(keys.has('a')||keys.has('arrowleft')||held.has('a'));
      const p=nextTavernPosition(walker.position,side,forward,dt);
-     if(p.x!==walker.position.x||p.z!==walker.position.z){walker.rotation.y=Math.atan2(side,forward);walker.position.x=p.x;walker.position.z=p.z;}
+     const moved=p.x!==walker.position.x||p.z!==walker.position.z;
+     model?.update(dt,moved?'Walk':'Idle');
+     if(moved){walker.rotation.y=Math.atan2(side,forward);walker.position.x=p.x;walker.position.z=p.z;}
      talk.hidden=!nearSilas(walker.position);
      const target=room.position.clone().add(walker.position).add(new THREE.Vector3(0,1.5,0));
      camera.position.lerp(target.clone().add(new THREE.Vector3(0,2.5,-4)),1-Math.pow(.001,dt));

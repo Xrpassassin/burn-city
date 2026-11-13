@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mountDefaultPlayerAvatar } from './default-player-avatar.mjs';
 import * as NftPick from './nftpick.js';
+import * as EmberBar from './ember-bar.mjs';
 
 const Q = new URLSearchParams(location.search);
 const SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev';
@@ -655,6 +656,7 @@ function barAndLounge() {
   for (let i = 0; i < 5; i++) cyl(-14.25, bz0 + 1 + i * 1.7, .25, MEZZ, MEZZ + .8);
   plaque('THE EMBER BAR', 'HOUSE MENU', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
   station('bar', 'The Ember Bar', -14.2, MEZZ, 13.5, 3.2, [1.2, 1.3, 9]);
+  EmberBar.init({ scene, MEZZ, HX, M, instanced, cyl, TOUCH, SRV, btn, toast: m => root && toast(m), root: () => root }); EmberBar.build();   // bartender, Blackbeard, counter dressing, 1 XRP checkout (js/ember-bar.mjs)
   // THE DIONYSIAN LOUNGE (east gallery): low sofas facing the atrium, stone table
   const sofa = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, MEZZ, z); g.rotation.y = ry;
     const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, .42, .9), M.fabric); seat.position.set(0, .3, 0); g.add(seat);
@@ -796,6 +798,7 @@ function towerFrame(dt, t) {
   for (const [l, i] of lights) l.intensity = i * lightMul;
   if (REACT) { const tt = performance.now() / 1000; REACT.intensity *= .9 + .07 * Math.sin(tt * 7.3) + .03 * Math.sin(tt * 19.1); }   // reactor breathes/flickers
   for (const o of animated) o.userData.tick && o.userData.tick(dt, t);
+  EmberBar.frame(dt, t, P);
   // nearest station on this level -> reuse the city's prompt and USE button
   nearSt = null; let bd = 1e9;
   for (const st of stations) { if (Math.abs(st.y - P.pos.y) > 2.5) continue; const d = Math.hypot(st.x - P.pos.x, st.z - P.pos.z); if (d < st.r && d < bd) { bd = d; nearSt = st; } }
@@ -863,7 +866,7 @@ function showDirectory() {
     { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
       ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
       ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
-      ['bar', 'The Ember Bar', 'Open the roleplay house menu. No currency or inventory is charged.', 'OPEN MENU', '#d7a65e'],
+      ['bar', 'The Ember Bar', 'House specials: free preview, or buy a drink for 1 XRP.', 'OPEN MENU', '#d7a65e'],
       ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e'],
       ['rooftop', 'BURN Tower Sky Lounge', 'Panoramic rooftop deck, glass safety barriers, night skyline, lounge seating, and sky bar.', 'TRAVEL', '#e0704a']
     ]},
@@ -993,36 +996,9 @@ function showBarMenu() {
     border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
     color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
   });
-  const h = document.createElement('h2'); h.textContent = 'THE EMBER BAR';
-  Object.assign(h.style, { margin: '0 0 6px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
-  panel.appendChild(h);
-  const intro = document.createElement('p');
-  intro.textContent = 'Choose a house special for a small roleplay moment. This is a cosmetic interaction only: it does not spend currency, change inventory, or apply gameplay effects.';
-  Object.assign(intro.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' });
-  panel.appendChild(intro);
-  const specials = [
-    ['CINDER TEA', 'Smoked black tea, clove, and a slow amber glow.'],
-    ['EMBER FIZZ', 'A bright citrus sparkle with a warm red finish.'],
-    ['BLACKGLASS TONIC', 'Dark berry, cool mint, and a shimmer like volcanic glass.']
-  ];
-  for (const [name, description] of specials) {
-    const card = document.createElement('div');
-    Object.assign(card.style, { padding: '10px', margin: '8px 0', border: '1px solid #493827', borderRadius: '9px', background: '#ffffff05' });
-    const title = document.createElement('strong'); title.textContent = name;
-    Object.assign(title.style, { display: 'block', color: '#f0d2a2', fontSize: '12px', letterSpacing: '.08em' });
-    const detail = document.createElement('p'); detail.textContent = description;
-    Object.assign(detail.style, { margin: '5px 0 10px', color: '#bcae9f', fontSize: '11px', lineHeight: '1.45' });
-    const order = btn('CHOOSE SPECIAL');
-    order.style.width = '100%';
-    order.addEventListener('click', () => {
-      panel?.remove(); panel = null;
-      toast(name + ' selected · roleplay only, no inventory change.');
-    });
-    card.append(title, detail, order); panel.appendChild(card);
-  }
-  const c = btn('CLOSE', true); c.style.marginTop = '8px';
-  c.addEventListener('click', () => { panel?.remove(); panel = null; });
-  panel.appendChild(c); root.appendChild(panel);
+  const mine = panel;
+  EmberBar.menu(panel, () => { mine.remove(); if (panel === mine) panel = null; });   // free preview + 1 XRP checkout (js/ember-bar.mjs)
+  root.appendChild(panel);
 }
 function travelTo(destination) {
   const points = {
@@ -1213,7 +1189,7 @@ window.__towerInteract = () => { if (!active) return; if (panel) { panel.remove(
 if (Q.has('towertest')) window.__towerTest = {
   interact, travelTo, P, get camera() { return camera; }, get panel() { return panel; },
   get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations,
-  body: () => body, close,
+  body: () => body, close, emberBar: EmberBar._test,
   // Quick browser-console diagnostic for directory/lift destination smoke tests.
   checkDestinations() {
     const points = {

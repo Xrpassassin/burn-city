@@ -13,6 +13,7 @@ import './streetprops.js';
 import './events.js';
 import './airport.js';
 import './city-space.mjs';   // CC BY ISS (BlendRuN) + CB1 (Keremz) in the City sky and on the airport pad, in-City docking flight; ?space=0 disables, see city-credits.html
+import './ember-bar-building.mjs';   // THE EMBER BAR: its own tavern on the BURN ring road (procedural exterior; interior = tower-interior.js 'ember' venue); ?emberbar=0 disables
 import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
 import { installEstatesIslandLive } from './estates-island-live.mjs';
 import {makeRainbow} from './rainbow.js';
@@ -1629,6 +1630,7 @@ if(/[?&]debug=1/.test(location.search))window.__tourDbg={get:()=>tour,caps:()=>t
   if(e&&e.lakeC){const L=e.lakeC,d=e.dir||V3(1,0,0);tourStops.push([V3(L.x-d.x*140,70,L.z-d.z*140),V3(L.x,0,L.z)]);tourCaps.push('The lake: fishing and boating · Burn City Estates · Coming soon')}
   if(f&&f.shopPos){const sp=f.shopPos,d=f.dock.dir;tourStops.push([V3(sp.x+d.x*16+d.z*10,9,sp.z+d.z*16-d.x*10),V3(sp.x,2,sp.z)]);tourCaps.push('Fishing dock + Tackle & Bait: free rod & worms, catch ~20 species, sell for lake coins (no real value), upgrade rods/bait')}
   if(bw&&bw.base){const b=bw.base,d=f.dock.dir;tourStops.push([V3(b.x-d.x*16+d.z*12,8,b.z-d.z*16-d.x*12),V3(b.x+d.x*4,0,b.z+d.z*4)]);tourCaps.push('Boat dock: hop in and drive a boat around the lake')}
+ for(const h of window.__tourHooks||[]){try{const r=h(V3);if(r){tourStops.push([r[0],r[1]]);tourCaps.push(r[2])}}catch(_){}}   // optional modules add stops (ember-bar-building.mjs)
  }catch(err){}tourStops.push(TS0[TS0.length-1]);tourCaps.push(TC0[TC0.length-1])}
 $('tour').onclick=()=>{if(tlOn()||window.__estatesIslandLive?.active)return;tourBuild();setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
 

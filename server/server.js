@@ -43,6 +43,7 @@ const homefrontOverworld = require('./homefront-overworld').createOverworld({ st
 const homefrontGuests = HomefrontGuest.createGuestHandler({ overworld: homefrontOverworld });
 setInterval(() => homefrontGuests.sweep(), 60000).unref();
 const Jetpack = require('./jetpack');
+const EmberBar = require('./ember-bar');   // Ember Bar 1 XRP cosmetic drinks (/api/ember-bar), on unless EMBER_BAR_PAYMENTS=0
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
@@ -130,6 +131,7 @@ const server = http.createServer(async (req, res) => {
       if (await homefrontGuests.handle(req, res, url, { json, gate, ip, body })) return;
     }
     if (url.pathname === '/api/homefront' || url.pathname === '/api/homefront/action' || url.pathname === '/api/homefront/visit' || url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/')) { if (await Homefront.handle(req, res, url, { json, gate, ip, body, who, store: homefrontOverworld.store })) return; }
+    if ((url.pathname === '/api/ember-bar' || url.pathname.startsWith('/api/ember-bar/')) && await EmberBar.handle(req, res, url, { json, gate, ip, body, who })) return;
     if ((url.pathname === '/api/jetpack' || url.pathname.startsWith('/api/jetpack/')) && await Jetpack.handle(req, res, url, { json, gate, ip, body, who })) return;   // jetpacks + real-XRP invoices (server/jetpack.js), off unless JETPACK_PAYMENTS=1
     if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;
     if (url.pathname.startsWith('/api/bt/') && await BT.handle(req, res, url, { json, gate, ip, body, who })) return;   // Blacktide trade/progression (server/blacktide.js)   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
@@ -693,6 +695,7 @@ if (!C.DRY_RUN && C.TREASURY) require('./watch').start(Pay.ledger);
 const xsdk = () => { const { XummSdk } = require('xumm-sdk'); return new XummSdk(C.XUMM_KEY, C.XUMM_SECRET); };
 Ranked.Q.start({ ledger: Pay.ledger, live: () => Ranked.live() && !C.DRY_RUN, wallet: () => { if (!C.TREASURY_SEED) return null; try { return require('xrpl').Wallet.fromSeed(C.TREASURY_SEED); } catch { return null; } } });
 setInterval(() => { try { Ranked.sweepRefunds(); } catch (e) { console.error('refunds', e.message); } Ranked.sweepSessions(Pay.ledger, xsdk).catch(() => {}); Pay.sweepBuys().catch(() => {}); }, 30000);
+setInterval(() => { EmberBar.sweep().catch(() => {}); }, 60000).unref();   // Ember Bar: settle signed drink orders when the player left mid-checkout
 server.headersTimeout = 15e3; server.requestTimeout = 30e3; server.keepAliveTimeout = 10e3;   // slow-loris protection
 AegisClips.start({ online: () => City.count() });
 Cams.start();   // YouTube live-cam refresh: no-op unless YT_API_KEY / Youtube_API is set   // no-op unless AEGIS_CLIPS=1

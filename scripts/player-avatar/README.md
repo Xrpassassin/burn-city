@@ -16,7 +16,7 @@ The first build collapsed the scan with Blender's Decimate, which smeared the te
 
 ## Exports
 
-- `client/assets/players/gas-mask-guy.gltf` is 1.8 m tall, Y-up, feet at the origin, facing −Z. **9,000 triangles**, one material, 1024 px webp (512 px on phones via `gas-mask-guy-tex-512/`). Clips: `Idle`, `Walk`, `Run`, `Ride`, `Sit`, `Jump`. Locomotion is in place.
+- `client/assets/players/gas-mask-guy.gltf` is 1.8 m tall, Y-up, feet at the origin, facing +Z in the exported scene. The shared loader rotates it to the walker's −Z forward axis before applying the mode's yaw. **9,000 triangles**, one material, 1024 px webp (512 px on phones via `gas-mask-guy-tex-512/`). Clips: `Idle`, `Walk`, `Run`, `Ride`, `Sit`, `Jump`. Locomotion is in place.
 - `client/assets/players/gas-mask-guy-lod.gltf` is the same rig and clips at **3,848 triangles**, used for other players at a distance (and lite/phone quality).
 - `client/assets/players/gas-mask-guy-body.gltf` is the first-person body (**7,757 triangles**) with the head and mask stripped, for Zombies, Eternal Grind and Pyretheum. Sleeves on the existing weapon view model are unchanged.
 - `MODEL_AVAILABLE` in `client/js/default-player-avatar.mjs` is on for all three exports. The city service worker version is bumped when the files change. Attribution, including the changes above, is in `client/city-credits.html`.

@@ -95,31 +95,54 @@ box(craftBody, fuselage, [1.48, .075, .55], [0, -.05, .24]);
 box(craftBody, solar, [.4, .075, .45], [0, .16, -.2]);
 for (const x of [-.27, .27]) box(craftBody, marker, [.17, .1, .08], [x, 0, .71]);
 
-// Local derivatives can replace the preview bodies once normalized and bundled.
+// Local derivatives replace the preview bodies when models.json enables them.
 const previewAssets = new URL('../assets/space/', import.meta.url);
+function isPhoneQuality() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('tex') === '512') return true;
+    if (q.get('tex') === '1024') return false;
+    const w = window;
+    return !!(w.matchMedia?.('(pointer:coarse)').matches || w.innerWidth < 900 || (w.devicePixelRatio < 2 && w.innerWidth < 1100));
+  } catch {
+    return false;
+  }
+}
+const lodViews = { iss: { near: null, far: null } };
 async function loadPreviewAssets() {
   const response = await fetch(new URL('models.json', previewAssets));
   if (!response.ok) return;
   const models = await response.json();
   const variants = [
-    [models.cb1, 'cb1.gltf', craft, craftBody],
-    [models.iss, 'iss.gltf', station, stationBody]
+    [models.cb1, 'cb1.gltf', null, craft, craftBody],
+    [models.iss, 'iss.gltf', 'iss-lod.gltf', station, stationBody]
   ].filter(([enabled]) => enabled === true);
   if (!variants.length) return;
   const { GLTFLoader } = await import('../vendor/three/examples/jsm/loaders/GLTFLoader.js');
-  const loader = new GLTFLoader();
-  await Promise.allSettled(variants.map(async ([, file, holder, fallback]) => {
+  const manager = new THREE.LoadingManager();
+  if (isPhoneQuality()) manager.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
+  const loader = new GLTFLoader(manager);
+  await Promise.allSettled(variants.map(async ([, file, lodFile, holder, fallback]) => {
     const { scene: model } = await loader.loadAsync(new URL(file, previewAssets).href);
     const bounds = new THREE.Box3().setFromObject(model);
     if (bounds.isEmpty() || !Number.isFinite(bounds.getSize(new THREE.Vector3()).lengthSq())) return;
     holder.add(model);
     fallback.visible = false;
+    if (!lodFile) return;
+    try {
+      const { scene: lod } = await loader.loadAsync(new URL(lodFile, previewAssets).href);
+      const lodBounds = new THREE.Box3().setFromObject(lod);
+      if (lodBounds.isEmpty()) return;
+      holder.add(lod);
+      lod.visible = false;
+      if (file.startsWith('iss')) lodViews.iss = { near: model, far: lod };
+    } catch {}
   }));
 }
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({ antialias: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.4));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, isPhoneQuality() ? 1 : 1.4));
   view.append(renderer.domElement);
   function resize() {
     camera.aspect = innerWidth / innerHeight;
@@ -165,6 +188,11 @@ function frame(now) {
   const launchLift = state.phase === 'launch' ? Math.min(0, state.elapsed * .6 - 1.8) : 0;
   craft.position.set(docked ? 0 : state.x * 2.2, (docked ? 0 : state.y * 2) + launchLift,
     docked ? station.position.z + 1.425 : 1.2);
+  const far = state.distance > 22;
+  if (lodViews.iss.near && lodViews.iss.far) {
+    lodViews.iss.near.visible = !far;
+    lodViews.iss.far.visible = far;
+  }
   renderer?.render(scene, camera);
 }
 requestAnimationFrame(frame);

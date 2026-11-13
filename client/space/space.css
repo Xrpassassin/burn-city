@@ -10,3 +10,5 @@ a { margin: .25rem 0; }
 :focus-visible { outline: 2px solid #f4ba62; outline-offset: 3px; }
 #flight-controls:not([hidden]) { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .65rem; }
 .pad { display: flex; flex-wrap: wrap; gap: .25rem; }
+
+button[hidden], a[hidden], [hidden] { display: none !important; }

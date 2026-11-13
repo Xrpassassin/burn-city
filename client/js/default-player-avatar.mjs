@@ -6,10 +6,9 @@ const assetRoot = new URL('../assets/players/', import.meta.url);
 const MODEL_FILES = Object.freeze({
   thirdPerson: 'gas-mask-guy.gltf',
   thirdPersonLod: 'gas-mask-guy-lod.gltf',
-  firstPerson: 'gas-mask-guy-body.gltf'
+  firstPerson: 'gas-mask-guy-body.gltf',
+  firstPersonArmed: 'gas-mask-guy-body.gltf'
 });
-// Flip these on only when the optimized glTFs are committed beside this loader.
-const MODEL_AVAILABLE = Object.freeze({ thirdPerson: true, thirdPersonLod: true, firstPerson: true });
 const sources = new Map();
 
 function isPhoneQuality() {
@@ -24,24 +23,51 @@ function isPhoneQuality() {
   }
 }
 
-function loaderFor(variant) {
+function loaderFor() {
   const manager = new THREE.LoadingManager();
   if (isPhoneQuality()) manager.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
   return new GLTFLoader(manager);
 }
 
 function loadModel(variant) {
-  if (!MODEL_AVAILABLE[variant]) return Promise.resolve(null);
-  if (!sources.has(variant)) sources.set(variant, loaderFor(variant).loadAsync(
+  if (!Object.hasOwn(MODEL_FILES, variant)) return Promise.resolve(null);
+  if (!sources.has(variant)) sources.set(variant, loaderFor().loadAsync(
     new URL(MODEL_FILES[variant], assetRoot).href
   ).then(gltf => {
     const clips = new Map(gltf.animations.map(clip => [clip.name, clip]));
     let skinned = false;
     gltf.scene.traverse(node => { if (node.isSkinnedMesh) skinned = true; });
     if (!skinned || !['Idle', 'Walk'].every(name => clips.get(name)?.duration > 0)) return null;
+    if (variant === 'firstPersonArmed') gltf.scene.traverse(removeWeaponBodyArms);
     return { scene: gltf.scene, clips };
   }).catch(() => null));
   return sources.get(variant);
+}
+
+// Zombies has camera-space weapon arms that track aim and recoil. Remove the
+// arm-weighted triangles from its world-space body, leaving the shared rig intact.
+function removeWeaponBodyArms(node) {
+  if (!node.isSkinnedMesh) return;
+  const geometry = node.geometry;
+  const joints = geometry.getAttribute('skinIndex');
+  const weights = geometry.getAttribute('skinWeight');
+  const armBones = new Set(node.skeleton.bones.flatMap((bone, i) =>
+    /^(upperarm|forearm|hand)[._]?[LR]$/.test(bone.name) ? [i] : []));
+  const armVertices = new Set();
+  for (let i = 0; i < joints.count; i++) {
+    let armWeight = 0;
+    for (let j = 0; j < 4; j++) {
+      if (armBones.has(joints.getComponent(i, j))) armWeight += weights.getComponent(i, j);
+    }
+    if (armWeight > .5) armVertices.add(i);
+  }
+  const index = geometry.getIndex();
+  const kept = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i), b = index.getX(i + 1), c = index.getX(i + 2);
+    if (!armVertices.has(a) && !armVertices.has(b) && !armVertices.has(c)) kept.push(a, b, c);
+  }
+  geometry.setIndex(kept);
 }
 
 function cloneMaterials(root) {
@@ -80,18 +106,41 @@ export function mountDefaultPlayerAvatar(root, {
   variant = 'thirdPerson', lod = false, tint, fallback
 } = {}) {
   if (mounted.has(root)) return mounted.get(root);
-  let visual, mixer, current, clips, disposed = false, hidden = false, requestedLod = !!lod;
-  const using = () => (variant === 'thirdPerson' && requestedLod && MODEL_AVAILABLE.thirdPersonLod) ? 'thirdPersonLod' : variant;
+  let visual, mixer, current, clips, disposed = false, visible = true, requestedLod = !!lod;
+  let request = 0;
+  const using = () => variant === 'thirdPerson' && requestedLod ? 'thirdPersonLod' : variant;
+
+  function syncVisibility() {
+    if (visual) visual.visible = visible;
+    fallback?.(visible && !visual);
+  }
+
+  function detach() {
+    if (!visual) return;
+    mixer.stopAllAction();
+    mixer.uncacheRoot(visual);
+    root.remove(visual);
+    const skeletons = new Set();
+    visual.traverse(node => {
+      if (node.isSkinnedMesh) skeletons.add(node.skeleton);
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      for (const mat of mats) mat?.dispose?.();
+    });
+    for (const skeleton of skeletons) skeleton.dispose();
+    visual = mixer = current = null;
+  }
+
+  function loadRequested() {
+    const id = ++request;
+    loadModel(using()).then(asset => {
+      if (!disposed && id === request) attach(asset);
+    });
+  }
 
   function attach(asset) {
-    if (disposed || !asset || hidden) return;
+    if (!asset) return;
     if (seated && !(asset.clips.get('Ride')?.duration > 0) && !(asset.clips.get('Sit')?.duration > 0)) return;
-    if (visual) {
-      mixer?.stopAllAction();
-      if (mixer) mixer.uncacheRoot(visual);
-      root.remove(visual);
-      visual = mixer = current = null;
-    }
+    detach();
     visual = clone(asset.scene);
     cloneMaterials(visual);
     applyTint(visual, tint);
@@ -107,7 +156,7 @@ export function mountDefaultPlayerAvatar(root, {
     clips = asset.clips;
     mixer = new THREE.AnimationMixer(visual);
     handle.update(0);
-    fallback?.(false);
+    syncVisibility();
   }
 
   const handle = {
@@ -128,35 +177,22 @@ export function mountDefaultPlayerAvatar(root, {
       if (next === requestedLod) return;
       requestedLod = next;
       if (variant !== 'thirdPerson') return;
-      loadModel(using()).then(asset => { if (!disposed) attach(asset); });
+      loadRequested();
     },
     setVisible(show) {
-      hidden = !show;
-      if (visual) visual.visible = !!show;
-      if (!show) fallback?.(true);
-      else if (visual) fallback?.(false);
+      if (disposed || visible === !!show) return;
+      visible = !!show;
+      syncVisibility();
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      mixer?.stopAllAction();
-      if (visual) {
-        mixer.uncacheRoot(visual);
-        root.remove(visual);
-        const skeletons = new Set();
-        visual.traverse(node => {
-          if (node.isSkinnedMesh) skeletons.add(node.skeleton);
-          const mats = Array.isArray(node.material) ? node.material : [node.material];
-          for (const mat of mats) mat?.dispose?.();
-        });
-        for (const skeleton of skeletons) skeleton.dispose();
-        visual = mixer = current = null;
-        fallback?.(true);
-      }
+      detach();
+      fallback?.(true);
       mounted.delete(root);
     }
   };
   mounted.set(root, handle);
-  loadModel(using()).then(asset => { if (!disposed) attach(asset); });
+  loadRequested();
   return handle;
 }

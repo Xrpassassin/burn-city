@@ -1366,7 +1366,7 @@ let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};let exploreCamDistan
 const P={pos:new THREE.Vector3(0,0,55),vel:new THREE.Vector3(),onGround:true,fp:false,spawned:0,district:'',walk:0,near:null};
 const me=new PlayerState();
 const avatar=(()=>{const g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
- const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.add(thr);
+ const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.userData.fallbackBody.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.userData.fallbackBody.add(thr);
  const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.035;g.add(ring);
  const pl=new THREE.PointLight(0x7ee0ff,0,6,2);S.add(pl);g.userData.pl=pl;g.visible=false;S.add(g);return g})();
 // avatar glow stays in the scene at 0 intensity while hidden: toggling a light's visibility changes the light count and recompiles every lit shader (hitch on entering Explore)
@@ -1611,8 +1611,8 @@ let DRONE=null;function updFly(dt){if(!DRONE)DRONE=initDrone(window.__city,{keys
 
 // ---------- multiplayer hooks (optional: ?ws=ws://host:8787) ----------
 if(Q.get('ws')){$('chat').classList.add('on');NET=new NetClient(Q.get('ws'),me,{
- onPeer:s=>{let g=peers.get(s.id);if(!g){g=avatar.clone();g.visible=true;S.add(g);peers.set(s.id,g)}g.position.set(...s.pos);g.rotation.y=s.rotY},
- onLeave:id=>{const g=peers.get(id);if(g){S.remove(g);peers.delete(id)}},
+ onPeer:s=>{let g=peers.get(s.id);if(!g){g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1,lite:MOBILE});S.add(g);peers.set(s.id,g)}g.position.set(...s.pos);g.rotation.y=s.rotY;const t=performance.now()/1000;poseWalker(g,t*9,s.anim==='walk'||s.anim==='run'?1:0,t,s.anim==='run')},
+ onLeave:id=>{const g=peers.get(id);if(g){g.userData.defaultAvatar.dispose();S.remove(g);peers.delete(id)}},
  onChat:m=>{const d=document.createElement('div');d.textContent=m.name+': '+m.text;$('chatLog').appendChild(d);while($('chatLog').children.length>8)$('chatLog').firstChild.remove()},
  onStatus:s=>$('chatIn').placeholder='multiplayer '+s+' · Enter to chat'})}
 $('chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){if(NET&&e.target.value.trim())NET.chat(e.target.value.trim());e.target.value='';e.target.blur()}});

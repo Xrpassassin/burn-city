@@ -599,7 +599,13 @@ export function buildNftChar(n, opts = {}) {
 export function disposeNftChar(g) {
   // Most geometries, materials and NFT textures are intentionally shared/cached. Do not dispose them per avatar.
   if(!g)return;
-  if(g.userData.representation==='collection-placeholder'){g.removeFromParent();return;}
+  if(g.userData.representation==='collection-placeholder'){
+    g.userData.defaultAvatar?.dispose();
+    g.userData.card?.material.dispose();
+    g.userData.frame?.material.dispose();
+    g.userData.artTexture?.dispose();
+    g.removeFromParent();return;
+  }
   g.traverse(o=>{if(o.isSprite||(o.isMesh&&o.material?.map))o.material.dispose()});
   g.removeFromParent();
 }

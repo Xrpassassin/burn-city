@@ -14,7 +14,7 @@ The listing reports 1,976,719 triangles and 4K textures, with no rig or clips. D
 
 - `client/assets/players/gas-mask-guy.gltf` is 1.8 m tall, Y-up, feet at the origin, facing −Z. **9,000 triangles**, one material, 1024 px webp (512 px on phones via `gas-mask-guy-tex-512/`). Clips: `Idle`, `Walk`, `Run`, `Ride`, `Sit`, `Jump`. Locomotion is in place.
 - `client/assets/players/gas-mask-guy-lod.gltf` is the same rig and clips at **2,585 triangles**, used for other players at a distance (and lite/phone quality).
-- `client/assets/players/gas-mask-guy-body.gltf` is the first-person body (**7,523 triangles**) with the head and mask stripped, for Zombies, Eternal Grind and Pyretheum. Sleeves on the existing weapon view model are unchanged.
+- `client/assets/players/gas-mask-guy-body.gltf` is the first-person body (**7,523 triangles**) with the head and mask stripped, for Zombies, Eternal Grind and Pyretheum. Zombies removes the world-space body’s arm triangles at load time so its camera-space sleeves can track the weapon without a second pair of arms.
 - `MODEL_AVAILABLE` in `client/js/default-player-avatar.mjs` is on for all three exports. The city service worker version is bumped when the files change. Attribution, including the changes above, is in `client/city-credits.html`.
 - NPCs use their own models. The shared player variant is cosmetic. Keep each mode's player root, movement, collision, equipment, camera and character progression.
 - NFT holders still get this default walker tinted by collection, plus a floating NFT art card, in every game except Eternal Grind.

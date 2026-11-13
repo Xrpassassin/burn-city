@@ -73,19 +73,8 @@ export function homefrontAssetQuality(gltf,spec){
   return {valid:false,reason:'invalid_bounds',triangles};
  return {valid:true,triangles,skinned,clips:clips.map(a=>a.name),size};
 }
-function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>object.clone(true),poseClip=null){
+function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>object.clone(true)){
  const model=cloneModel(source);
- // Skinned FBX->glTF humanoids can have bind-pose bounds that differ by
- // 50-250x from the evaluated animation. Measure EXACTLY the posed clone
- // that will be shown, just as the original Zombies renderer does. Otherwise
- // the actual player appears as a gigantic body off to the side of the pack.
- let poseMixer=null,poseAction=null;
- if(poseClip){
-  poseMixer=new THREE.AnimationMixer(model);
-  poseAction=poseMixer.clipAction(poseClip).play();
-  poseMixer.update(.033);
-  model.updateMatrixWorld(true);
- }
  const bounds=new THREE.Box3().setFromObject(model,true);
  const size=bounds.getSize(new THREE.Vector3());
  if(!size.x||!size.y||!size.z)return null;
@@ -107,7 +96,7 @@ function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>obje
  }});
  group.add(fit);
  group.userData.cosmeticNoCollision=true;
- return {group,model,poseMixer,poseAction};
+ return {group,model};
 }
 export function communityPropNameMatches(kind,names){
  const pattern=PROP_PATTERNS[kind];
@@ -133,15 +122,16 @@ export function createHomefrontCommunityArt({
  cloneModel=null,
  mobile=false
 }={}){
- const models=new Map(),actors=new Set();
+ const models=new Map();
  let loaded=false;
  async function load(){
   if(loaded)return models;
   loaded=true;
-  if(!specs.length)return models; // No browser-only imports or downloads on test runners.
+  const scenery = specs.filter(spec => spec.id !== 'homefront-male-survivor');
+  if(!scenery.length)return models; // No browser-only imports or downloads on test runners.
   if(!loader){const {GLTFLoader}=await import('../vendor/three/examples/jsm/loaders/GLTFLoader.js');loader=new GLTFLoader();}
   if(!cloneModel){const util=await import('../vendor/three/examples/jsm/utils/SkeletonUtils.js');cloneModel=util.clone;}
-  await Promise.all(specs.map(async spec=>{
+  await Promise.all(scenery.map(async spec=>{
    try{
     const url=new URL('./assets/community/'+spec.file,import.meta.url).href;
     const gltf=await loader.loadAsync(url);
@@ -189,13 +179,7 @@ export function createHomefrontCommunityArt({
   return {replaced,props};
  }
  function clearExplorer(group){
-  const actor=group?.userData?.communityActor;
-  if(actor){
-   actor.mixer?.stopAllAction();
-   actor.visual?.removeFromParent();
-   actors.delete(actor);
-   group.userData.communityActor=null;
-  }
+  if(group)delete group.userData.pendingNftLook;
   if(group?.userData?.nftCharacter){
    nftApi?.disposeNftChar(group.userData.nftCharacter);
    group.userData.nftCharacter=null;
@@ -204,78 +188,34 @@ export function createHomefrontCommunityArt({
  }
  function decorateExplorer(group,walker,{isLocal=false,nft=null,srv=''}={}){
   clearExplorer(group);
-  if (!NFT_PLAYER_AVATARS_ENABLED) return false;
-  // NFT holders keep the City look: collection-tinted default walker plus a
-  // floating real NFT art card. The licensed survivor is only for players
-  // who have not selected an NFT. Eternal Grind is the sole exception and
-  // is not rendered through this Homefront adapter.
-  if(nft){
-   if(!nftApi){
-    preloadNftArt().then(()=>{ if(group.parent || group.userData.walker) decorateExplorer(group,walker,{isLocal,nft,srv}); });
-    return false;
-   }
-   try{
-    const character=nftApi.buildNftChar(nft,{srv,card:true,lite:!!(mobile||!isLocal)});
-    character.name='homefront-nft-look';
-    if(walker?.scale)character.scale.copy(walker.scale);
-    group.add(character);
-    if(walker)walker.visible=false;
-    group.userData.nftCharacter=character;
-    group.userData.look='nft';
-    return true;
-   }catch(e){
-    if(walker)walker.visible=true;
-    group.userData.look='walker';
-    return false;
-   }
+  group.userData.look='walker';
+  if (!NFT_PLAYER_AVATARS_ENABLED || !nft) return false;
+  if(!nftApi){
+   const request = {};
+   group.userData.pendingNftLook = request;
+   preloadNftArt().then(()=>{
+    if(group.userData.pendingNftLook === request) decorateExplorer(group,walker,{isLocal,nft,srv});
+   }).catch(()=>{});
+   return false;
   }
-  const asset=models.get('homefront-male-survivor');
-  if(!asset||(mobile&&!isLocal)||actors.size>=8)return false;
-  const animations=asset.gltf.animations||[];
-  const idle=animations.find(x=>/^Idle$/i.test(x.name))||animations.find(x=>/idle/i.test(x.name))||animations[0];
-  const fitted=fitToBox(asset.gltf.scene,{width:1.5,height:2.85,depth:1.3},cloneModel,idle);
-  if(!fitted)return false;
-  fitted.group.rotation.y=Math.PI;
-  fitted.group.name='homefront-licensed-survivor';
-  group.add(fitted.group);
-  walker.visible=false;
-  // The probe mixer already holds the visual rig in the same first Idle
-  // pose used to measure its physical bounds. Reuse it: no bind-pose jump.
-  const mixer=fitted.poseMixer||new THREE.AnimationMixer(fitted.model);
-  const walk=animations.find(x=>/^walk$/i.test(x.name))||animations.find(x=>/walk/i.test(x.name))||idle;
-  const run=animations.find(x=>/^run$/i.test(x.name))||animations.find(x=>/run/i.test(x.name))||walk;
-  const jump=animations.find(x=>/^jump$/i.test(x.name))||null;
-  const actor={group,visual:fitted.group,mixer,idle,walk,run,jump,current:idle,action:fitted.poseAction};
-  actors.add(actor);
-  group.userData.communityActor=actor;
-  group.userData.look='survivor';
-  return true;
+  try{
+   const character=nftApi.buildNftChar(nft,{srv,card:true,lite:!!(mobile||!isLocal)});
+   character.name='homefront-nft-look';
+   if(walker?.scale)character.scale.copy(walker.scale);
+   group.add(character);
+   if(walker)walker.visible=false;
+   group.userData.nftCharacter=character;
+   group.userData.look='nft';
+   return true;
+  }catch(e){
+   return false;
+  }
  }
- function animateExplorer(explorer,moving,dt,jumpY=0,running=false){
+ function animateExplorer(explorer,moving,jumpY=0){
   const nft=explorer?.userData?.nftCharacter;
-  if(nft?.userData?.anim){
-   nft.userData.anim((typeof performance!=='undefined'?performance.now():0)/1000,!!moving,false);
-   nft.position.y=Number.isFinite(jumpY)?jumpY:0;
-   return;
-  }
-  const actor=explorer?.userData?.communityActor;
-  if(!actor)return;
-  // This remains cosmetic: authoritative movement, jumping and aiming come
-  // from the existing Homefront input/network simulation.
-  const airborne=Number.isFinite(jumpY)&&jumpY>0.08;
-  const clip=airborne&&actor.jump?actor.jump:moving?(running?actor.run:actor.walk):actor.idle;
-  if(clip&&clip!==actor.current){
-   const action=actor.mixer.clipAction(clip);
-   action.reset().fadeIn(.16).play();
-   actor.action?.fadeOut(.16);
-   actor.action=action;actor.current=clip;
-  }
-  actor.mixer.update(Math.min(.05,Math.max(0,dt)));
-  actor.visual.position.y=Number.isFinite(jumpY)?jumpY:0;
+  if(!nft?.userData?.anim)return;
+  nft.userData.anim(performance.now()/1000,!!moving,false);
+  nft.position.y=Number.isFinite(jumpY)?jumpY:0;
  }
- function clearActors(){
-  for(const actor of actors)actor.mixer.stopAllAction();
-  actors.clear();
- }
- return {load,attachWorld,decorateExplorer,animateExplorer,clearExplorer,clearActors,preloadNftArt,models};
+ return {load,attachWorld,decorateExplorer,animateExplorer,clearExplorer,preloadNftArt,models};
 }

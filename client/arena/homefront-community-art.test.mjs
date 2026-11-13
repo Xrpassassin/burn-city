@@ -20,7 +20,7 @@ group.add(walker);
 group.userData.walker=walker;
 
 assert.equal(art.decorateExplorer(group,walker,{isLocal:true}),false,
-  'without a loaded survivor GLB the non-NFT path keeps the walker');
+  'the non-NFT path keeps the shared player walker');
 assert.equal(walker.visible,true);
 
 const nft={id:'qa-1',key:'fk',name:'QA Firekeeper',img:'/qa/nft-card.png'};
@@ -32,13 +32,12 @@ assert.equal(group.userData.look,'nft');
 assert.equal(walker.visible,false,'the field-gear walker is hidden only while the NFT look is active');
 assert.equal(group.userData.nftCharacter.name,'homefront-nft-look');
 assert(group.userData.nftCharacter.userData.card,'NFT look includes the floating art card');
-assert(!group.userData.communityActor,'licensed survivor is not applied on top of an NFT');
 assert.equal(group.userData.nftCharacter.scale.x,.82,'NFT look follows the explorer scale');
 
-art.animateExplorer(group,true,0.016,0,false);
+art.animateExplorer(group,true);
 assert(group.userData.nftCharacter.userData.card.position.y>0);
 
 art.clearExplorer(group);
 assert.equal(walker.visible,true,'clearing the NFT look restores the default walker');
 assert.equal(group.userData.nftCharacter,null);
-console.log('Homefront community art: NFT holders keep collection walker + card; survivor stays for everyone else');
+console.log('Homefront community art: NFT holders keep collection walker + card; the shared player walker is the default');

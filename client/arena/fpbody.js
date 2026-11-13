@@ -23,7 +23,7 @@ export function createFPBody(scene, { low = false } = {}) {
     return { hip, knee, ankle }; });
   const parts = [...g.children];
   const avatar = !low && mountDefaultPlayerAvatar(g, {
-    variant: 'firstPerson',
+    variant: 'firstPersonArmed',
     fallback: visible => { for (const part of parts) part.visible = visible; }
   });
   let walk = 0, bodyYaw = 0, lx = null, lz = 0, spd = 0;

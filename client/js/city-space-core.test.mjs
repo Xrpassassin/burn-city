@@ -3,7 +3,7 @@ import { issOrbit, ascentPoint, issSunTint, issLevel, shipLevel, ISS_ORBIT, PAD 
 
 const a = issOrbit(0), b = issOrbit(ISS_ORBIT.period / 4);
 assert.ok(Math.abs(Math.hypot(a.pos.x - ISS_ORBIT.cx, a.pos.z - ISS_ORBIT.cz) - ISS_ORBIT.r) < 1e-6);
-assert.ok(a.pos.y > 700 && b.pos.y > 700 && b.pos.y < 900 && Math.hypot(a.pos.x, a.pos.z) + 0 < 1400, 'ISS stays high above the City');
+assert.ok(a.pos.y > 560 && b.pos.y > 560 && b.pos.y < 900 && Math.hypot(a.pos.x, a.pos.z) + 0 < 1400, 'ISS stays high above the City');
 assert.ok(Math.abs(Math.hypot(a.dir.x, a.dir.y, a.dir.z) - 1) < 1e-9);
 const pad = { x: PAD.x, y: 0, z: PAD.z }, tgt = { x: 100, y: 900, z: 300 };
 assert.deepEqual(ascentPoint(pad, tgt, 0), pad);

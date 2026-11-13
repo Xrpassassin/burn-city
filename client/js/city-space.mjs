@@ -14,13 +14,14 @@ import { issOrbit, ascentPoint, issSunTint, issLevel, shipLevel, PAD, ASCENT_S, 
 
 const Q = new URLSearchParams(location.search);
 const ASSETS = new URL('../assets/space/', import.meta.url);
-const ISS_SCALE = 10, SHIP_SCALE = 14, FAR_BOOST = 1.6;   // the far sky ISS is drawn 1.6x larger so it reads from the street
+const ISS_SCALE = 10, SHIP_SCALE = 14;
+const FILL = { value: .3 };   // CB1 self-light (base colour added to emissive) so it never renders black in the dim City env
 const SP = window.__citySpace = { ready: false, error: null, levels: { iss: 'none', ship: 'none' }, loads: [] };
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
 
 let GLTF = null;
-async function load(file, hi) {
+async function load(file, hi, fill) {
   if (!GLTF) GLTF = (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader;
   const manager = new THREE.LoadingManager();
   if (!hi) manager.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
@@ -30,6 +31,14 @@ async function load(file, hi) {
     if (!o.isMesh) return; const m = o.material; m.fog = false;
     // the City's env map is a dim night studio: metallic panels would render near-black, so keep them mostly dielectric
     if (m.isMeshStandardMaterial) { m.metalness = Math.min(m.metalness, .25); m.roughness = Math.max(m.roughness, .45); }
+    if (fill && m.isMeshStandardMaterial && !m.userData.fill) {   // cheap rim + fill light in the same pass: no extra lights, no extra render
+      m.userData.fill = 1; m.customProgramCacheKey = () => 'cb1fill';
+      m.onBeforeCompile = sh => {
+        sh.uniforms.uFill = FILL;
+        sh.fragmentShader = 'uniform float uFill;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n float rim = pow(1.0 - clamp(abs(dot(normalize(vViewPosition), normal)), 0.0, 1.0), 2.0);\n totalEmissiveRadiance += diffuseColor.rgb * uFill + vec3(.55, .8, 1.0) * rim * uFill * .9;');
+      };
+    }
   });
   return scene;
 }
@@ -64,6 +73,12 @@ function bakeFar(root) {
 function glintTex() {
   const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
   g.addColorStop(0, '#fff'); g.addColorStop(.2, 'rgba(255,250,235,.8)'); g.addColorStop(1, 'rgba(255,240,220,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+function poolTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,236,200,1)'); g.addColorStop(.55, 'rgba(255,220,170,.55)'); g.addColorStop(1, 'rgba(255,210,160,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
 }
 
@@ -110,19 +125,47 @@ function init() {
   const pad = new THREE.Mesh(padGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, metalness: .1 }));
   pad.position.set(PAD.x, padY, PAD.z); pad.name = 'cb1_launch_pad'; S.add(pad);
   const padTop = V(PAD.x, padY + .5, PAD.z);
+  // pad floodlights, faked: 4 masts (lit pad mesh), unlit lamp heads + rim lights (1 draw), additive beam cones (1 draw)
+  // and an additive light pool on the deck (1 draw). Night-only opacity, no real lights, no extra pass.
+  const padFx = new THREE.Group(); padFx.name = 'cb1_pad_lights'; padFx.position.copy(pad.position); S.add(padFx);
+  const MAST = PAD.r + 3, MH = 17, masts = [], heads = [], beams = [];
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2, x = Math.cos(a) * MAST, z = Math.sin(a) * MAST;
+    masts.push(tint(new THREE.CylinderGeometry(.35, .5, MH, 6).translate(x, MH / 2, z).toNonIndexed(), 0x8a9099));
+    heads.push(tint(new THREE.BoxGeometry(2.2, 1, 1.4).translate(x * .97, MH + .3, z * .97).toNonIndexed(), 0xfff2d6));
+    const top = V(x * .95, MH, z * .95), bot = V(x * .25, .6, z * .25), len = top.distanceTo(bot);
+    const cone = new THREE.CylinderGeometry(.8, 7.5, len, 14, 1, true).toNonIndexed();
+    const n = cone.attributes.position.count, col = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) { const f = .5 - cone.attributes.position.getY(k) / len; const v = .5 * (1 - f) ** 2 + .02; col[k * 3] = v; col[k * 3 + 1] = v * .93; col[k * 3 + 2] = v * .8; }
+    cone.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    cone.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, top.clone().sub(bot).normalize())); cone.translate((top.x + bot.x) / 2, (top.y + bot.y) / 2, (top.z + bot.z) / 2);
+    beams.push(cone);
+  }
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; heads.push(tint(new THREE.BoxGeometry(.7, .35, .7).translate(Math.cos(a) * (PAD.r + .1), .62, Math.sin(a) * (PAD.r + .1)).toNonIndexed(), i % 2 ? 0x43eaff : 0xffa040)); }
+  const clean = g => { if (!g.attributes.normal) g.computeVertexNormals(); if (g.attributes.uv) g.deleteAttribute('uv'); return g; };
+  const mastMesh = new THREE.Mesh(mergeGeometries(masts.map(clean), false), pad.material); padFx.add(mastMesh);
+  padFx.add(new THREE.Mesh(mergeGeometries(heads.map(clean), false), new THREE.MeshBasicMaterial({ vertexColors: true })));
+  const beamMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide, opacity: .5 });
+  const beamMesh = new THREE.Mesh(mergeGeometries(beams.map(g => { g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; }), false), beamMat); beamMesh.renderOrder = 2; padFx.add(beamMesh);
+  const poolMat = new THREE.MeshBasicMaterial({ map: poolTex(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: .5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(PAD.r * 2.4, PAD.r * 2.4).rotateX(-Math.PI / 2).translate(0, .56, 0), poolMat); pool.renderOrder = 2; padFx.add(pool);
 
   // ---- CB1
   const ship = new THREE.Group(); ship.name = 'cb1_ship'; S.add(ship);
   const shipViews = { lod: null, near: null }; let shipLoading = null, shipBottom = .19;
   const parkPos = () => V(padTop.x, padTop.y + shipBottom * SHIP_SCALE, padTop.z);
   ship.position.copy(parkPos()); ship.rotation.y = -Math.PI / 2;   // parked nose toward the runway/east
+  const engine = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex(), color: 0x7fe6ff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: .6 }));
+  engine.scale.setScalar(7); engine.position.set(0, .2 * SHIP_SCALE, .62 * SHIP_SCALE); engine.visible = false; ship.add(engine);   // CB1 nose is -z, engines at +z
+  const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex(), color: 0xff3a2a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  beacon.scale.setScalar(4); beacon.visible = false; ship.add(beacon);
   function wantShip(level) {
     if (level === 'none' || shipViews[level] || shipLoading === level) return;
     shipLoading = level;
     const hi = level === 'near' && !c.MOBILE && c.TIER !== 'low';
-    load(level === 'near' ? 'cb1.gltf' : 'cb1-lod.gltf', hi).then(m => {
+    load(level === 'near' ? 'cb1.gltf' : 'cb1-lod.gltf', hi, true).then(m => {
       m.scale.setScalar(SHIP_SCALE); const b = new THREE.Box3().setFromObject(m); if (b.isEmpty()) return;
-      shipBottom = -b.min.y / SHIP_SCALE; shipViews[level] = m; ship.add(m); if (!fs) ship.position.copy(parkPos());
+      shipBottom = -b.min.y / SHIP_SCALE; engine.position.set(0, (b.min.y + b.max.y) / 2, b.max.z * .97); beacon.position.set(0, b.max.y + .4, 0); engine.visible = beacon.visible = true; shipViews[level] = m; ship.add(m); if (!fs) ship.position.copy(parkPos());
     }).catch(e => { SP.error = 'cb1: ' + e; }).finally(() => { if (shipLoading === level) shipLoading = null; });
   }
   function showShip(level) {
@@ -134,25 +177,28 @@ function init() {
   // ---- ISS
   const iss = new THREE.Group(); iss.name = 'iss'; S.add(iss);
   const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex(), color: 0xfff4e0, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, sizeAttenuation: false }));
-  glint.scale.setScalar(.016); glint.renderOrder = 1; iss.add(glint);
+  glint.scale.setScalar(.026); glint.renderOrder = 1; iss.add(glint);
+  // blinking nav lights (red strobe, white strobe) on the far ISS, screen-sized so they read at any distance
+  const nav = [0xff3424, 0xffffff].map(col => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glint.material.map, color: col, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, sizeAttenuation: false })); sp.scale.setScalar(.012); sp.renderOrder = 1; iss.add(sp); return sp; });
+  let issHalf = 4;   // half span of the ISS in model units (set when the LOD loads)
   const issViews = { far: null, lod: null, near: null }; let issLoading = null, dockZ = 2.9; const issLit = new Set();
   function loadIss(level) {
     if (issViews[level] || issLoading) return;
-    if (level === 'far') { if (issViews.lod) { issViews.far = bakeFar(issViews.lod); issViews.far.scale.setScalar(FAR_BOOST); issViews.far.visible = false; iss.add(issViews.far); return; } level = 'lod'; }
+    if (level === 'far') { if (issViews.lod) { issViews.far = bakeFar(issViews.lod); issViews.far.visible = false; iss.add(issViews.far); return; } level = 'lod'; }
     issLoading = level;
     const hi = level === 'near' && !c.MOBILE && c.TIER !== 'low';
     load(level === 'near' ? 'iss.gltf' : 'iss-lod.gltf', hi).then(m => {
       m.scale.setScalar(ISS_SCALE); m.updateMatrixWorld(true);
       const b = new THREE.Box3().setFromObject(m); if (b.isEmpty()) return;
       m.traverse(o => { if (o.isMesh && o.material.map && !o.material.emissiveMap) { o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0); issLit.add(o.material); } });
-      dockZ = b.max.z / ISS_SCALE; m.visible = false; issViews[level] = m;
-      if (level === 'lod' && !issViews.far) { issViews.far = bakeFar(m); issViews.far.scale.setScalar(FAR_BOOST); issViews.far.visible = false; iss.add(issViews.far); }
+      dockZ = b.max.z / ISS_SCALE; m.visible = false; issViews[level] = m; if (level === 'lod') issHalf = Math.max(b.max.x, -b.min.x) / ISS_SCALE;
+      if (level === 'lod' && !issViews.far) { issViews.far = bakeFar(m); issViews.far.visible = false; iss.add(issViews.far); }
       iss.add(m);
     }).catch(e => { SP.error = 'iss: ' + e; }).finally(() => { issLoading = null; });
   }
   // the ISS is always in the sky, so its cheap LOD loads once the City has settled (idle), not at boot
   const idle = window.requestIdleCallback || (f => setTimeout(f, 1));
-  setTimeout(() => idle(() => loadIss('far')), Q.has('iss') || Q.get('spacePreview') === '1' ? 0 : 6000);
+  setTimeout(() => idle(() => loadIss('far'), { timeout: 5000 }), Q.has('iss') || Q.get('spacePreview') === '1' ? 0 : 6000);
 
   // ---- flight
   let fs = null; const tmp = V(), tmp2 = V(), look = V(), camPos = V();
@@ -228,10 +274,24 @@ function init() {
       const di = C.position.distanceTo(frame.pos), lvl = issLevel(di);
       const have = lvl === 'near' ? (issViews.near || issViews.lod) : lvl === 'lod' ? (issViews.lod || issViews.far) : issViews.far;
       for (const k in issViews) if (issViews[k]) issViews[k].visible = issViews[k] === have;
-      if (issViews.far) issViews.far.material.color.copy(sunTint);
+      // far ISS drawn up to ~3.6x larger with distance (continuous, so no pop at the 420 m LOD switch) so it reads from the street
+      const boost = 1 + 2.6 * Math.max(0, Math.min(1, (di - 420) / 600)), tNow = performance.now() / 1000;
+      if (issViews.far) { issViews.far.scale.setScalar(boost); const fc = issViews.far.material.color.copy(sunTint).multiplyScalar(day > .5 ? .8 : 1); if (day < .5) { fc.r = Math.max(fc.r, .5); fc.g = Math.max(fc.g, .48); fc.b = Math.max(fc.b, .44); } }   // night: catches the last sunlight / city glow, never a black hole
       if (have && have !== issViews.far) for (const m of issLit) m.emissive.copy(sunTint).multiplyScalar(.5);   // sunlit panels, matching the sky's sun
       SP.levels.iss = have ? Object.keys(issViews).find(k => issViews[k] === have) : 'glint';
-      glint.visible = di > 260; glint.material.opacity = Math.max(have ? 0 : .5, st.glint * (1 - day * .7)) * (1 - storm * .9);
+      // sunlit glint: steady glow plus a slow flare as the panels catch the sun; nav lights strobe red/white
+      const flare = .75 + .25 * Math.max(0, Math.sin(tNow * .9)) ** 6;
+      glint.visible = di > 260; glint.material.opacity = Math.min(1, Math.max(have ? 0 : .75, st.glint * (1 - day * .4)) * flare) * (1 - storm * .9);
+      glint.scale.setScalar(.026 * (.9 + .35 * flare));
+      const span = issHalf * ISS_SCALE * (have === issViews.far ? boost : 1) * .95, navA = (1 - day * .35) * (1 - storm * .8);
+      nav[0].position.set(span, 0, 0); nav[1].position.set(-span, 0, 0);
+      nav[0].visible = tNow % 1.6 < .2; nav[1].visible = (tNow + .7) % 2.2 < .1; nav[0].material.opacity = nav[1].material.opacity = navA;
+      // CB1 + pad lighting: night factor from the City's day uniform
+      const nf = 1 - Math.max(0, Math.min(1, (day - .15) / .5)), nearPad = C.position.distanceTo(padTop) < 1600;
+      padFx.visible = nearPad; FILL.value = .3 + .35 * nf;
+      beamMat.opacity = .16 * nf; beamMesh.visible = nf > .03; poolMat.opacity = .15 + .3 * nf;
+      engine.material.opacity = fs ? 1 : .35 + .5 * nf; engine.scale.setScalar(fs && fs.stage !== 'docked' ? 16 : 7);
+      beacon.material.opacity = (tNow % 1.2 < .15) ? 1 : .08;
       if (fs) stepFlight(Math.min(dt, .05));
       if ((lodTimer -= dt) <= 0) {
         lodTimer = .4; const ds = C.position.distanceTo(ship.position), sl = shipLevel(ds, !!fs);

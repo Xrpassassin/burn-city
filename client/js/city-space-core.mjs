@@ -1,5 +1,5 @@
 // Pure helpers for the in-City ISS orbit and the CB1 ascent/return path (no three.js, testable in node).
-export const ISS_ORBIT = { cx: 0, cz: -120, r: 760, y: 780, wobble: 50, period: 480 };   // stays inside the mountain backdrop ring (r 1500+)   // game-scale sky orbit (metres, seconds)
+export const ISS_ORBIT = { cx: 0, cz: -120, r: 680, y: 640, wobble: 40, period: 480 };   // stays inside the mountain backdrop ring (r 1500+)   // game-scale sky orbit (metres, seconds)
 export const PAD = { x: 205, z: -622, r: 14 };   // CB1 launch pad on the airport apron, east of the ATC tower
 export const ASCENT_S = 11, RETURN_S = 9;
 const clamp01 = v => Math.max(0, Math.min(1, v));

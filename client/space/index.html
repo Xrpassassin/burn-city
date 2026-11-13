@@ -3,36 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BURN City Spaceflight Preview</title>
-<link rel="stylesheet" href="./space.css">
-<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
-<script type="module" src="./space.mjs"></script>
+<title>BURN City · CB1 Flight to the ISS</title>
+<!-- The CB1 flight now runs inside the main City scene (js/city-space.mjs). Old links land there and board CB1. -->
+<meta http-equiv="refresh" content="0; url=../?iss=1">
+<script>location.replace('../?iss=1');</script>
 </head>
-<body>
-<main tabindex="-1">
-  <div id="view" aria-hidden="true"></div>
-  <header>
-    <h1>CB1 Flight to the ISS</h1>
-    <p>Flight preview</p>
-    <p id="status" role="status">Ready for launch</p>
-    <p id="range" hidden></p>
-    <p id="render-note" hidden>3D unavailable. Use the flight readout to align and dock.</p>
-  </header>
-  <div class="controls">
-    <p>Use WASD or the arrow keys to align. Hold Space to approach.</p>
-    <div id="flight-controls" hidden>
-      <div class="pad" aria-label="Alignment controls">
-        <button type="button" data-control="up" aria-label="Align up">↑</button>
-        <button type="button" data-control="left" aria-label="Align left">←</button>
-        <button type="button" data-control="down" aria-label="Align down">↓</button>
-        <button type="button" data-control="right" aria-label="Align right">→</button>
-      </div>
-      <button type="button" data-control="approach">Hold to approach</button>
-    </div>
-    <button type="button" id="launch">Launch CB1</button>
-    <a href="../" id="return">Return to BURN City</a>
-    <a href="../city-credits.html">Credits</a>
-  </div>
-</main>
-</body>
+<body><p><a href="../?iss=1">Board CB1 in BURN City</a></p></body>
 </html>

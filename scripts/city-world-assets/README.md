@@ -22,7 +22,7 @@ Keep the procedural visuals available while each replacement loads. Use a simpli
 
 ## CB1, ISS and the Cosmodrome zombie
 
-Launch the orbital flight preview at `client/space/index.html` or use the airport expedition kiosk with `?spacePreview=1` on the City page. Launch, align the ship, hold Approach to dock, then return to the City. The airport entry uses the existing return-position snapshot. Docking currently ends the preview flight.
+The ISS orbits in the main City sky and CB1 waits on the launch pad east of the airport ATC tower (`client/js/city-space.mjs`). Board it at the pad (E / tap) or from the airport kiosk, fly up, align, hold Approach to dock, then return to the pad. `client/space/` (and `?iss=1`) now open the City and board CB1 directly. `?space=0` turns it all off. The airport entry uses the existing return-position snapshot. Docking currently ends the preview flight.
 
 Download CB1 and ISS through the authorized Sketchfab connection. Run the same Blender inspection command with the IDs `cb1 iss`. The CB1 listing is marked NoAI. Use ordinary Blender editing and export for the game models.
 

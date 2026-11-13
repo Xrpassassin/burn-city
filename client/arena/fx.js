@@ -91,7 +91,7 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
   // body variants: 0 walker, 1 runner (lean, hunched forward), 2 brute (huge, belly), 3 crawler-looking (walker id%4==0: bent double, dragging)
   const TY = ARENA_ZOMBIE_SKINS.map((skin,ty)=>({
     s:zombieHumanShape(ty),skin,eye:ARENA_ZOMBIE_EYES[ty],
-    speed:[1,2,.6,.55,1.75,1.55,1.25,.72,.68][ty]
+    speed:[1,2,.6,.55,1.75,1.55,1.25,.72,.68,1.2][ty]
   }));
   const CLOTH=ARENA_ZOMBIE_CLOTH,PANTS=ARENA_ZOMBIE_PANTS;
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}

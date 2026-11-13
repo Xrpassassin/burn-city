@@ -69,6 +69,11 @@ function showExperienceTransition(theme, icon, title, subtitle) {
 addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('bcExperienceTransition')?.remove();const i=document.getElementById('info');if(i&&window.__infoU&&window.__infoU.kind==='experience')i.style.display='none'});
 const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
  launchers: {
+  ...(Q.get('spacePreview') === '1' ? { 'orbital-flight': async () => {
+   await showExperienceTransition('flight','🚀','ORBITAL FLIGHT','Boarding the CB1…');
+   location.href = 'space/?from=airport';
+   return { navigating: true };
+  } } : {}),
   zombies: async ({ returnTo }) => {
    await showExperienceTransition('flight','🚁','BURN CITY INTERNATIONAL','Proceeding to the flight staging pad…');
    location.href = 'arena/flight-lobby.html?from=' + encodeURIComponent(returnTo);
@@ -1317,6 +1322,7 @@ if(u.kind==='experience'){
  const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'🚁 Queue for Zombie Survival':u.experienceId==='homefront'?'🏚 Fly to Homefront':'⚡ Enter Light Cycles';
  enter.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
  const launchExperience=async experienceId=>{
+  if(enter.disabled)return;
   enter.disabled=true; enter.textContent='Preparing transition…';
   const rx=Number(u.returnX), rz=Number(u.returnZ);
   try{
@@ -1330,8 +1336,16 @@ if(u.kind==='experience'){
  homefront.type='button';homefront.textContent='🏚 Fly to Homefront';
  homefront.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #e99a52;background:#28170d;color:#ffe0c4;font:700 14px system-ui;cursor:pointer';
  homefront.onclick=e=>{e.stopPropagation();launchExperience('homefront')};
+ const orbital=[];
+ if(u.experienceId==='zombies' && EXPERIENCE_REGISTRY.get('orbital-flight')?.available){
+  const spaceButton=document.createElement('button');
+  spaceButton.type='button';spaceButton.textContent='🚀 Fly to the ISS (preview)';
+  spaceButton.style.cssText=enter.style.cssText;
+  spaceButton.onclick=e=>{e.stopPropagation();launchExperience('orbital-flight')};
+  orbital.push(spaceButton);
+ }
  const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
- panel.replaceChildren(close,title,detail,...(u.experienceId==='zombies'?[homefront,enter]:[enter]),cancel); panel.style.display='block'; panel.scrollTop=0; return;
+ panel.replaceChildren(close,title,detail,...(u.experienceId==='zombies'?[homefront,enter,...orbital]:[enter]),cancel); panel.style.display='block'; panel.scrollTop=0; return;
 }
 if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate' && window.__estatesIslandLive?.enterFromCity){
  const info=$('info');info.replaceChildren();info.classList.remove('v2');info.style.display='block';

@@ -59,7 +59,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-dir', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
-    parser.add_argument('ids', nargs='*', help='Model IDs from sources.json. Defaults to all seven.')
+    parser.add_argument('ids', nargs='*', help='Model IDs from sources.json. Defaults to all entries in the manifest.')
     args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
     for asset_id in args.ids:
         if asset_id not in sources:
@@ -69,6 +69,9 @@ def main():
     for asset_id in args.ids or sources:
         asset = sources[asset_id]
         row = {'uid': asset['uid'], 'target': asset['target'], 'previewBudget': asset['previewBudget']}
+        for field in ('sourceCredits', 'sourceNotes'):
+            if field in asset:
+                row[field] = asset[field]
         report[asset_id] = row
         try:
             base = args.source_dir.resolve() / asset_id

@@ -4,7 +4,7 @@
 // collision are reused, the front faces the nearest street, and each copy gets a subtle tint so the repeats don't read as clones.
 // Cost: one small glTF per assigned district (two LODs sharing one 512px material), loaded after the City is up; two InstancedMeshes
 // per model (near / far LOD) re-partitioned a few times a second. A district whose model fails to load keeps its procedural lots.
-// Kill switch: ?buildings2=0. Preview the four unassigned models: ?b2next=TOKEN,TOKEN,...
+// Kill switch: ?buildings2=0.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { assignment, pickLots, budget, hash, infillOwner } from './citybuildings2-core.mjs';
@@ -37,8 +37,8 @@ async function init() {
   const c = window.__city, sats = window.__sats || [], hide = window.__satHide;
   const low = c.TIER === 'low', B = budget(c.TIER, c.MOBILE);
   const names = [...new Set([...sats.filter(s => s.n && !s.infill).map(s => s.n.name), ...(window.__districtR ? window.__districtR().map(d => d[0]) : [])])].filter(n => n !== 'XRP');
-  const map = assignment(names, Q.get('b2next'));
-  const ids = [...new Set(Object.values(map))];
+  const map = assignment(names);
+  const ids = [...new Set(Object.values(map).flat())];
   const models = {};
   await Promise.all(ids.map(id => loadModel(id, low).then(m => { models[id] = m; }).catch(e => { B2.failed.push(id); console.warn('buildings2: ' + id + ' failed, district stays procedural', e); })));
   // keep clear of the CB1 pad and the Ember Bar's front (wait briefly for the bar to pick its lot)

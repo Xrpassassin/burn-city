@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assignment, fitLot, pickLots, streetYaw, budget, infillOwner, ASSIGN, NEXT, MODELS } from './citybuildings2-core.mjs';
+import { assignment, fitLot, pickLots, streetYaw, budget, infillOwner, ASSIGN, MODELS } from './citybuildings2-core.mjs';
 
-test('frozen brief mapping; next models only via explicit preview list of existing districts', () => {
-  assert.deepEqual(assignment(['BURN', 'IMM', 'XRPyro', 'XRP', '666']), { BURN: 'b7', IMM: 'b10', XRPyro: 'b11' });
-  assert.deepEqual(assignment(['BURN', '666', 'BCHAMP'], 'NOPE,666,BURN,BCHAMP'), { BURN: 'b7', '666': 'b4', BCHAMP: 'b1' });
-  const all = [...Object.values(ASSIGN), ...NEXT]; assert.equal(new Set(all).size, all.length); for (const m of all) assert.ok(MODELS[m]);
+test('frozen mapping: every model used once, each district only gets its own', () => {
+  assert.deepEqual(assignment(['BURN', 'IMM', 'XRPyro', 'IMG', 'DRGN', 'RACC', 'XRP', '666']),
+    { BURN: ['b7'], IMM: ['b10'], XRPyro: ['b11'], IMG: ['b4'], DRGN: ['b6'], RACC: ['b1', 'b5'] });
+  assert.deepEqual(assignment(['BURN', '666']), { BURN: ['b7'] });
+  const all = Object.values(ASSIGN).flat(); assert.equal(new Set(all).size, all.length); assert.equal(all.length, 7); for (const m of all) assert.ok(MODELS[m]);
+});
+test('a mixed district takes the model that fits each lot best', () => {
+  const n = { name: 'RACC' }, dims = { slim: { rXZ: 10, H: 100 }, wide: { rXZ: 40, H: 100 } };
+  const sats = [{ x: 0, z: 0, w: 1.5, top: 14, n }, { x: 30, z: 0, w: 4, top: 9, n }];
+  const r = pickLots(sats, { RACC: ['slim', 'wide'] }, m => dims[m], [], { perDistrict: 9, minH: 5 });
+  assert.deepEqual(r.lots.map(l => l.model), ['slim', 'wide']);
 });
 test('fit stays inside the lot collider and keeps height close to the procedural tower', () => {
   const dims = { rXZ: 60, H: 300 };

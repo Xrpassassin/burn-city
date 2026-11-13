@@ -17,9 +17,9 @@ Box-only asset tools (not run in CI) behind `client/assets/buildings/` and `clie
 | Sci-fi building 7 (BURN) | 4,170 | 4,170 | 547 | 3.19 MB | 362 KB |
 | Sci-fi Building 10 (IMM) | 6,772 | 6,772 | 681 | 2.98 MB | 399 KB |
 | Sci-fi Building 11 (XRPyro) | 4,328 | 4,328 | 338 | 2.44 MB | 336 KB |
-| Sci-fi Building 4 (not assigned yet) | 39,054 | 5,858 | 482 | 3.80 MB | 322 KB |
-| Sci-fi Building (not assigned yet) | 1,406 | 1,406 | 686 | 2.68 MB | 215 KB |
-| Sci-fi Building 6 (not assigned yet) | 2,032 | 2,032 | 620 | 2.21 MB | 240 KB |
-| Sci-fi Building 5 (not assigned yet) | 17,648 | 4,243 | 454 | 3.60 MB | 218 KB |
+| Sci-fi Building 4 (IMG) | 39,054 | 5,858 | 482 | 3.80 MB | 322 KB |
+| Sci-fi Building (RACC, slim lots) | 1,406 | 1,406 | 686 | 2.68 MB | 215 KB |
+| Sci-fi Building 6 (DRGN) | 2,032 | 2,032 | 620 | 2.21 MB | 240 KB |
+| Sci-fi Building 5 (RACC, wide lots) | 17,648 | 4,243 | 454 | 3.60 MB | 218 KB |
 
 Textures: four 1024 px maps per model become 512 px JPEGs. Normal and metalness maps are dropped at runtime (see the module header).

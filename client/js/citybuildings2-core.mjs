@@ -2,11 +2,10 @@
 // Brief: docs/burn-city-street-building-models.md (PR #631). Every model is by Scarecrow_original, CC BY 4.0 (city-credits.html).
 
 // Frozen district -> model mapping by token name (never re-derived from market cap, so neighbourhoods keep their look).
-// BURN's Building 7 is fixed by the brief; IMM and XRPyro are the brief's proposed assignments.
-export const ASSIGN = { BURN: 'b7', IMM: 'b10', XRPyro: 'b11' };
-// The brief's four "next eligible district" models. Not assigned until the BURN-ecosystem district list is confirmed; preview them
-// with ?b2next=TOKEN,TOKEN,... (existing district names only, in this order).
-export const NEXT = ['b4', 'b1', 'b6', 'b5'];
+// BURN's Building 7 is fixed by the brief; IMM and XRPyro are the brief's proposed assignments. IMG, DRGN and RACC are the extra
+// BURN-ecosystem districts the owner confirmed for the brief's four remaining models; RACC, the largest of the three, mixes two models
+// (each lot takes whichever silhouette fits it best, the street-facing hash breaking ties) so its blocks don't read as clones.
+export const ASSIGN = { BURN: ['b7'], IMM: ['b10'], XRPyro: ['b11'], IMG: ['b4'], DRGN: ['b6'], RACC: ['b1', 'b5'] };
 export const MODELS = {
   b7: { title: 'Sci-fi building 7', uid: 'b26b4ace15bd48259fcf235d31eec7c8', srcTris: 4178 },
   b10: { title: 'Sci-fi Building 10', uid: '08f1f006b4bb4e04831555cfc1a3ea49', srcTris: 6772 },
@@ -17,11 +16,9 @@ export const MODELS = {
   b5: { title: 'Sci-fi Building 5', uid: '01bbf6d3b3424694b4c6a1e4693af104', srcTris: 18032 },
 };
 
-export function assignment(names, q = '') {
+export function assignment(names) {
   const out = {}; const have = new Set(names);
   for (const [k, m] of Object.entries(ASSIGN)) if (have.has(k)) out[k] = m;
-  const extra = String(q || '').split(',').map(s => s.trim()).filter(Boolean);
-  let i = 0; for (const n of extra) { if (i >= NEXT.length) break; if (!have.has(n) || out[n]) continue; out[n] = NEXT[i++]; }
   return out;
 }
 
@@ -75,11 +72,13 @@ export function pickLots(sats, map, dimsOf, streets, B, avoid = [], owner = null
   }
   cand.sort((p, q) => p[2] - q[2]);
   for (const [s, name] of cand) {
-    const model = map[name]; if (!model) continue;
-    const dims = dimsOf(model); if (!dims) continue;
+    const list = [].concat(map[name] || []).filter(m => dimsOf(m)); if (!list.length) continue;
     if (avoid.some(a => Math.hypot(s.x - a.x, s.z - a.z) < a.r + s.w * 1.02 + 2)) { skipped[name] = (skipped[name] || 0) + 1; continue; }
     if ((per[name] || 0) >= B.perDistrict) { skipped[name] = (skipped[name] || 0) + 1; continue; }
-    const f = fitLot(s, dims, B.minH); if (!f) { skipped[name] = (skipped[name] || 0) + 1; continue; }
+    const fits = list.map(m => [m, fitLot(s, dimsOf(m), B.minH)]).filter(x => x[1]);
+    if (!fits.length) { skipped[name] = (skipped[name] || 0) + 1; continue; }
+    // best fill of the lot's height; models within 15% of the best are picked by a position hash for variety
+    const top = Math.max(...fits.map(x => x[1].h)), ok = fits.filter(x => x[1].h >= top * .85), [model, f] = ok[Math.floor(hash(s.x, s.z) * ok.length) % ok.length];
     per[name] = (per[name] || 0) + 1;
     out.push({ s, model, name, x: s.x, z: s.z, yaw: streetYaw(s.x, s.z, streets, s.rot), ...f });
   }

@@ -104,7 +104,7 @@ function load() {
   const lm = new THREE.LoadingManager(); if (X.TOUCH) lm.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
   const gl = new GLTFLoader(lm);
   const one = async (id, setup) => {
-    try { const g = await gl.loadAsync(new URL(id + (X.TOUCH ? '-lo' : '') + '.gltf', ASSET).href); setup(rig(g)); }   // phones: 4.5k-tri mesh + 512 px texture
+    try { const g = await gl.loadAsync(new URL(id + (X.TOUCH ? '-lo' : '') + '.gltf', ASSET).href); setup(rig(g)); }   // phones: ~5-6.5k-tri mesh + 1024 px texture (the folder keeps its -tex-512 name)
     catch (e) { console.warn('ember bar model', id, e); }   // fallback: the bar, menu and cups keep working without her/him
   };
   Promise.all([
@@ -114,7 +114,7 @@ function load() {
 }
 function rig(g) {
   const root = g.scene, bones = {};
-  root.traverse(o => { if (o.isBone) bones[o.name.replace(/[.:\/\[\]]/g, '')] = o; /* GLTFLoader strips the '.' from 'thigh.L' */ if (o.isMesh) { o.frustumCulled = false; const m = o.material; if (m && m.map) { m.emissive = new THREE.Color(1, .82, .62); m.emissiveMap = m.map; m.emissiveIntensity = .22; m.needsUpdate = true; } } });   // soft warm face light from the guest side, without adding a light
+  root.traverse(o => { if (o.isBone) bones[o.name.replace(/[.:\/\[\]]/g, '')] = o; /* GLTFLoader strips the '.' from 'thigh.L' */ if (o.isMesh) { o.frustumCulled = false; const m = o.material; if (m && m.map) { m.emissive = new THREE.Color(1, .82, .62); m.emissiveMap = m.map; m.emissiveIntensity = .1; m.needsUpdate = true; } } });   // soft warm face light (.1: brighter washed the faces out) from the guest side, without adding a light
   const rest = Object.values(bones).map(b => [b, b.quaternion.clone()]);
   const mixer = new THREE.AnimationMixer(root), idle = g.animations.find(a => a.name === 'Idle') || g.animations[0];
   if (idle) mixer.clipAction(idle).play();

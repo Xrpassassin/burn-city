@@ -78,7 +78,7 @@
     "test:estate-rlusd": "node server/estate-rlusd-runtime.test.js && node server/estate-rlusd-migration.test.js && node server/estate-manual-pool-migration.test.js && node server/estate-rlusd-acquisition-ratio-preview.test.js && node server/estate-rlusd-acquisition-runtime.test.js && node server/estate-rlusd-next-acquisition-stage.test.js && node server/estate-rlusd-staged-acquisition-runtime.test.js",
     "test:citizens": "node client/js/citizens-core.test.mjs",
     "test:props": "node client/js/cityprops-core.test.mjs",
-    "test:orbital": "node client/space/flight.test.mjs && node client/space/space-assets.test.mjs && node test/zombie-cosmodrome-enemies-sim.js",
+    "test:orbital": "node client/space/flight.test.mjs && node client/js/city-space-core.test.mjs && node client/space/space-assets.test.mjs && node test/zombie-cosmodrome-enemies-sim.js",
     "test:ember-bar": "node test/ember-bar-pay-sim.js"
   },
   "keywords": [],

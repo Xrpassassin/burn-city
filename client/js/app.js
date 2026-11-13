@@ -12,6 +12,7 @@ import './citizens.mjs';   // CC BY 3D people for the sidewalk crowd (far VAT in
 import './streetprops.js';
 import './events.js';
 import './airport.js';
+import './city-space.mjs';   // CC BY ISS (BlendRuN) + CB1 (Keremz) in the City sky and on the airport pad, in-City docking flight; ?space=0 disables, see city-credits.html
 import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
 import { installEstatesIslandLive } from './estates-island-live.mjs';
 import {makeRainbow} from './rainbow.js';
@@ -69,10 +70,11 @@ function showExperienceTransition(theme, icon, title, subtitle) {
 addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('bcExperienceTransition')?.remove();const i=document.getElementById('info');if(i&&window.__infoU&&window.__infoU.kind==='experience')i.style.display='none'});
 const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
  launchers: {
-  ...(Q.get('spacePreview') === '1' ? { 'orbital-flight': async () => {
-   await showExperienceTransition('flight','🚀','ORBITAL FLIGHT','Boarding the CB1…');
-   location.href = 'space/?from=airport';
-   return { navigating: true };
+  ...(Q.get('space') !== '0' ? { 'orbital-flight': async () => {
+   // in-City flight (js/city-space.mjs): same scene, no page change, so no return snapshot is kept
+   try{sessionStorage.removeItem('bc_ret')}catch(_){}
+   if(!window.__citySpace?.launch?.({from:'terminal'}))throw new Error('CB1 is not ready yet');
+   return { inCity: true };
   } } : {}),
   zombies: async ({ returnTo }) => {
    await showExperienceTransition('flight','🚁','BURN CITY INTERNATIONAL','Proceeding to the flight staging pad…');
@@ -1339,7 +1341,7 @@ if(u.kind==='experience'){
  const orbital=[];
  if(u.experienceId==='zombies' && EXPERIENCE_REGISTRY.get('orbital-flight')?.available){
   const spaceButton=document.createElement('button');
-  spaceButton.type='button';spaceButton.textContent='🚀 Fly to the ISS (preview)';
+  spaceButton.type='button';spaceButton.textContent='🚀 Fly CB1 to the ISS';
   spaceButton.style.cssText=enter.style.cssText;
   spaceButton.onclick=e=>{e.stopPropagation();launchExperience('orbital-flight')};
   orbital.push(spaceButton);
@@ -1381,7 +1383,7 @@ function setMode(m){if((tlOn()||window.__estatesIslandLive?.active)&&m!=='explor
  if(m==='orbit'){if(document.pointerLockElement)document.exitPointerLock();orbit.target.copy(C.position).add(C.getWorldDirection(new THREE.Vector3()).multiplyScalar(80));orbit.target.y=Math.max(5,orbit.target.y)}
  $('prompt').style.display='none';
  $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?(MOBILE?'Left stick fly · drag to look · ▲ up · ▼ down · tap things to inspect':'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast'):MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
-window.__setBurnMode=setMode;
+window.__setBurnMode=setMode;window.__burnMode=()=>mode;
 window.__estateCan=(action)=>{const a=window.__estateAccess;return !!(a&&a.propertyId===window.__estateInteriorId&&a.permissions.includes(action))};   // gate any interior ownership action (furniture edits, invites, rights); the server re-checks
 window.__estateManageAccess=async(propertyId)=>{
  if(window.__estateTourMode){alert('You are touring this residence. Tour visitors cannot invite guests or change rights.');return;}

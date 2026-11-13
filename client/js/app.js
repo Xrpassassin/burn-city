@@ -1027,10 +1027,10 @@ const SHIRT=[0xd23b3b,0x2f6fd8,0xe8e2d6,0x2a2a30,0x3fa66b,0xe0a030,0x8a4fd0,0x1f
 const pedM=new THREE.InstancedMesh(pedGeo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,metalness:0,emissive:0x101418}),Math.max(1,peds.length));pedM.frustumCulled=false;
 peds.forEach((q,i)=>pedM.setColorAt(i,new THREE.Color(SHIRT[(Math.random()*SHIRT.length)|0])));if(pedM.instanceColor)pedM.instanceColor.needsUpdate=true;S.add(pedM);
 const _pp=new THREE.Vector3(),_pq=new THREE.Quaternion(),_pm=new THREE.Matrix4(),_ps=new THREE.Vector3(1,1,1),_pu=new THREE.Vector3(0,1,0);
-function updPeds(dt){const T=performance.now()*.001;peds.forEach((q,i)=>{const s=q.s;q.u+=q.sp*dt*q.d/q.len;let hx,hz;
+function updPeds(dt){const T=performance.now()*.001;peds.forEach((q,i)=>{const s=q.s;if(q.w>0)q.w-=dt;else{q.u+=q.sp*dt*q.d/q.len;if(Math.random()<dt/50)q.w=2.5+Math.random()*5}let hx,hz;   // q.w: a short stop (look around, check the phone); citizens.mjs eases the body in and out
  if(s.type==='ring'){q.u=(q.u+1)%1;const a=q.u*6.283,rr=s.r+q.lat*q.side;_pp.set(s.c.x+Math.cos(a)*rr,0,s.c.z+Math.sin(a)*rr);hx=-Math.sin(a)*q.d;hz=Math.cos(a)*q.d}
  else{if(q.u>1||q.u<0){q.u=Math.max(0,Math.min(1,q.u));q.d*=-1}const dx=(s.b.x-s.a.x)/q.len,dz=(s.b.z-s.a.z)/q.len;_pp.copy(s.a).lerp(s.b,q.u);_pp.x+=-dz*q.lat*q.side;_pp.z+=dx*q.lat*q.side;_pp.y=0;hx=dx*q.d;hz=dz*q.d}
- _pp.y=Math.abs(Math.sin(T*q.sp*5.2+q.ph))*.05;_pq.setFromAxisAngle(_pu,Math.atan2(hx,hz));_pm.compose(_pp,_pq,_ps);pedM.setMatrixAt(i,_pm)});pedM.instanceMatrix.needsUpdate=true}
+ _pp.y=q.w>0?0:Math.abs(Math.sin(T*q.sp*5.2+q.ph))*.05;_pq.setFromAxisAngle(_pu,Math.atan2(hx,hz));_pm.compose(_pp,_pq,_ps);pedM.setMatrixAt(i,_pm)});pedM.instanceMatrix.needsUpdate=true}
 function updGround(dt){updPeds(dt);if(window.__cityLife&&window.__cityLife.traffic)window.__cityLife.traffic(gT,dt,performance.now()/1000);   // red lights, car-following, yielding to sirens
 const P=gtG.attributes.position;gT.forEach((g,i)=>{const s=g.s;
  if(s.type==='ring'){g.u=(g.u+g.sp*dt*g.d*(g.k??1)+1)%1;const a=g.u*6.283,rr=s.r+1.25*g.side;_gp.set(s.c.x+Math.cos(a)*rr,.02,s.c.z+Math.sin(a)*rr);_gt.set(-Math.sin(a)*g.d,0,Math.cos(a)*g.d)}

@@ -386,12 +386,13 @@ function build() {
         sh.t -= dt; if (sh.t > 0) { m4.makeScale(0, 0, 0); shopIM.setMatrixAt(i, m4); return; }
         const sp = L.shops[sh.shop]; sh.x = sp.door.x; sh.z = sp.door.z; sh.state = 'walk'; sh.tgt = sidewalk(Math.random(), sh.shop); sh.exits = (sh.exits || 0) + 1;
       }
+      if (sh.pause > 0) { sh.pause -= dt; return; }
       const dx = sh.tgt.x - sh.x, dz = sh.tgt.z - sh.z, d = Math.hypot(dx, dz);
       if (d < .25) {
         if (sh.state === 'enter') { sh.state = 'inside'; sh.t = 6 + Math.random() * 14; L.entries = (L.entries || 0) + 1; m4.makeScale(0, 0, 0); shopIM.setMatrixAt(i, m4); return; }
         if (sh.state === 'toShop') { sh.state = 'enter'; sh.tgt = { ...L.shops[sh.shop].door }; }
         else if (Math.random() < .55) { const near = L.shops.map((o, k) => k).filter(k => Math.hypot(L.shops[k].x - sh.x, L.shops[k].z - sh.z) < 40); sh.shop = near.length ? near[(Math.random() * near.length) | 0] : sh.home; sh.home = sh.shop; const sp = L.shops[sh.shop]; sh.state = 'toShop'; sh.tgt = { x: sp.door.x - Math.sin(sp.yaw) * 2.2, z: sp.door.z - Math.cos(sp.yaw) * 2.2 }; }
-        else sh.tgt = sidewalk(Math.random(), sh.home);
+        else { sh.tgt = sidewalk(Math.random(), sh.home); if (Math.random() < .5) sh.pause = 1.5 + Math.random() * 4; }   // window shopping
         return;
       }
       const st2 = Math.min(d, sh.sp * dt); sh.x += dx / d * st2; sh.z += dz / d * st2;

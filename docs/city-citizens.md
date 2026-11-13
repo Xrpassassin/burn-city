@@ -29,11 +29,36 @@ This needs Blender 4.2 on PATH. The script refuses any model that isn't CC BY 4.
 
 ## Updating the walk cycle
 
-The renderer advances a shared walk phase using distance traveled, so the close and distant models land on the same step when they swap. The cycle sets a planted-foot trajectory and adjusts stride for the scans with narrower stances. The pocket-side and key-holding arms have reduced swing.
+The renderer advances a walk phase using distance actually covered, so feet stay planted at any speed, and the close and distant models land on the same step when they swap.
+
+`scripts/city-citizens/citizen_gait.py` authors one physically based cycle: heel strike, foot flat, heel rise and toe-off, with every planted point (heel, sole, ball) moving backward at exactly ground speed. The pelvis height comes from the legs themselves (the highest pelvis the planted legs reach with a soft knee), so nobody walks crouched, and both steps share one pelvis path, so scans with slightly unequal legs don't limp. Scans posed mid-stride are normalised (each foot centred under its own hip joint, feet levelled).
+
+Each model gets its own gait from the `GAIT` table:
+
+* **Men** walk tall and confident: chest up, shoulders back, a long relaxed stride, a full arm swing with the elbow lagging, and a slight swagger (more shoulder counter-rotation, arms a little away from the body).
+* **Women** walk with a light, rhythmic, runway-style step: feet close to one line, more pelvis list and rotation, a relaxed arm swing and good posture.
+* **Heels** (`elegance-black-b`, `gothic-elegance`) push that further: a narrower line, a shorter step, a smaller heel strike and more hip motion. Boots, trainers, suits and build each adjust stride, width, bob and arm swing a little.
+* The pocket-side and key-holding arms keep their reduced swing.
+
+`scripts/city-citizens/fix_limb_weights.py` separates hands from thighs in the automatic skin weights (several scans stand with a hand touching the leg, so a long stride dragged part of the hand along). It is idempotent; run it before rebaking.
+
+### Runtime motion (`citizens-motion.mjs`, `citizens-life.mjs`)
+
+The crowd simulations only say where people are headed. The motion layer turns that into a body, borrowing the usual open-world pedestrian tricks:
+
+* speed eases in and out on starts and stops; the walk cycle follows the distance covered;
+* heading turns at a limited rate; large direction changes (end of a sidewalk) become a stop and a pivot on the spot, with stepping feet;
+* a slight lean into turns, on both LODs;
+* everyone has their own pace and step phase, so nobody marches in lockstep;
+* people sidestep each other, keeping right when head-on, and step around the player;
+* the crowd now makes short stops (`app.js`), and shoppers window-shop (`citylife.js`).
+
+Close up (near LOD only), a player a few metres in front gets a head turn, and people standing still pick up a habit: looking around, reading their phone, checking their watch, or shifting their weight.
 
 Rebake the shipped rigs after editing the gait, with Blender 4.2 or later:
 
 ```sh
+python3 scripts/city-citizens/fix_limb_weights.py client/assets/citizens
 blender -b --python-exit-code 1 -P scripts/city-citizens/rebake_walk.py -- client/assets/citizens
 ```
 

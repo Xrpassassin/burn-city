@@ -109,7 +109,8 @@ async function init() {
     const walk = mixer.clipAction(clip('Walk')), idle = mixer.clipAction(clip('Idle')); walk.play(); walk.paused = true; idle.play();
     const bones = {}; root.traverse(o => { if (o.isBone) bones[o.name.replace('.', '')] = o; });
     root.rotation.order = 'YXZ';
-    s = { model, root, mixer, walk, idle, bones, handsBusy: model === 'keys-portrait', agent: null };   // keys stay in hand root.visible = false; c.S.add(root); slots.push(s); return s;
+    s = { model, root, mixer, walk, idle, bones, handsBusy: model === 'keys-portrait', agent: null };   // keys stay in hand
+    root.visible = false; c.S.add(root); slots.push(s); return s;
   };
   // DOM name tags + dialogue for named citizens
   const css = document.createElement('style'); css.textContent = `.czTag{position:fixed;left:0;top:0;pointer-events:none;z-index:4;font:700 11px system-ui;color:#ffe2b8;text-shadow:0 0 4px #000;white-space:nowrap;transform:translate(-50%,-100%)}

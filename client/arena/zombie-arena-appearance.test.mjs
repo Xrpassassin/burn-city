@@ -5,8 +5,9 @@ const fx=readFileSync(new URL('./fx.js',import.meta.url),'utf8');
 const model=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'utf8');
 const base=readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const home=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),'utf8');
-assert.equal(ARENA_ZOMBIE_SKINS.length,9,'preserve all nine original gameplay enemy types');
-assert.equal(ARENA_ZOMBIE_EYES.length,9);
+assert.ok(ARENA_ZOMBIE_SKINS.length>=9,'preserve all nine original gameplay enemy types');
+assert.equal(ARENA_ZOMBIE_SKINS.length,10,'containment preview adds one Cosmodrome-only type');
+assert.equal(ARENA_ZOMBIE_EYES.length,ARENA_ZOMBIE_SKINS.length);
 assert(ARENA_ZOMBIE_SKINS.every(x=>x.length>=2));
 assert(ARENA_ZOMBIE_CLOTH.length>=5&&ARENA_ZOMBIE_PANTS.length>=3);
 for(let type=0;type<6;type++){
@@ -20,6 +21,8 @@ assert(zombieHumanShape(2)>zombieHumanShape(0));
 assert(zombieHumanShape(3)>zombieHumanShape(2));
 assert(zombieHumanShape(5)<zombieHumanShape(0));
 assert(zombieHumanShape(8)>zombieHumanShape(0));
+assert(zombieHumanShape(9)>zombieHumanShape(0),'containment infected is a taller human silhouette');
+assert.equal(zombieEyeIntensity(9),0,'containment preview uses the existing thin/procedural human eyes');
 assert.match(fx,/function zombieRoundedBox\(/,'fallback uses actual softened humanoid geometry');
 assert.match(fx,/new THREE\.BoxGeometry\(w,h,d,3,3,3\)/,'original instanced mesh geometry has rounded vertex subdivisions');
 assert.match(fx,/zombieRoundedBox\(0\.43, 0\.44, 0\.39/,'old square head replaced');
@@ -40,7 +43,7 @@ assert(!/from [\x27\x22][^\x27\x22]*homefront/i.test(fx+model),
  'Zombies must NEVER import Homefront enemy, world, UI or player rendering');
 assert(base.includes("import { createZombieFX } from './fx.js'"),'old Zombies arena entry point is untouched');
 assert(home.length>10000,'separate Homefront game remains present; no overwrite');
-console.log('Original Zombies model fidelity: 9 existing archetypes, human silhouette, no goblin default, working GLB fallback, death/hit feedback and complete Homefront isolation passed');
+console.log('Original Zombies model fidelity: 9 existing archetypes plus the opt-in containment preview, human silhouette, no goblin default, working GLB fallback, death/hit feedback and complete Homefront isolation passed');
 
 
 import {zombieShadowMetrics,infectedShadowPixels} from './zombie-contact-shadow.mjs';

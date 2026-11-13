@@ -68,6 +68,54 @@
       "listedTriangles": 160400,
       "target": "Airport utility helicopter with independent rotor pivots",
       "previewBudget": {"triangles": 12000, "textureEdge": 1024}
+    },
+    "cb1": {
+      "title": "SPACESHIP - CB1",
+      "creator": "Kerem Kavalci",
+      "source": "https://skfb.ly/oI8UU",
+      "uid": "4a8fddf9fadf4d2998925ca4b6d4b93b",
+      "listedTriangles": 137000,
+      "listedAnimationCount": 6,
+      "sourceNotes": "Listing marked NoAI. Processed with standard local Blender tools. Live Sketchfab credit is Kerem Kavalci (Keremz). Optimized derivatives are in client/assets/space/.",
+      "target": "Playable ship for orbital flight preview",
+      "previewBudget": {
+        "triangles": 8000,
+        "lodTriangles": 2500,
+        "textureEdge": 1024,
+        "phoneTextureEdge": 512
+      }
+    },
+    "iss": {
+      "title": "International Space Station",
+      "creator": "BlendRuN",
+      "source": "https://skfb.ly/oToon",
+      "uid": "6e289a99dfaa4de3852637696ddaea54",
+      "listedTriangles": 745700,
+      "sourceNotes": "Exterior only: Earth, braided cables and astronauts were omitted. Optimized derivatives are in client/assets/space/.",
+      "target": "Orbital docking destination exterior",
+      "previewBudget": {
+        "triangles": 10000,
+        "lodTriangles": 3000,
+        "textureEdge": 1024,
+        "phoneTextureEdge": 512
+      }
+    },
+    "scp-096": {
+      "title": "SCP-096 : Unity",
+      "creator": "Smiley Man (uploader)",
+      "source": "https://skfb.ly/oJyMG",
+      "uid": "f8ea0503541e4cef8b95271e09d751e4",
+      "listedTriangles": 21600,
+      "sourceCredits": {
+        "mesh": "Victor Tomioka",
+        "animations": "Shakles"
+      },
+      "sourceNotes": "The listing displays CC BY 4.0. Verify the original mesh and animation license independently before redistribution. Not bundled: the containment preview uses the existing thin/procedural infected until rights are cleared.",
+      "target": "Rare Ashen Cosmodrome Free Play zombie",
+      "previewBudget": {
+        "triangles": 12000,
+        "textureEdge": 1024
+      }
     }
   }
 }

@@ -49,4 +49,9 @@ function chooseFreeplayZombieType({plan,baseType,spawnIndex}={}){
  }
  return baseType;
 }
-module.exports={planFreeplayWave,chooseFreeplayZombieType,STYLES};
+// Preview a single containment infected at the start of select late Cosmodrome waves.
+function isContainmentWave({ mapId, wave, ranked, daily, enabled } = {}) {
+ return enabled === true && mapId === 'cosmodrome' && !ranked && !daily
+  && Number.isSafeInteger(wave) && wave >= 10 && wave % 4 === 2;
+}
+module.exports={planFreeplayWave,chooseFreeplayZombieType,isContainmentWave,STYLES};

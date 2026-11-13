@@ -69,3 +69,10 @@ assert.equal(failed.reason, 'launch-failed');
 assert.equal(registry.pendingId, null);
 assert.deepEqual(registry.list().map(e => e.id), ['zombies', 'light-cycles', 'broken-launch']);
 console.log('experience-registry: all tests passed');
+
+assert.equal(createBurnCityExperienceRegistry().get('orbital-flight'), null);
+const orbital = createBurnCityExperienceRegistry({
+  launchers: { 'orbital-flight': async context => context.returnTo }
+});
+assert.equal(orbital.get('orbital-flight').available, true);
+assert.equal((await orbital.enter('orbital-flight')).result, 'airport');

@@ -16,10 +16,14 @@ const fireRange = p => p.down ? (p.up && p.up.length ? LS_RANGE_HOT : LS_RANGE) 
 function offerDraft(p, ev) { const ks = Object.keys(DRAFT).filter(k => bon(p, k) < DRAFT[k][2]); for (let i = ks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ks[i], ks[j]] = [ks[j], ks[i]]; }
   p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k), DRAFT[k][3]]) }); else p.draft = null; }
 function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k], ic: DRAFT[k][3] }); }
-const HPM = [1, 0.5, 3, 7, 0.6, 0.35, 0.9, 1.15, 8], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55, 1.25, 0.72, 0.68], ZPTS = [60, 80, 130, 350, 110, 90, 180, 210, 1200], ZHIT = [12, 12, 22, 30, 12, 8, 14, 8, 26];
+const containmentWave = room => Director.isContainmentWave({
+  mapId: room.mapId, wave: room.wave, ranked: room.ranked, daily: room.daily,
+  enabled: process.env.ZOMBIE_CONTAINMENT_PREVIEW === '1'
+});
+const HPM = [1, 0.5, 3, 7, 0.6, 0.35, 0.9, 1.15, 8, 3.4], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55, 1.25, 0.72, 0.68, 1.2], ZPTS = [60, 80, 130, 350, 110, 90, 180, 210, 1200, 450], ZHIT = [12, 12, 22, 30, 12, 8, 14, 8, 26, 22];
 // 3D aim (pitch): eye height, max pitch (~80°) and a vertical hit test. The aim line from the eye, pitched, must pass within a zombie's
 // height band at its horizontal distance (forgiving band grows a little with distance, so flat aim still hits crawlers like before).
-const EYE = 1.6, PMAX = 1.4, zTop = zb => (zb.cr || zb.ty === 4 || zb.ty === 5) ? 0.9 : zb.ty === 3 ? 2.3 : zb.ty === 6 ? 1.6 : 1.9;
+const EYE = 1.6, PMAX = 1.4, zTop = zb => (zb.cr || zb.ty === 4 || zb.ty === 5) ? 0.9 : zb.ty === 3 || zb.ty === 9 ? 2.3 : zb.ty === 6 ? 1.6 : 1.9;
 const aimY = (p, along) => (p.y || 0) + EYE + Math.tan(p.pitch || 0) * along;
 function vAim(p, zb, along, extra = 0) { const ay = aimY(p, along), b = zb.y || 0, tol = 0.6 + 0.08 * along + extra; return ay >= b - tol && ay <= b + zTop(zb) + tol; }
 const hsV = (p, zb, along) => aimY(p, along) > (zb.y || 0) + zTop(zb) * 0.55;
@@ -136,7 +140,7 @@ class Room {
       if ((this.waveDelay -= dt) <= 0) { this.wave++; const np = Math.max(1, ps.filter(p => !p.spectator).length); this.toSpawn = Math.round((6 + this.wave * 4) * Z.scaleN(np)); this.waveTotal = this.toSpawn; this.spawnT = 2.5; this.waveDelay = Z.waveGap(np); ev.push({ e: 'wave', n: this.wave });
         // Warn before the first spawn, without modifying ranked or daily modes.
         this.freeplayWavePlan = !this.ranked && !this.daily ? Director.planFreeplayWave({roomId:this.id,mapId:this.mapId,wave:this.wave,partySize:np}) : null;
-        if (this.freeplayWavePlan?.warning) ev.push({e:'zpressure',kind:this.mapId==='cosmodrome'&&this.wave>=8&&this.wave%4===0?'warden':this.freeplayWavePlan.style,wave:this.wave});
+        if (this.freeplayWavePlan?.warning) ev.push({e:'zpressure',kind:containmentWave(this)?'containment':this.mapId==='cosmodrome'&&this.wave>=8&&this.wave%4===0?'warden':this.freeplayWavePlan.style,wave:this.wave});
         for (const p of ps) if (p.draft) takeDraft(p, 0, ev);
         for (const p of ps) if (!p.alive && !this.ranked) { this.spawn(p); ev.push({ e: 'spawn', id: p.id, x: q(p.x), z: q(p.z) }); } }
     }
@@ -152,12 +156,14 @@ class Room {
       const roll = Math.random(), sr = this.ranked ? 1 : Math.random(), wv = this.wave, cosmo = this.mapId === 'cosmodrome';
       // Map 2 introduces an airborne hunter (6) and a ranged shooter (7); neither appears in ranked/daily balance.
       // The Ashen Warden is a named-feeling elite encounter: first spawn on waves 8, 12, 16…; standard modes are untouched.
-      const boss = cosmo && wv >= 8 && wv % 4 === 0 && this.spawned === 1;
+      const firstWaveSpawn = this.toSpawn === this.waveTotal - 1;
+      const boss = cosmo && wv >= 8 && wv % 4 === 0 && firstWaveSpawn;
       const baselineTy = boss ? 8 : cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
-       const ty = wavePlan ? Director.chooseFreeplayZombieType({plan:wavePlan,baseType:baselineTy,spawnIndex:this.spawned}) : baselineTy;
+      const ty = firstWaveSpawn && containmentWave(this) ? 9 : wavePlan ? Director.chooseFreeplayZombieType({plan:wavePlan,baseType:baselineTy,spawnIndex:this.spawned}) : baselineTy;
       if (ty >= 6) [sx, sz] = Z.zoneSpawn(this);
+      const spawnLevel = ty === 6 || ty === 9 ? 0 : wn?.lv || 0;
       const base = (60 + this.wave * 15) * (cosmo ? 1.25 : 1) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
-      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: ty === 6 ? 0 : wn?.lv || 0, y: ty === 6 ? 2.4 : (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, armorHp: ty === 2 || ty === 3 || ty === 8 ? base * (ty === 8 ? 0.38 : 0.28) : 0, armorBroken: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });
+      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: spawnLevel, y: ty === 6 ? 2.4 : spawnLevel * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, armorHp: ty === 2 || ty === 3 || ty === 8 ? base * (ty === 8 ? 0.38 : 0.28) : 0, armorBroken: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });
     }
     if (this.spawnT < 0) this.spawnT = 0;   // no banked burst while the alive cap is full
     const hurt = (zb, amt, p, hs = 0, dot = false) => { let d = amt * (Z.has(p, 'dbl') ? 2 : 1) * (hs ? hs * (1 + 0.25 * bon(p, 'hs')) : 1) * (1 + 0.12 * bon(p, 'dmg'));

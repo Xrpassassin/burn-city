@@ -120,5 +120,12 @@ export function createBurnCityExperienceRegistry({ launchers = {}, ...options } 
     launch: estatesLaunch,
     returnTo: 'estates-island-entrance'
   });
+  if (typeof launchers['orbital-flight'] === 'function') registry.register({
+    id: 'orbital-flight',
+    label: 'ISS Flight Preview',
+    status: 'available',
+    launch: launchers['orbital-flight'],
+    returnTo: 'airport'
+  });
   return registry;
 }

@@ -1329,7 +1329,7 @@ function boot(host) {
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
-      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer,nft:NFT_PLAYER_AVATARS_ENABLED&&isLocalPlayer?NftPick.current():null,srv:API});
+      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer,nft:isLocalPlayer?NftPick.current():null,srv:API});
       if(isLocalPlayer) g.userData.publishLook=true;
       g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.

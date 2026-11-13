@@ -1,0 +1,16 @@
+{
+  "id": "gas-mask-guy",
+  "height": 1.7992621660232544,
+  "nearTris": 9000,
+  "farTris": 2585,
+  "bodyTris": 7523,
+  "torsoLegWeightsCleared": 208,
+  "clips": [
+    "Idle_gas-mask-guy_rig",
+    "Jump_gas-mask-guy_rig",
+    "Ride_gas-mask-guy_rig",
+    "Run_gas-mask-guy_rig",
+    "Sit_gas-mask-guy_rig",
+    "Walk_gas-mask-guy_rig"
+  ]
+}

@@ -68,7 +68,6 @@ import { attachViewControls, cameraPose, worldMove } from './homefront-view.mjs'
 import { buildPlayerWalker, poseWalker } from '../js/walker.js';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
 import {createHomefrontCommunityArt} from './homefront-community-art.mjs';
-import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
 import * as NftPick from '../js/nftpick.js';
 import { createTravel } from './homefront-travel.mjs';
 import { createHud } from './homefront-hud.mjs';
@@ -97,7 +96,7 @@ const communityArt=createHomefrontCommunityArt({mobile:typeof matchMedia==='func
 async function dressYardAvatar(){
   const walker=yardAvatar?.userData?.walker;
   if(!walker)return;
-  const nft=NFT_PLAYER_AVATARS_ENABLED?NftPick.current():null;
+  const nft=NftPick.current();
   if(nft){try{await communityArt.preloadNftArt()}catch(e){}}
   communityArt.decorateExplorer(yardAvatar,walker,{isLocal:true,nft,srv:API});
   const pack=yardAvatar.userData.pack;

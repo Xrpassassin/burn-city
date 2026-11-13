@@ -1,4 +1,4 @@
-export const NFT_PLAYER_AVATARS_ENABLED = false;
+export const NFT_PLAYER_AVATARS_ENABLED = true;
 
 // Cross-experience avatar eligibility. Visual choice is separate from verified NFT ownership.
 export const AVATAR_POLICIES = Object.freeze({

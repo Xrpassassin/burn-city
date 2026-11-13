@@ -51,6 +51,8 @@ export function buildPlayerWalker(options) {
   const walker = buildWalker(options);
   const body = walker.children.filter(child => child.renderOrder !== -1);
   walker.userData.defaultAvatar = mountDefaultPlayerAvatar(walker, {
+    tint: options?.suit,
+    lod: !!options?.lite,
     fallback: visible => { for (const child of body) child.visible = visible; }
   });
   return walker;

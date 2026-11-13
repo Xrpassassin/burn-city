@@ -27,10 +27,18 @@ const nft={id:'qa-1',key:'fk',name:'QA Firekeeper',img:'/qa/nft-card.png'};
 let thrown=null;
 const ok=(()=>{try{return art.decorateExplorer(group,walker,{isLocal:true,nft,srv:'http://127.0.0.1'})}catch(e){thrown=e;return false}})();
 assert.equal(thrown,null,thrown?String(thrown):'decorateExplorer should not throw');
-assert.equal(ok,false,'a selected NFT does not replace the current player default');
-assert.equal(walker.visible,true,'the player fallback stays visible when no shared model is loaded');
-assert(!group.userData.nftCharacter,'no NFT character is instantiated while NFT avatars are paused');
-assert(!group.userData.communityActor,'no alternate survivor skin overrides the player default');
+assert.equal(ok,true,'a selected NFT uses the shared City collection walker');
+assert.equal(group.userData.look,'nft');
+assert.equal(walker.visible,false,'the field-gear walker is hidden only while the NFT look is active');
+assert.equal(group.userData.nftCharacter.name,'homefront-nft-look');
+assert(group.userData.nftCharacter.userData.card,'NFT look includes the floating art card');
+assert(!group.userData.communityActor,'licensed survivor is not applied on top of an NFT');
+assert.equal(group.userData.nftCharacter.scale.x,.82,'NFT look follows the explorer scale');
+
+art.animateExplorer(group,true,0.016,0,false);
+assert(group.userData.nftCharacter.userData.card.position.y>0);
+
 art.clearExplorer(group);
-assert.equal(walker.visible,true);
-console.log('Homefront community art respects the shared default player policy');
+assert.equal(walker.visible,true,'clearing the NFT look restores the default walker');
+assert.equal(group.userData.nftCharacter,null);
+console.log('Homefront community art: NFT holders keep collection walker + card; survivor stays for everyone else');

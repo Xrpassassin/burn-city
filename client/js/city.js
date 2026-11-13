@@ -50,7 +50,7 @@ function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{co
    glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
 // remote walker: simple figure in the visitor's colour (verified NFT holders show their NFT character instead)
 function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&NFT_PLAYER_AVATARS_ENABLED&&nfts.has(p.id)&&W().C.position.distanceToSquared(p.g.position)<85*85)setNft(p);if(p.nc&&(!walk||W().C.position.distanceToSquared(p.g.position)>120*120))setNft(p);if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildPlayerWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
-  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;p.mv=mv;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
+  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;p.mv=mv;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;p.wk.userData.defaultAvatar?.setLod?.(W().C.position.distanceToSquared(p.g.position)>40*40);poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.peer=1;g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
 const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(1,1,1),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
@@ -146,10 +146,10 @@ const pickBtn=el('button','cnft','🎭 Play as my NFT');pickBtn.hidden=true;pick
 if(NFT_PLAYER_AVATARS_ENABLED)NftPick.mount(SRV,{button:pickBtn});
 let myNft=null;
 function applyMine(){if(!NFT_PLAYER_AVATARS_ENABLED)return;const c=W(),av=c&&c.avatar;if(!av)return setTimeout(applyMine,800);const n=NftPick.current();
-  if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children]};
+  if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children].filter(k=>k.name!=='gas-mask-guy'&&k.name!=='nft-portrait-card'&&k.name!=='nft-portrait-frame')};
   if(myNft){disposeNftChar(myNft);myNft=null}av.userData.nftCharacter=null;const o=av.userData.orig;
-  if(n){try{myNft=buildNftChar(n,{srv:SRV,card:true,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
-  o.kids.forEach(k=>k.visible=true);av.userData.legs=o.legs;av.userData.arms=o.arms}
+  if(n){try{myNft=buildNftChar(n,{srv:SRV,card:true,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.defaultAvatar?.setVisible(false);av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
+  o.kids.forEach(k=>k.visible=true);av.userData.defaultAvatar?.setVisible(true);av.userData.legs=o.legs;av.userData.arms=o.arms}
 addEventListener('bc-nft',()=>{applyMine();if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'nft'}))});
 (function waitAv(){if(!window.__ready||!W())return setTimeout(waitAv,600);applyMine()})();
 

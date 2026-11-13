@@ -1,7 +1,7 @@
 // Temporary collection colours on the shared walker. Verified NFT metadata is
 // identity only here: token traits do not invent a collection's future 3D model.
 import * as THREE from 'three';
-import { buildWalker, poseWalker } from './walker.js';
+import { buildWalker, buildPlayerWalker, poseWalker } from './walker.js';
 export const COLLECTION_WALKER_COLORS=Object.freeze({
   racc:Object.freeze({suit:0x647383,accent:0xd9e2e9}),
   fk:Object.freeze({suit:0x71361f,accent:0xff9c38}),
@@ -34,7 +34,7 @@ export function attachFloatingNftCard(root, n, opts={}) {
   return {card, frame};
 }
 export function buildCollectionPlaceholder(n,opts={}) {
-  const colors=collectionWalkerColors(n?.key), walker=buildWalker({...colors,lite:!!opts.lite,skin:0});
+  const colors=collectionWalkerColors(n?.key), walker=buildPlayerWalker({...colors,lite:!!opts.lite,skin:0});
   // NFT callers face +Z; the shared walker faces -Z. Keep that correction on
   // the child, leaving the existing city/arena heading and rig references intact.
   const root=new THREE.Group();root.name='burn-city-nft-collection-placeholder';

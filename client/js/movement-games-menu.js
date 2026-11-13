@@ -79,6 +79,7 @@ panel.innerHTML = `
     <button class="bc-mg-entry" type="button" data-game="blacktide"><span class="bc-mg-icon">⚓</span><span><strong>Blacktide</strong><small>Pirate frontier · sail, trade, and encounter NPC ships</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="arena"><span class="bc-mg-icon">🧟</span><span><strong>Multiplayer arena</strong><small>Zombies, ranked and Tron · free to play</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="fishing"><span class="bc-mg-icon">🎣</span><span><strong>Fishing</strong><small>Takes you to the end of the fishing dock · cast from there</small></span></button>
+    <button class="bc-mg-entry" type="button" data-game="emberbar"><span class="bc-mg-icon">🍺</span><span><strong>The Ember Bar</strong><small>Takes you to the tavern door on the BURN ring road · press E or tap to go in</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="wilds"><span class="bc-mg-icon">🌲</span><span><strong>The Wilds</strong><small>Takes you to the forest gate north of town · on foot only inside</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="city"><span class="bc-mg-icon">🔥</span><span><strong>BURN City</strong><small>Return to the live 3D city world</small></span></button>
    </div>
@@ -119,11 +120,13 @@ const go=k=>{if(window.__setBurnMode)window.__setBurnMode(k)};
 const spots={
  boat:()=>{const f=window.__fishWorld,b=window.__boatWorld;if(!f||!b||!b.docks||!b.docks[0])return null;const d=f.dock.dir,p=b.docks[0].base;return{x:p.x+d.x*3,z:p.z+d.z*3,face:{x:p.x+d.x*12,z:p.z+d.z*12}}},
  fishing:()=>{const f=window.__fishWorld;if(!f)return null;const d=f.dock.dir,p=f.dock.base;return{x:p.x+d.x*16,z:p.z+d.z*16,face:{x:p.x+d.x*30,z:p.z+d.z*30}}},
+ emberbar:()=>window.__emberBarBuilding&&window.__emberBarBuilding.ready?window.__emberBarBuilding.spot():null,
  wilds:async()=>{const g=(await import('./wilds-gate.js')).GATE;return{x:g.x,z:g.z-16,face:{x:g.x,z:g.z}}},
 };
 const MSG={
  boat:[()=>touch()?'⛵ Boat dock: walk up to a boat and tap 🚤 Board boat.':'⛵ Boat dock: walk up to a boat and press E (or click 🚤 Board boat).','⛵ Lake boat: head to the lake dock and board a boat with E / USE.'],
  fishing:[()=>touch()?'🎣 Fishing dock: tap 🎣 Fish to cast.':'🎣 Fishing dock: press F (or click 🎣 Fish) to cast.','🎣 Fishing: walk to the end of the lake dock or the shore, then cast.'],
+ emberbar:[()=>touch()?'🍺 The Ember Bar: walk up to the door and tap to go in.':'🍺 The Ember Bar: walk up to the door and press E to go in.','🍺 The Ember Bar is on the BURN ring road, just south of BURN Tower.'],
  wilds:[()=>'🌲 The Wilds gate is just ahead: walk through it to enter the forest.','🌲 The Wilds: walk north of town to the forest gate.'],
 };
 async function travel(k){

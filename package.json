@@ -79,7 +79,7 @@
     "test:citizens": "node client/js/citizens-core.test.mjs",
     "test:props": "node client/js/cityprops-core.test.mjs",
     "test:orbital": "node client/space/flight.test.mjs && node client/js/city-space-core.test.mjs && node client/space/space-assets.test.mjs && node test/zombie-cosmodrome-enemies-sim.js",
-    "test:ember-bar": "node test/ember-bar-pay-sim.js"
+    "test:ember-bar": "node test/ember-bar-pay-sim.js && node client/js/ember-bar-lot.test.mjs"
   },
   "keywords": [],
   "author": "",

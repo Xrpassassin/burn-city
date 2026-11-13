@@ -49,8 +49,15 @@ const PR = .35, PH = 1.8, EYE = 1.64, STEP = .45, WALK = 4.2, RUN = 7.5;
 let CITY = null, built = false, active = false, opening = false;
 let scene, camera, root, hud, fade, panel = null, msgTimer = 0;
 let rpass = null, saved = null, lightMul = 1, reveal = 0;
-const stations = [], animated = [], hitProxies = [], boxes = [], cyls = [], rects = [], discs = [], ramps = [];
-const lights = []; let REACT = null;   // reactor light (flickers)
+let stations = [], animated = [], hitProxies = [], boxes = [], cyls = [], rects = [], discs = [], ramps = [];
+let lights = []; let REACT = null;
+// Two local scenes share this module: 'tower' (the Pyretheum) and 'ember' (THE EMBER BAR, its own building on the City street,
+// see js/ember-bar-building.mjs). Each keeps its own scene, collision and stations; only the one being entered is built.
+let venue = 'tower'; const WORLDS = {};
+function saveWorld(name) { WORLDS[name] = { scene, stations, animated, hitProxies, boxes, cyls, rects, discs, ramps, lights, REACT, statics }; }
+function useWorld(name) { ({ scene, stations, animated, hitProxies, boxes, cyls, rects, discs, ramps, lights, REACT, statics } = WORLDS[name]); }
+function freshWorld() { scene = null; stations = []; animated = []; hitProxies = []; boxes = []; cyls = []; rects = []; discs = []; ramps = []; lights = []; REACT = null; statics = new Map(); }
+function common() { if (M) return; makeMaterials(); camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 160); camera.rotation.order = 'YXZ'; }   // reactor light (flickers)
 const P = { pos: new THREE.Vector3(0, 0, 21.5), vy: 0, onGround: true, walk: 0, speed: 0, bodyYaw: 0, seated: false, bob: 0 };
 let body = null, MINE = null, nearSt = null, artMesh = null;
 const _v = new THREE.Vector3(), _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2();
@@ -127,7 +134,7 @@ function makeMaterials() {
 
 // ---------------------------------------------------------------- geometry helpers
 // Static geometry is collected per material and merged once -> a handful of draw calls for the whole hall.
-const statics = new Map();
+let statics = new Map();
 function addStatic(geo, mat, x = 0, y = 0, z = 0, ry = 0, rx = 0) {
   const g = geo.index ? geo.toNonIndexed() : geo.clone(); const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, 0)), new THREE.Vector3(1, 1, 1)); g.applyMatrix4(m);
   for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
@@ -183,9 +190,8 @@ function bevelBox(w, h, d) {           // cheap chamfer: a box with a slightly s
 
 // ---------------------------------------------------------------- the building
 function build() {
-  makeMaterials();
+  common();
   scene = new THREE.Scene(); scene.background = new THREE.Color(0x050406); scene.fog = new THREE.Fog(0x0b0807, 30, 88);   // warmer, slightly nearer haze for depth
-  camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 160); camera.rotation.order = 'YXZ';
   envMap();
   // --- lighting hierarchy: soft base, sky from the oculus, warm practicals at circulation, restrained reactor red
   const hemi = new THREE.HemisphereLight(0xffe8d6, 0x2a1d1a, 1.25); scene.add(hemi); lights.push([hemi, 1.25]);   // less flat fill: the practicals carry the room
@@ -194,7 +200,7 @@ function build() {
   const reactorLight = pl(0xff4a1c, 100, 15, 0, 3.4, 0); REACT = reactorLight;
   pl(0xffb27a, 120, 24, 0, 5.2, 21.5);        // entrance
   pl(0xffb27a, 90, 18, 0, 5.4, -22.5);         // north lobby / lifts
-  if (!TOUCH) { pl(0xffa868, 70, 14, -15.5, 10.2, 13); pl(0xffa868, 60, 13, 0, 11.5, -30); }   // Ember Bar, Aegis Sanctum (desktop only)
+  if (!TOUCH) { pl(0xffa868, 70, 14, -15.5, 10.2, 13); pl(0xffa868, 60, 13, 0, 11.5, -30); }   // west gallery (Ember Bar sign), Aegis Sanctum (desktop only)
 
   // --- fake light (2 draws, no extra lights): warm bounce pools on the floor under each practical + a soft oculus shaft
   { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.45, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
@@ -254,7 +260,7 @@ function build() {
     pts.userData.tick = (dt) => { const a = g.attributes.position; for (let i = 0; i < a.count; i++) { let y = a.getY(i) + dt * (.35 + (i % 5) * .08); if (y > 11) y = 1.4; a.setY(i, y); } a.needsUpdate = true; };
     scene.add(pts); animated.push(pts); }
   animated.push({ userData: { tick: (dt, t) => { reactorLight.intensity = 100 * lightMul * (.9 + .1 * Math.sin(t * 1.3)); } } });
-  body = makeBody(); scene.add(body);
+  if (!body) body = makeBody(); scene.add(body);
   built = true;
 }
 
@@ -495,14 +501,16 @@ function rooftopSkyLounge() {
   station('rooftop-view','Panoramic observation deck',0,y,-16.5,3.8,[5,2.8,1.2]);
 }
 
+let ENV = null;
 function envMap() {   // tiny procedural environment for plausible metal/glass reflections (no HDR download)
+  if (ENV) { scene.environment = ENV; return; }
   const s = new THREE.Scene(); s.background = new THREE.Color(0x0c0a0c);
   const add = (c, w, h, x, y, z, rx = 0, ry = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); s.add(m); };
   add(new THREE.Color(2.2, 2, 1.8), 6, 6, 0, 9, 0, Math.PI / 2);                 // oculus
   add(new THREE.Color(1.4, .7, .3), 14, .6, 0, 3, -9); add(new THREE.Color(1.4, .7, .3), 14, .6, 0, 3, 9);   // warm practicals
   add(new THREE.Color(.9, .5, .3), .6, 10, -9, 3, 0, 0, Math.PI / 2); add(new THREE.Color(1.6, .35, .12), 2, 3, 0, 1, 0, 0, 0);
   add(new THREE.Color(.16, .13, .12), 30, 30, 0, -4, 0, Math.PI / 2);
-  const pm = new THREE.PMREMGenerator(CITY.R); scene.environment = pm.fromScene(s, .04).texture; pm.dispose();
+  const pm = new THREE.PMREMGenerator(CITY.R); ENV = scene.environment = pm.fromScene(s, .04).texture; pm.dispose();
 }
 function mezzanine() {
   const y0 = MEZZ - SLAB, y1 = MEZZ;
@@ -644,19 +652,10 @@ function portals() {   // gallery portals: architecture + signage now, rooms in 
   }
 }
 function barAndLounge() {
-  // THE EMBER BAR (west gallery): stone counter, gold edge, backlit shelving
-  const bx0 = -15.4, bx1 = -14.6, bz0 = 9, bz1 = 18;
-  box(bx0, bx1, MEZZ, MEZZ + 1.08, bz0, bz1, M.stone); box(bx0 - .06, bx1 + .06, MEZZ + 1.08, MEZZ + 1.13, bz0 - .06, bz1 + .06, M.gold, false);
-  box(-HX + .02, -HX + .4, MEZZ + 1.3, MEZZ + 3.6, bz0 + .5, bz1 - .5, M.metal, false); box(-HX + .4, -HX + .42, MEZZ + 1.32, MEZZ + 3.58, bz0 + .5, bz1 - .5, M.amberDim, false);
-  for (const y of [MEZZ + 1.9, MEZZ + 2.7]) box(-HX + .05, -HX + .75, y, y + .04, bz0 + .5, bz1 - .5, M.glass, false);
-  const bottles = []; for (let i = 0; i < 26; i++) bottles.push([-HX + .5, MEZZ + (i % 2 ? 2.08 : 2.88), bz0 + .8 + (i >> 1) * .6]);
-  instanced(new THREE.CylinderGeometry(.07, .08, .32, 10), M.glass, bottles);
-  instanced(new THREE.CylinderGeometry(.22, .18, .06, 20), M.gold, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .78, bz0 + 1 + i * 1.7]));
-  instanced(new THREE.CylinderGeometry(.04, .04, .75, 8), M.metal, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .38, bz0 + 1 + i * 1.7]));
-  for (let i = 0; i < 5; i++) cyl(-14.25, bz0 + 1 + i * 1.7, .25, MEZZ, MEZZ + .8);
-  plaque('THE EMBER BAR', 'HOUSE MENU', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
-  station('bar', 'The Ember Bar', -14.2, MEZZ, 13.5, 3.2, [1.2, 1.3, 9]);
-  EmberBar.init({ scene, MEZZ, HX, M, instanced, cyl, TOUCH, SRV, btn, toast: m => root && toast(m), root: () => root }); EmberBar.build();   // bartender, Blackbeard, counter dressing, 1 XRP checkout (js/ember-bar.mjs)
+  // THE EMBER BAR moved to its own building on the City street (js/ember-bar-building.mjs); the west gallery keeps a sign that points there
+  box(-HX + .02, -HX + .4, MEZZ + 1.3, MEZZ + 3.6, 10, 17, M.metal, false); box(-HX + .4, -HX + .42, MEZZ + 1.32, MEZZ + 3.58, 10, 17, M.amberDim, false);
+  plaque('THE EMBER BAR HAS MOVED', 'NOW ITS OWN TAVERN · BURN RING SOUTH', -HX + .45, MEZZ + 2.45, 13.5, Math.PI / 2, 5.6);
+  station('bar-moved', 'The Ember Bar has moved', -15.6, MEZZ, 13.5, 3.2, [1.2, 2.4, 7]);
   // THE DIONYSIAN LOUNGE (east gallery): low sofas facing the atrium, stone table
   const sofa = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, MEZZ, z); g.rotation.y = ry;
     const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, .42, .9), M.fabric); seat.position.set(0, .3, 0); g.add(seat);
@@ -669,6 +668,99 @@ function barAndLounge() {
   plaque('THE DIONYSIAN LOUNGE', 'SOCIAL LOUNGE', HX - .06, MEZZ + 4.4, 15.25, -Math.PI / 2, 3.4);
   station('sit', 'Take a seat in the lounge', 14.9, MEZZ, 15.25, 2.4, null);
   P.seatPos = new THREE.Vector3(16.15, MEZZ, 15.25);
+}
+function emberCounter() {   // the Ember Bar counter (same coordinates as its old mezzanine spot, so js/ember-bar.mjs is unchanged)
+  const bx0 = -15.4, bx1 = -14.6, bz0 = 9, bz1 = 18;
+  box(bx0, bx1, MEZZ, MEZZ + 1.08, bz0, bz1, M.stone); box(bx0 - .06, bx1 + .06, MEZZ + 1.08, MEZZ + 1.13, bz0 - .06, bz1 + .06, M.gold, false);
+  box(-HX + .02, -HX + .4, MEZZ + 1.3, MEZZ + 3.6, bz0 + .5, bz1 - .5, M.metal, false); box(-HX + .4, -HX + .42, MEZZ + 1.32, MEZZ + 3.58, bz0 + .5, bz1 - .5, M.amberDim, false);
+  for (const y of [MEZZ + 1.9, MEZZ + 2.7]) box(-HX + .05, -HX + .75, y, y + .04, bz0 + .5, bz1 - .5, M.glass, false);
+  const bottles = []; for (let i = 0; i < 26; i++) bottles.push([-HX + .5, MEZZ + (i % 2 ? 2.08 : 2.88), bz0 + .8 + (i >> 1) * .6]);
+  instanced(new THREE.CylinderGeometry(.07, .08, .32, 10), M.glass, bottles);
+  instanced(new THREE.CylinderGeometry(.22, .18, .06, 20), M.gold, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .78, bz0 + 1 + i * 1.7]));
+  instanced(new THREE.CylinderGeometry(.04, .04, .75, 8), M.metal, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .38, bz0 + 1 + i * 1.7]));
+  for (let i = 0; i < 5; i++) cyl(-14.25, bz0 + 1 + i * 1.7, .25, MEZZ, MEZZ + .8);
+  plaque('THE EMBER BAR', 'HOUSE MENU', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
+  station('bar', 'The Ember Bar', -14.2, MEZZ, 13.5, 3.2, [1.2, 1.3, 9]);
+}
+// ---------------------------------------------------------------- THE EMBER BAR: the tavern interior behind the City street door
+// A small separate scene (built the first time someone walks in; the Pyretheum is not built for it). The counter, the
+// bartender, Blackbeard and the 1 XRP checkout sit at the same coordinates they had on the mezzanine, so js/ember-bar.mjs and
+// its payment flow are unchanged. Room: x -18..-4, z 6..22, floor at MEZZ; the street door is in the +z wall.
+const TV = { x0: -18, x1: -4, z0: 6, z1: 22, door: -9.5, h: 4.4 };
+export const EMBER_SPAWN = { x: -9.5, z: 19.2, yaw: .55 };
+function buildTavern() {
+  common();
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x070404); scene.fog = new THREE.Fog(0x140a06, 16, 42);
+  envMap();
+  const { x0, x1, z0, z1, h } = TV, y0 = MEZZ, y1 = MEZZ + h;
+  const hemi = new THREE.HemisphereLight(0xffd6a8, 0x2a150c, 1.15); scene.add(hemi); lights.push([hemi, 1.15]);
+  const pl = (c, i, d, x, y, z) => { const l = new THREE.PointLight(c, i, d, 2); l.position.set(x, y, z); scene.add(l); lights.push([l, i]); return l; };
+  pl(0xffa860, 70, 14, -14.2, y0 + 3.4, 13.5);    // over the counter
+  pl(0xff8a40, 40, 12, -5.4, y0 + 1.4, 12);       // hearth glow
+  if (!TOUCH) pl(0xffb27a, 35, 11, TV.door, y0 + 3.4, 19.5);   // by the door (desktop only)
+  // procedural textures: old ship planks underfoot, tarred timber walls, rough brick behind the hearth
+  const planks = canvasTex(512, 512, (g, w, hh) => { for (let i = 0; i < 8; i++) { const k = 46 + rng() * 22 | 0; g.fillStyle = `rgb(${k + 12},${k * .62 | 0},${k * .36 | 0})`; g.fillRect(0, i * 64, w, 64); g.fillStyle = '#140c07'; g.fillRect(0, i * 64, w, 3);
+    for (let j = 0; j < 40; j++) { g.fillStyle = `rgba(20,10,4,${.08 + rng() * .12})`; g.fillRect(rng() * w, i * 64 + 4 + rng() * 56, 30 + rng() * 140, 1.5); }
+    const cut = rng() * w; g.fillStyle = '#140c07'; g.fillRect(cut, i * 64, 3, 64); g.fillStyle = '#6b6058'; g.fillRect(cut + 10, i * 64 + 14, 4, 4); g.fillRect(cut + 10, i * 64 + 46, 4, 4); } }, [(x1 - x0) / 4, (z1 - z0) / 4]);
+  const timber = canvasTex(512, 512, (g, w, hh) => { for (let i = 0; i < 16; i++) { const k = 30 + rng() * 14 | 0; g.fillStyle = `rgb(${k + 6},${k * .7 | 0},${k * .5 | 0})`; g.fillRect(i * 32, 0, 32, hh); g.fillStyle = '#0b0705'; g.fillRect(i * 32, 0, 2, hh); } }, [1, 1]);
+  const brick = canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#1a0f0b'; g.fillRect(0, 0, w, hh); for (let r = 0; r < 16; r++) for (let c = 0; c < 8; c++) { const k = 60 + rng() * 40 | 0; g.fillStyle = `rgb(${k},${k * .45 | 0},${k * .32 | 0})`; g.fillRect(c * 32 + (r % 2) * 16 + 1, r * 16 + 1, 30, 14); } }, [1, 1]);
+  const T = {
+    floor: new THREE.MeshStandardMaterial({ map: planks, roughness: .8, metalness: 0, envMapIntensity: .3 }),
+    wall: new THREE.MeshStandardMaterial({ map: timber, roughness: .85, metalness: 0, envMapIntensity: .2 }),
+    beam: new THREE.MeshStandardMaterial({ color: 0x24170e, roughness: .8, metalness: 0 }),
+    brick: new THREE.MeshStandardMaterial({ map: brick, roughness: .9, metalness: 0 }),
+    iron: new THREE.MeshStandardMaterial({ color: 0x1b1a1c, roughness: .5, metalness: .8, envMapIntensity: .6 }),
+    fire: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, .8, .18) }),
+    lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.05, .62, .28) }),
+    night: new THREE.MeshBasicMaterial({ color: new THREE.Color(.012, .018, .04) })
+  };
+  { const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0); g.rotateX(-Math.PI / 2); addStatic(g, T.floor, (x0 + x1) / 2, y0, (z0 + z1) / 2); }
+  floorRect(x0, x1, z0, z1, y0);
+  // walls (solid) with timber posts; the door gap in the +z wall is only visual (the door is an interaction)
+  const W = (a0, a1, b0, b1, mat = T.wall) => box(a0, a1, y0, y1, b0, b1, mat, true, 1 / 3.2);
+  W(x0 - .3, x0, z0, z1); W(x1, x1 + .3, z0, z1); W(x0, x1, z0 - .3, z0); W(x0, TV.door - 1.1, z1, z1 + .3); W(TV.door + 1.1, x1, z1, z1 + .3);
+  box(TV.door - 1.1, TV.door + 1.1, y0 + 2.5, y1, z1, z1 + .3, T.wall, true, 1 / 3.2);
+  box(TV.door - 1.1, TV.door + 1.1, y0, y0 + 2.5, z1 + .12, z1 + .2, T.beam, true);                 // the door itself (closed; USE it to leave)
+  for (const sx of [-1, 1]) box(TV.door + sx * 1.1 - .12, TV.door + sx * 1.1 + .12, y0, y0 + 2.65, z1 - .12, z1 + .05, T.iron, false);
+  box(TV.door - 1.25, TV.door + 1.25, y0 + 2.5, y0 + 2.7, z1 - .12, z1 + .05, T.iron, false);
+  box(x0, x1, y1, y1 + .2, z0, z1, T.beam, false);                                                // ceiling
+  for (let z = z0 + 1.5; z < z1; z += 3) box(x0, x1, y1 - .32, y1, z - .16, z + .16, T.beam, false);   // heavy beams
+  for (const [x, z] of [[x0 + .2, z0 + .2], [x1 - .2, z0 + .2], [x0 + .2, z1 - .2], [x1 - .2, z1 - .2], [-11, z0 + .2], [-11, z1 - .2]]) box(x - .2, x + .2, y0, y1, z - .2, z + .2, T.beam, false);
+  // hearth on the east wall (emissive embers, one point light)
+  box(x1 - .9, x1, y0, y0 + 2.6, 9.6, 14.4, T.brick); box(x1 - 1.0, x1 - .85, y0 + .2, y0 + 1.25, 10.6, 13.4, T.night, false);
+  box(x1 - 1.0, x1 - .85, y0 + .2, y0 + .55, 10.8, 13.2, T.fire, false); box(x1 - 1.2, x1 - .9, y0 + 1.3, y0 + 1.45, 9.4, 14.6, T.beam, false);
+  // north windows looking out on the night street (dim glass, cheap)
+  for (const x of [-15.5, -12, -7.5]) { box(x - .8, x + .8, y0 + 1.3, y0 + 2.9, z0 + .01, z0 + .04, T.night, false); box(x - .9, x + .9, y0 + 1.22, y0 + 1.3, z0, z0 + .18, T.beam, false); box(x - .04, x + .04, y0 + 1.3, y0 + 2.9, z0 + .02, z0 + .06, T.beam, false); }
+  // tables, stools and barrels (collision cylinders)
+  const tableTop = new THREE.CylinderGeometry(.62, .62, .07, 18), leg = new THREE.CylinderGeometry(.09, .14, .72, 8), stoolG = new THREE.CylinderGeometry(.2, .18, .46, 10), barrelG = new THREE.CylinderGeometry(.42, .38, 1.05, 14);
+  const tables = [[-9.6, 9.5], [-7.2, 13.8], [-10.4, 15.6]];
+  instanced(tableTop, T.beam, tables.map(([x, z]) => [x, y0 + .74, z])); instanced(leg, T.beam, tables.map(([x, z]) => [x, y0 + .36, z]));
+  const stools = []; for (const [x, z] of tables) for (let k = 0; k < 3; k++) { const a = k * 2.1 + x; stools.push([x + Math.cos(a) * 1.05, y0 + .23, z + Math.sin(a) * 1.05]); }
+  instanced(stoolG, T.beam, stools);
+  for (const [x, z] of tables) cyl(x, z, .7, y0, y0 + .8);
+  const barrels = [[-5, 7.1], [-5.9, 7.1], [-5.45, 7.9], [-17.3, 20.9], [-16.4, 21.2], [-5, 20.9]];
+  instanced(barrelG, new THREE.MeshStandardMaterial({ color: 0x4a2c16, roughness: .75 }), barrels.map(([x, z]) => [x, y0 + .52, z]));
+  instanced(new THREE.CylinderGeometry(.43, .43, .05, 14, 1, true), T.iron, barrels.flatMap(([x, z]) => [[x, y0 + .22, z], [x, y0 + .82, z]]));
+  for (const [x, z] of barrels) cyl(x, z, .45, y0, y0 + 1.05);
+  // hanging lanterns (emissive only)
+  const lanterns = [[-12.5, 10], [-12.5, 17], [-8, 12], [-8, 18], [-14.6, 13.5]];
+  instanced(new THREE.BoxGeometry(.22, .3, .22), T.lamp, lanterns.map(([x, z]) => [x, y1 - .95, z]));
+  instanced(new THREE.CylinderGeometry(.006, .006, .62, 4), T.iron, lanterns.map(([x, z]) => [x, y1 - .5, z]));
+  // ship's wheel and an anchor over the hearth, a crossed-oar rack by the door
+  { const wheel = new THREE.Mesh(new THREE.TorusGeometry(.7, .05, 8, 28), T.beam); wheel.rotation.y = Math.PI / 2; wheel.position.set(x1 - .08, y0 + 3.3, 12); scene.add(wheel);
+    const spokes = new THREE.Group(); spokes.position.set(x1 - .1, y0 + 3.3, 12); for (let i = 0; i < 4; i++) { const sp = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.85, 6), T.beam); sp.rotation.x = i * Math.PI / 4; spokes.add(sp); } scene.add(spokes); }
+  emberCounter();
+  plaque('THE EMBER BAR', 'EST. BURN CITY · SKILL, STORIES & SPECIALS', -9.5, y0 + 3.45, z0 + .05, 0, 4.2);
+  plaque('EXIT TO THE STREET', null, TV.door, y0 + 3.05, z1 - .14, Math.PI, 2.2);
+  station('exit', 'Leave the Ember Bar', TV.door, y0, z1 - .9, 1.6, [2.2, 2.5, .4]);
+  EmberBar.init({ scene, MEZZ, HX, M, instanced, cyl, TOUCH, SRV, btn, toast: m => root && toast(m), root: () => root }); EmberBar.build();   // bartender, Blackbeard, counter dressing, 1 XRP checkout (js/ember-bar.mjs)
+  flushStatics();
+  // a few slow embers drifting up from the hearth
+  { const n = TOUCH ? 16 : 32, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) { pos[i * 3] = x1 - .95 + rng() * .1; pos[i * 3 + 1] = y0 + .5 + rng() * 1.6; pos[i * 3 + 2] = 10.8 + rng() * 2.4; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: new THREE.Color(1.8, .6, .2), size: .04, transparent: true, opacity: .8, depthWrite: false }));
+    pts.userData.tick = dt => { const a = g.attributes.position; for (let i = 0; i < a.count; i++) { let y = a.getY(i) + dt * (.25 + (i % 4) * .07); if (y > y0 + 2.2) y = y0 + .5; a.setY(i, y); } a.needsUpdate = true; };
+    scene.add(pts); animated.push(pts); }
 }
 function concealed() {   // a quiet, unmarked recess behind the west stair: reserved for the hidden destination
   box(-HX + .02, -HX + .05, .3, 2.8, -24.2, -22.8, M.gold, false);
@@ -792,13 +884,13 @@ function towerFrame(dt, t) {
   camera.rotation.set(yp.pitch, yp.yaw, 0);
   if (reveal > 0) {   // entrance reveal: lights come up while the view glides in from the doorway and settles
     reveal = Math.max(0, reveal - dt / 2.6); const e = 1 - Math.pow(reveal, 3);
-    lightMul = .15 + .85 * e; camera.position.z += 3.2 * (1 - e); camera.position.y += .5 * (1 - e); camera.rotation.x = yp.pitch + .2 * (1 - e);
+    lightMul = .15 + .85 * e; camera.position.z += (venue === 'ember' ? 1.6 : 3.2) * (1 - e); camera.position.y += .5 * (1 - e); camera.rotation.x = yp.pitch + .2 * (1 - e);
     fade.style.opacity = String(Math.max(0, 1 - e * 1.6)); body.visible = reveal < .2;
   } else lightMul = 1;
   for (const [l, i] of lights) l.intensity = i * lightMul;
   if (REACT) { const tt = performance.now() / 1000; REACT.intensity *= .9 + .07 * Math.sin(tt * 7.3) + .03 * Math.sin(tt * 19.1); }   // reactor breathes/flickers
   for (const o of animated) o.userData.tick && o.userData.tick(dt, t);
-  EmberBar.frame(dt, t, P);
+  if (venue === 'ember') EmberBar.frame(dt, t, P);
   // nearest station on this level -> reuse the city's prompt and USE button
   nearSt = null; let bd = 1e9;
   for (const st of stations) { if (Math.abs(st.y - P.pos.y) > 2.5) continue; const d = Math.hypot(st.x - P.pos.x, st.z - P.pos.z); if (d < st.r && d < bd) { bd = d; nearSt = st; } }
@@ -825,6 +917,7 @@ function interact(id) {
     case 'rooftop-bar': textPanel('BURN TOWER SKY BAR', 'Welcome to the rooftop bar. Drinks, service, and currency interactions are decorative roleplay only in this phase.'); break;
     case 'rooftop-view': textPanel('PANORAMIC OBSERVATION DECK', 'Take in the BURN City skyline from the crown of PYRETHEUM. The perimeter is enclosed by glass safety barriers.'); break;
     case 'bar': showBarMenu(); break;
+    case 'bar-moved': textPanel('THE EMBER BAR HAS MOVED', 'The Ember Bar now has its own tavern on the City street, on the BURN ring road just south of BURN Tower. Walk up to its door and press E (or tap) to go in. The bartender, Blackbeard and the drinks menu are all there.', () => { close(); setTimeout(() => window.__emberBarBuilding?.goToDoor(), 60); }, 'TAKE ME THERE'); break;
     case 'sit': showLoungeMenu(); break;
     case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
@@ -866,7 +959,7 @@ function showDirectory() {
     { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
       ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
       ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
-      ['bar', 'The Ember Bar', 'House specials: free preview, or buy a drink for 1 XRP.', 'OPEN MENU', '#d7a65e'],
+      ['bar-moved', 'The Ember Bar', 'Moved to its own tavern on the BURN ring road, just south of the tower.', 'HOW TO GET THERE', '#d7a65e'],
       ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e'],
       ['rooftop', 'BURN Tower Sky Lounge', 'Panoramic rooftop deck, glass safety barriers, night skyline, lounge seating, and sky bar.', 'TRAVEL', '#e0704a']
     ]},
@@ -882,7 +975,7 @@ function showDirectory() {
     'lift-ground': () => travelTo('lift-ground'),
     mezz: () => travelTo('mezz'),
     aegis: () => travelTo('aegis'),
-    bar: () => { travelTo('bar'); showBarMenu(); },
+    'bar-moved': () => interact('bar-moved'),
     lounge: () => { travelTo('lounge'); showLoungeMenu(); },
     midnightbluff: () => interact('elevator'),
     hidden: () => interact('hidden'),
@@ -1006,7 +1099,6 @@ function travelTo(destination) {
     'lift-ground': { x: -5, y: 0, z: -22.3, yaw: 0, message: 'Arrived at the ground-floor lift lobby.' },
     mezz: { x: -5, y: MEZZ, z: -22.3, yaw: 0, message: 'Arrived at the mezzanine walkway.' },
     aegis: { x: 0, y: MEZZ, z: -30.2, yaw: 0, message: 'Arrived at Aegis Sanctum.' },
-    bar: { x: -13.5, y: MEZZ, z: 13.5, yaw: Math.PI / 2, message: 'Arrived at the Ember Bar.' },
     lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' },
     penthouse: { x: 34, y: MEZZ, z: 0, yaw: 0, message: 'Welcome home, Firekeeper.' },
     suite: { x: 57, y: MEZZ, z: 0, yaw: 0, message: 'Welcome to your private members suite.' },
@@ -1127,8 +1219,9 @@ function hangMyNft() {
   let mine = null; try { mine = NftPick.current(); } catch (e) { }
   MINE = mine && ['fk', '589', 'racc'].includes(mine.key) ? mine : null;
 }
-export async function openBurnTowerInterior() {
+export async function openBurnTowerInterior(opts = {}) {
   if (active || opening) return; opening = true;
+  const want = opts && opts.venue === 'ember' ? 'ember' : 'tower';
   CITY = window.__city; if (!CITY || !CITY.comp) { opening = false; return; }
   // black curtain first, so building/compiling never shows a frozen half-frame
   root = document.createElement('div'); root.id = 'burnTowerInterior';
@@ -1137,25 +1230,28 @@ export async function openBurnTowerInterior() {
   document.body.appendChild(root); requestAnimationFrame(() => { fade.style.opacity = '1'; });
   await new Promise(r => setTimeout(r, 470));
   try {
-    if (!built) build();
-    hangMyNft();
-    P.pos.set(0, 0, 21.5); P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0; P.bodyYaw = 0;
+    venue = want;
+    if (WORLDS[venue]) useWorld(venue); else { freshWorld(); if (venue === 'ember') buildTavern(); else build(); saveWorld(venue); }
+    if (!body) body = makeBody(); scene.add(body);
+    if (venue === 'tower') { hangMyNft(); P.pos.set(0, 0, 21.5); P.bodyYaw = 0; }
+    else { P.pos.set(EMBER_SPAWN.x, MEZZ, EMBER_SPAWN.z); P.bodyYaw = EMBER_SPAWN.yaw; }
+    P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0;
     rpass = CITY.comp.passes[0];
     saved = { scene: rpass.scene, camera: rpass.camera, yaw: CITY.input.yp.yaw, pitch: CITY.input.yp.pitch, bokeh: CITY.bokeh.enabled, bloom: [CITY.bloom.strength, CITY.bloom.threshold, CITY.bloom.radius] };
-    CITY.input.yp.yaw = 0; CITY.input.yp.pitch = 0; lightMul = .15;
-    camera.position.set(0, EYE, 21.5); camera.rotation.set(0, 0, 0);
+    CITY.input.yp.yaw = P.bodyYaw; CITY.input.yp.pitch = 0; lightMul = .15;
+    camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z); camera.rotation.set(0, P.bodyYaw, 0);
     try { if (CITY.R.compileAsync) await CITY.R.compileAsync(scene, camera); else CITY.R.compile(scene, camera); } catch (e) { CITY.R.compile(scene, camera); }
-  } catch (e) { console.error('PYRETHEUM', e); root.remove(); root = null; opening = false; return; }
+  } catch (e) { console.error(venue === 'ember' ? 'EMBER BAR' : 'PYRETHEUM', e); delete WORLDS[venue]; root.remove(); root = null; opening = false; return; }
   rpass.scene = scene; rpass.camera = camera; CITY.bokeh.enabled = false;
   styleEl = document.createElement('style'); styleEl.textContent = TOWER_CSS; document.head.appendChild(styleEl); document.body.classList.add('in-tower');
   addHud(); bindInput();
-  fade.style.transition = 'none'; active = true; opening = false; reveal = 1; window.__burnTowerOpen = true; dispatchEvent(new Event('burntower:open'));
+  fade.style.transition = 'none'; active = true; opening = false; reveal = 1; window.__burnTowerOpen = true; window.__interiorVenue = venue; dispatchEvent(new CustomEvent('burntower:open', { detail: { venue } }));
 }
 function addHud() {
   hud = document.createElement('div');
   Object.assign(hud.style, { position: 'absolute', left: 'max(12px,env(safe-area-inset-left))', top: 'max(12px,env(safe-area-inset-top))', padding: '10px 12px', background: '#0a080be0', border: '1px solid #4d3b26', borderRadius: '12px', color: '#e9dcc8', zIndex: 3, pointerEvents: 'auto', maxWidth: 'min(330px,calc(100vw - 24px))' });
-  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">BURN TOWER · PYRETHEUM</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
-  const ex = btn('← EXIT TO CITY'); ex.style.marginTop = '8px'; ex.style.padding = '8px 11px'; ex.addEventListener('click', close); hud.appendChild(ex); root.appendChild(hud);
+  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">' + (venue === 'ember' ? 'THE EMBER BAR' : 'BURN TOWER · PYRETHEUM') + '</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
+  const ex = btn(venue === 'ember' ? '← BACK TO THE STREET' : '← EXIT TO CITY'); ex.style.marginTop = '8px'; ex.style.padding = '8px 11px'; ex.addEventListener('click', close); hud.appendChild(ex); root.appendChild(hud);
 }
 function bindInput() {
   const cv = CITY.R.domElement; let down = null;
@@ -1180,7 +1276,7 @@ function close() {
   document.body.classList.remove('in-tower'); styleEl?.remove(); styleEl = null;
   panel = null; root?.remove(); root = null; hud = null;
   const pr = document.getElementById('prompt'); if (pr) pr.style.display = 'none';
-  dispatchEvent(new Event('burntower:close'));
+  window.__interiorVenue = null; dispatchEvent(new CustomEvent('burntower:close', { detail: { venue } }));
 }
 window.__openBurnTowerInterior = openBurnTowerInterior;
 window.__closeBurnTowerInterior = close;
@@ -1188,13 +1284,13 @@ window.__towerFrame = towerFrame;
 window.__towerInteract = () => { if (!active) return; if (panel) { panel.remove(); panel = null; return; } if (nearSt) interact(nearSt.id); else toast('Walk up to a sign, a lift or the exit.'); };
 if (Q.has('towertest')) window.__towerTest = {
   interact, travelTo, P, get camera() { return camera; }, get panel() { return panel; },
-  get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations,
-  body: () => body, close, emberBar: EmberBar._test,
+  get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, get stations() { return stations; },
+  body: () => body, close, emberBar: EmberBar._test, get venue() { return venue; }, get hitProxies() { return hitProxies; },
   // Quick browser-console diagnostic for directory/lift destination smoke tests.
   checkDestinations() {
     const points = {
       hall: [0, 0, 21.5], 'lift-ground': [-5, 0, -22.3], mezz: [-5, MEZZ, -22.3],
-      aegis: [0, MEZZ, -30.2], bar: [-13.5, MEZZ, 13.5], lounge: [13.6, MEZZ, 15.25], rooftop: [0, CEIL + 4, 0]
+      aegis: [0, MEZZ, -30.2], lounge: [13.6, MEZZ, 15.25], rooftop: [0, CEIL + 4, 0]
     };
     return Object.entries(points).map(([id, [x, y, z]]) => {
       const floor = groundAt(x, z, y);

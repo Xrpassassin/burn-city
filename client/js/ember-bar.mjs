@@ -1,7 +1,7 @@
-// THE EMBER BAR (BURN Tower west mezzanine): pirate bartender, Blackbeard the bar regular, the upgraded counter and the
+// THE EMBER BAR (its own tavern on the City street, js/ember-bar-building.mjs; interior in tower-interior.js): pirate bartender, Blackbeard the bar regular, the upgraded counter and the
 // 1 XRP drink checkout UI. Loaded by tower-interior.js; everything here is optional dressing around the existing bar station:
 //  * ?bar3d=0   → no characters and no counter upgrade (the original bar).   ?barpay=0 → hide the paid checkout buttons.
-//  * Characters (9k tris; 4.5k + 512 px textures on phones) load lazily (first time the player is on the mezzanine near the bar or opens the menu), share one rig each,
+//  * Characters (9k tris; 4.5k + 512 px textures on phones) load lazily (first time the player walks into the tavern or opens the menu), share one rig each,
 //    and the menu, receipts and cups keep working if a model fails to load.
 //  * Payments are server-owned (server/ember-bar.js): the client only names the drink. The bartender's two hops play once per
 //    paid order, when the server's /collect says celebrate:true; repeats and reloads just serve the cup.
@@ -20,9 +20,9 @@ const DRINKS = [
   ['blackglass-tonic', 'BLACKGLASS TONIC', 'Dark berry, cool mint, and a shimmer like volcanic glass.']
 ];
 const LINES = [
-  "I'm not swayin'. The whole tower's at sea.",
+  "I'm not swayin'. The whole tavern's at sea.",
   "Easy there, deckhand. You're makin' the floor roll.",
-  "Another round for the reactor. It looks thirsty.",
+  "Another round for the hearth. It looks thirsty.",
   "Ye walk like a landlubber... or is that me?",
   "Mind the planks, matey. They keep movin'.",
   "Arr... this tea's stronger than it looks."
@@ -271,7 +271,7 @@ export function menu(panel, closePanel) {
     if (!panel.isConnected) return;
     if (!s || !s.payments) { payNote.textContent = 'Paid drinks are unavailable right now. Free previews still work.'; return; }
     const tr = s.treasury ? s.treasury.slice(0, 6) + '…' + s.treasury.slice(-4) : '';
-    payNote.textContent = `Buy for 1 XRP pays exactly 1 XRP to the BURN City treasury (${tr}) through Xaman. Xaman shows the small network fee separately.` + (token() ? '' : ' Sign in with Xaman in BURN City first.');
+    payNote.textContent = `Buy for 1 XRP pays exactly 1 XRP to the BURN City treasury (${tr}) through Xaman. The whole 1 XRP goes to the treasury; none of it is burned. Xaman shows the small network fee separately.` + (token() ? '' : ' Sign in with Xaman in BURN City first.');
     for (const b of buyBtns) { b.disabled = false; b.style.opacity = '1'; }
     if (s.pending?.length) { const o = s.pending[0]; const r = btn('RESUME ' + o.drinkName.toUpperCase() + ' CHECKOUT'); r.style.width = '100%'; r.addEventListener('click', () => showCheckout(o, panel, closePanel)); panel.insertBefore(r, payNote.nextSibling); }
     if (s.uncollected?.length) { for (const o of s.uncollected) if (!pendingPickup.some(p => p.id === o.id)) pendingPickup.push(o); }

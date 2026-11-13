@@ -192,7 +192,7 @@ const world=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),
 const refuge=readFileSync(new URL('./homefront.html',import.meta.url),'utf8');
 assert(world.includes('communityArt.decorateExplorer'));
 assert(world.includes('communityArt.animateExplorer'));
-assert(world.includes('communityArt.clearActors'));
+assert(world.includes('communityArt.clearExplorer'));
 assert(world.includes('nft:isLocalPlayer?NftPick.current():null'),
  'Graveyard must keep the selected NFT look instead of the licensed survivor');
 assert(refuge.includes('communityArt.decorateExplorer'));

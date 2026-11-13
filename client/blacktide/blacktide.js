@@ -182,6 +182,7 @@ function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
   elapsed+=dt;
+  helmAvatar.setVisible(!ship.children.some(child => child.userData.nftCrewIdentity && child.visible));
   helmAvatar.update(dt);
   if (crewAnimator?.ok) crewAnimator.update(dt);
   updateOceanGeometry(waterGeo,basePositions,elapsed);

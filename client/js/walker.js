@@ -49,11 +49,16 @@ export function buildWalker({ suit = 0x1b2338, accent = 0x7ee0ff, skin = 0, lite
 }
 export function buildPlayerWalker(options) {
   const walker = buildWalker(options);
-  const body = walker.children.filter(child => child.renderOrder !== -1);
+  const body = new THREE.Group();
+  body.name = 'procedural-player-body';
+  body.add(...walker.children.filter(child => child.renderOrder !== -1));
+  walker.add(body);
+  walker.userData.fallbackBody = body;
   walker.userData.defaultAvatar = mountDefaultPlayerAvatar(walker, {
     tint: options?.suit,
     lod: !!options?.lite,
-    fallback: visible => { for (const child of body) child.visible = visible; }
+    seated: !!options?.seated,
+    fallback: visible => { body.visible = visible; }
   });
   return walker;
 }

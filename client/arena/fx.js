@@ -230,20 +230,19 @@ export function createZombieFX(scene, { low = false } = {}) {
     ['body', box(0.62, 0.78, 0.36, 0.39), lam(0x2b2b30)], ['head', box(0.44, 0.44, 0.44, 0.22), lam(0x1d1d22)],
     ['visor', box(0.36, 0.14, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })], ['mask', box(0.18, 0.18, 0.16), lam(0x3a3a3a)],
     ['tank', new THREE.CylinderGeometry(0.11, 0.11, 0.62, 8), lam(0xb33a1a)], ['arm', box(0.17, 0.7, 0.17, -0.35), lam(0x2b2b30)],
-    ['leg', box(0.21, 0.78, 0.21, -0.39), lam(0x1f1f24)], ['belt', box(0.66, 0.08, 0.4), new THREE.MeshBasicMaterial({ color: 0xffffff })],
-    ['gun', box(0.1, 0.1, 0.7, 0), lam(0x555555)]]);
+    ['leg', box(0.21, 0.78, 0.21, -0.39), lam(0x1f1f24)], ['belt', box(0.66, 0.08, 0.4), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
+  const peerGuns = rig(scene, MAXP, [['gun', box(0.1, 0.1, 0.7), lam(0x555555)]]);
   const PL2 = rig(scene, MAXP, [['tank', new THREE.CylinderGeometry(0.11, 0.11, 0.62, 8), lam(0xb33a1a)], ['arm', box(0.17, 0.7, 0.17, -0.35), lam(0x2b2b30)], ['leg', box(0.21, 0.78, 0.21, -0.39), lam(0x1f1f24)]]);
-  const ps = new Map(), HIDP = 0.0001, self = { x: 0, z: 0, y: 0, yaw: 0, ph: 0, spd: 0, pi: 0 };
-  function drawP(i, p, col, fp) {   // fp: first-person self (no head/mask/visor/stock gun: the camera sits there and the view-model gun is shown)
-    const bodyScale = p.defaultAvatar?.ready ? HIDP : 1, H = fp ? HIDP : bodyScale, pi = fp ? 0 : p.pi || 0; if (fp) { p = { ...p, y: (p.y || 0) - 0.12, x: p.x - Math.sin(p.yaw) * 0.08, z: p.z - Math.cos(p.yaw) * 0.08 }; }
+  const ps = new Map();
+  function drawFallbackPlayer(i, p, col) {
+    const pi = p.pi || 0;
     const ph = p.ph, moving = p.spd > 0.5, sw = moving ? Math.sin(ph) * 0.7 : Math.sin(ph * 0.25) * 0.04, bob = moving ? Math.abs(Math.sin(ph)) * 0.06 : Math.sin(ph * 0.25) * 0.02, y = (p.y || 0) + (p.down ? 0.25 : 0.78 + bob);
-    put(PL.body, i, p.x, y, p.z, p.yaw, H, 0, 0, 0); put(PL.head, i, p.x, y, p.z, p.yaw, H, 0, 0.8, 0);
-    put(PL.visor, i, p.x, y, p.z, p.yaw, H, 0, 1.06, 0.22, 0, 0, col); put(PL.mask, i, p.x, y, p.z, p.yaw, H, 0, 0.9, 0.26);
-    put(PL.belt, i, p.x, y, p.z, p.yaw, bodyScale, 0, 0.06, 0, 0, 0, col);
-    put(PL.tank, i, p.x, y, p.z, p.yaw, H, 0.14, 0.42, -0.3); put(PL2.tank, i, p.x, y, p.z, p.yaw, H, -0.14, 0.42, -0.3);
-    put(PL.arm, i, p.x, y, p.z, p.yaw, H, 0.41, 0.72, 0, -1.2 - pi * 0.8, 0.15); put(PL2.arm, i, p.x, y, p.z, p.yaw, H, -0.41, 0.72, 0, -1.3 - pi * 0.8, -0.2);   // arms follow aim pitch   // both hands on the flamethrower
-    put(PL.gun, i, p.x, y, p.z, p.yaw, fp ? HIDP : 1, 0.1, 0.45 + Math.sin(pi) * 0.3, 0.55, -pi);
-    put(PL.leg, i, p.x, y, p.z, p.yaw, bodyScale, 0.16, 0, 0, sw); put(PL2.leg, i, p.x, y, p.z, p.yaw, bodyScale, -0.16, 0, 0, -sw);
+    put(PL.body, i, p.x, y, p.z, p.yaw, 1, 0, 0, 0); put(PL.head, i, p.x, y, p.z, p.yaw, 1, 0, 0.8, 0);
+    put(PL.visor, i, p.x, y, p.z, p.yaw, 1, 0, 1.06, 0.22, 0, 0, col); put(PL.mask, i, p.x, y, p.z, p.yaw, 1, 0, 0.9, 0.26);
+    put(PL.belt, i, p.x, y, p.z, p.yaw, 1, 0, 0.06, 0, 0, 0, col);
+    put(PL.tank, i, p.x, y, p.z, p.yaw, 1, 0.14, 0.42, -0.3); put(PL2.tank, i, p.x, y, p.z, p.yaw, 1, -0.14, 0.42, -0.3);
+    put(PL.arm, i, p.x, y, p.z, p.yaw, 1, 0.41, 0.72, 0, -1.2 - pi * 0.8, 0.15); put(PL2.arm, i, p.x, y, p.z, p.yaw, 1, -0.41, 0.72, 0, -1.3 - pi * 0.8, -0.2);   // arms follow aim pitch   // both hands on the flamethrower
+    put(PL.leg, i, p.x, y, p.z, p.yaw, 1, 0.16, 0, 0, sw); put(PL2.leg, i, p.x, y, p.z, p.yaw, 1, -0.16, 0, 0, -sw);
   }
   // ---------- first-person flamethrower ----------
   // brushed steel, gunmetal with rivets, and a stencilled fuel tank (all canvas textures)
@@ -376,14 +375,15 @@ export function createZombieFX(scene, { low = false } = {}) {
     zdie: infected.zdie,
     zhit: infected.zhit,
     armorBreak: infected.armorBreak,
-    clear() { infected.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) { if (q.nc) disposeNftChar(q.nc); q.defaultAvatar?.dispose(); q.avatarRoot?.removeFromParent(); } ps.clear(); for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { infected.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) { if (q.nc) disposeNftChar(q.nc); q.defaultAvatar?.dispose(); q.avatarRoot?.removeFromParent(); } ps.clear(); for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(PL, 0); done(PL2, 0); done(peerGuns, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }
       for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); const dy = (r.y1 || 0) - (r.y0 || 0), L3 = Math.hypot(L, dy); const o6 = r.mz ? 0 : 0.6; beamAt(r.x0 + dx / L * o6, 1.2 + (r.y0 || 0), r.z0 + dz / L * o6, yaw, Math.max(0.5, L3 - o6), -Math.atan2(dy, L)); }   // Firestorm ember bolts
       infected.update(dt, st.zombies, me);
       // other players
-      let j = 0; for (const p of st.players) { if (p.id === myId || !p.alive || j >= MAXP) continue; let q = ps.get(p.id);
+      let peersDrawn = 0, fallbackCount = 0, gunCount = 0; for (const p of st.players) { if (p.id === myId || !p.alive || peersDrawn >= MAXP) continue; let q = ps.get(p.id);
+        peersDrawn++;
         if (!q) ps.set(p.id, q = { x: p.x, z: p.z, y: p.y || 0, yaw: p.yaw || 0, ph: 0, spd: 0 });
         const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.y = p.y || 0; q.yaw = p.r ?? q.yaw; q.pi = p.pi || 0; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
         if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, (p.up & 4) ? WP2[p.w] : WP[p.w], Math.sin(q.pi || 0));   // others' flames (emit only)
@@ -391,7 +391,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (!q.avatarRoot) {
           q.avatarRoot = new THREE.Group();
           scene.add(q.avatarRoot);
-          q.defaultAvatar = mountDefaultPlayerAvatar(q.avatarRoot, { height: 2.05, yaw: Math.PI });
+          q.defaultAvatar = mountDefaultPlayerAvatar(q.avatarRoot, { height: 2.05, yaw: Math.PI, lod: low });
         }
         q.avatarRoot.visible = true;
         q.avatarRoot.position.set(q.x, q.y + (p.down ? .25 : 0), q.z);
@@ -402,7 +402,16 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (!n && q.nc) { disposeNftChar(q.nc); q.nc = null; }   // ownership lapsed -> back to the stock pyro
         if (n && (!q.nc || q.nc.userData.nftId !== n.id)) { if (q.nc) disposeNftChar(q.nc); try { q.nc = buildNftChar(n, { srv, card: !low }); scene.add(q.nc); } catch (e) { q.nc = null; } }
         if (q.nc) { q.avatarRoot.visible = false; q.nc.visible = true; q.nc.position.set(q.x, q.y, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = q.y + 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
-        q.down = p.down; const blink = p.inv && !p.down && Math.sin(t * 40) > 0; q.avatarRoot.visible = !blink; drawP(j++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
+        q.down = p.down;
+        const blink = p.inv && !p.down && Math.sin(t * 40) > 0;
+        q.avatarRoot.visible = !blink;
+        if (!q.defaultAvatar.ready) {
+          drawFallbackPlayer(fallbackCount++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id));
+        }
+        const pi = q.pi, bob = q.spd > .5 ? Math.abs(Math.sin(q.ph)) * .06 : Math.sin(q.ph * .25) * .02;
+        const gunY = q.y + (q.down ? .25 : .78 + bob);
+        if (!blink || !q.defaultAvatar.ready) put(peerGuns.gun, gunCount++, q.x, gunY, q.z, q.yaw, 1, .1, .45 + Math.sin(pi) * .3, .55, -pi);
+      }
       for (const [id, q] of ps) if (q.seenT !== t) {
         if (!st.players.some(p => p.id === id)) {
           if (q.nc) disposeNftChar(q.nc);
@@ -415,7 +424,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         }
       }
       fpTorso.visible = false; fpBody.update(dt, me);   // local player: no world-space torso/legs (sleeves + gloves live on the view-model gun)   // own body seen when looking down
-      done(PL, j); done(PL2, j);
+      done(PL, fallbackCount); done(PL2, fallbackCount); done(peerGuns, gunCount);
       // first-person weapon + flames
       gun.visible = !!me; if (me) { const tier2 = !!(me.up & 4); setW(me.w || 0, tier2 ? 2 : 0); if (curAc != null) accent.material.color.setHex(curAc); else accent.material.color.copy(colorOf(myId)); heatV += ((me.firing ? 1 : 0) - heatV) * Math.min(1, dt * (me.firing ? 0.9 : 0.5)); if (tier2) hot.material.color.setHex(TIER2_SKIN[me.w || 0] || TIER2_SKIN[0]); else hot.material.color.setRGB(0.19 + heatV * 0.81, 0.06 + heatV * 0.45, 0.03 + heatV * 0.1); pilot.scale.setScalar(0.8 + Math.random() * 0.5);
         if (me.firing) kick = Math.max(kick, 0.22); kick = Math.max(0, kick - dt * 7); swayT += dt;   // recoil settles back; idle aim sway

@@ -1,5 +1,6 @@
-// Temporary collection colours on the shared walker. Verified NFT metadata is
-// identity only here: token traits do not invent a collection's future 3D model.
+// Verified NFT holders play as the shared Gas Mask Guy (same rebuilt mesh, clips and LODs as
+// everyone else) in its own untinted skin, with their NFT art floating overhead. Collection
+// colours only frame the art card and colour the primitive fallback while the glTF loads.
 import * as THREE from 'three';
 import { buildWalker, buildPlayerWalker, poseWalker } from './walker.js';
 export const COLLECTION_WALKER_COLORS=Object.freeze({
@@ -34,15 +35,15 @@ export function attachFloatingNftCard(root, n, opts={}) {
   return {card, frame};
 }
 export function buildCollectionPlaceholder(n,opts={}) {
-  const colors=collectionWalkerColors(n?.key), walker=buildPlayerWalker({...colors,lite:!!opts.lite,skin:0});
+  const colors=collectionWalkerColors(n?.key), walker=buildPlayerWalker({...colors,tint:null,lite:!!opts.lite,skin:0});
   // NFT callers face +Z; the shared walker faces -Z. Keep that correction on
   // the child, leaving the existing city/arena heading and rig references intact.
-  const root=new THREE.Group();root.name='burn-city-nft-collection-placeholder';
+  const root=new THREE.Group();root.name='burn-city-nft-gas-mask-guy';
   walker.rotation.y=Math.PI;root.add(walker);
-  root.userData={...walker.userData,nftId:n?.id,representation:'collection-placeholder',
-    nftAvatarProfile:{collectionKey:n?.key||'generic',exactReconstruction:false},
-    anim(t,moving,armsUp){
-      poseWalker(walker,t*9,moving?1:0,t);
+  root.userData={...walker.userData,nftId:n?.id,representation:'gas-mask-guy',
+    nftAvatarProfile:{collectionKey:n?.key||'generic',exactReconstruction:false,skin:'gas-mask-guy'},
+    anim(t,moving,armsUp,running=false){
+      poseWalker(walker,t*9,moving?1:0,t,!!running);
       if(armsUp) for(const arm of walker.userData.arms) {arm.rotation.x=-1.2;if(arm.userData.elbow)arm.userData.elbow.rotation.x=-.45;}
       if(root.userData.card) root.userData.card.position.y=root.userData.frame.position.y=2.55+Math.sin(t*2)*.045;
     }};

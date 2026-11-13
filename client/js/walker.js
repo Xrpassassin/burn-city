@@ -50,8 +50,11 @@ export function buildWalker({ suit = 0x1b2338, accent = 0x7ee0ff, skin = 0, lite
 export function buildPlayerWalker(options) {
   const walker = buildWalker(options);
   const body = walker.children.filter(child => child.renderOrder !== -1);
+  // `tint: null` keeps Gas Mask Guy's own textures (NFT holders); otherwise the suit colour tints it.
+  const tint = options && Object.prototype.hasOwnProperty.call(options, 'tint') ? options.tint : options?.suit;
+  walker.userData.avatarSkin = { model: 'gas-mask-guy', tint: tint ?? null };
   walker.userData.defaultAvatar = mountDefaultPlayerAvatar(walker, {
-    tint: options?.suit,
+    tint,
     lod: !!options?.lite,
     fallback: visible => { for (const child of body) child.visible = visible; }
   });

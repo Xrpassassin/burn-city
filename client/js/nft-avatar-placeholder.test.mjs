@@ -11,9 +11,13 @@ function signature(root){const parts=[];root.traverse(o=>{if(o.isMesh)parts.push
 for(const lite of [false,true]) {
  const avatars=['racc','fk','589'].map((key,i)=>buildNftChar({key,id:'verified-'+i,traits:[['Outfit','Golden armour'],['Headwear','Crown']],pal:{body:'#ff00ff'}},{lite}));
  assert.equal(new Set(avatars.map(g=>JSON.stringify(signature(g)))).size,1,'all collections share the same basic geometry');
- assert.equal(new Set(avatars.map(g=>g.userData.chest.material.color.getHex())).size,3,'collections have distinct fixed colours');
+ assert.equal(new Set(avatars.map(g=>g.userData.chest.material.color.getHex())).size,3,'the loading fallback keeps distinct collection colours');
  for(const g of avatars) {
-  assert.equal(g.userData.representation,'collection-placeholder');
+  assert.equal(g.userData.representation,'gas-mask-guy','NFT holders play as Gas Mask Guy');
+  assert.equal(g.name,'burn-city-nft-gas-mask-guy');
+  assert.equal(g.userData.avatarSkin?.model,'gas-mask-guy');
+  assert.equal(g.userData.avatarSkin?.tint,null,'Gas Mask Guy keeps its own untinted skin for NFT holders');
+  assert(g.userData.defaultAvatar&&typeof g.userData.defaultAvatar.setLod==='function','NFT holders mount the shared Gas Mask Guy model with LOD switching');
   assert.equal(g.children[0].rotation.y,Math.PI,'walker front is corrected to the NFT +Z convention');
   assert(!g.userData.card&&!g.userData.artTexture,'portraits stay optional when card is not requested');
   const before=g.userData.legs[0].rotation.x;g.userData.anim(.16,true,false);
@@ -29,9 +33,11 @@ assert(carded.userData.card&&carded.userData.frame,'card:true attaches the float
 assert.equal(carded.userData.card.name,'nft-portrait-card');
 const cardY=carded.userData.card.position.y;carded.userData.anim(.4,false,false);
 assert.notEqual(carded.userData.card.position.y,cardY,'the portrait card bobs with the shared City animation');
-disposeNftChar(carded);
+assert.equal(carded.userData.representation,'gas-mask-guy','the art card rides on the Gas Mask Guy body');
+let cardFreed=false;carded.userData.card.material.addEventListener('dispose',()=>cardFreed=true);
+disposeNftChar(carded);assert(cardFreed,'per-avatar card material is freed on removal');
 assert.equal(collectionWalkerColors('unknown'),collectionWalkerColors('generic'));
 assert.equal(collectionWalkerColors('RACC'),collectionWalkerColors('racc'));
 const sw=await readFile(new URL('../sw.js',import.meta.url),'utf8');
 for(const asset of ['js/nft-avatar-placeholder.js','js/walker.js','js/estates-house-design.mjs'])assert(sw.includes(asset),'offline shell includes '+asset);
-console.log('NFT collection placeholders: geometry parity, colours, animation, orientation, disposal, and offline imports passed');
+console.log('NFT Gas Mask Guy avatars: untinted skin, card overhead, geometry parity, colours, animation, orientation, disposal, and offline imports passed');

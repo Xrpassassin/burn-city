@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Swap the mesh inside an already-rigged glTF for a cleaner simplified one, keeping the exact rig, skin, clips,
 # bone names and materials. Weights are transferred from the old skinned mesh (k nearest vertices that face the same way).
-#   python3 reskin.py <template.gltf> <simplified.glb[,part2.glb]> <out.gltf> [--drop-head [--height=1.8]] [--weights-from=<near.gltf>] [--smooth-hips=N] [--removed-from=<pre-edit.gltf>] [--cut-box=x0,x1,y0,y1,z0,z1] [--normals=source|smooth]
+#   python3 reskin.py <template.gltf> <simplified.glb[,part2.glb]> <out.gltf> [--drop-head [--height=1.8]] [--weights-from=<near.gltf>] [--smooth-hips=N] [--removed-from=<pre-edit.gltf>] [--cut-box=x0,x1,y0,y1,z0,z1] [--cut-leg-webs] [--arms-out] [--normals=source|smooth]
 # Needs numpy + scipy. Box-only asset tool (not run in CI). See README.md.
 import json, struct, sys, os, math
 import numpy as np
@@ -90,13 +90,51 @@ XN = PN @ R.T; XN /= np.linalg.norm(XN, axis=1, keepdims=True) + 1e-12
 
 # ---- weight transfer
 K = 8
-dd, jj = qt.query(X, K)
-dots = (QN[jj] * XN[:, None, :]).sum(-1)
-ok = dots > .2; none = ~ok.any(1); ok[none] = True
-w = ok / (dd + 2e-3) ** 2
-Wd = np.zeros((len(X), NJ))
-for a in range(K):
-    for c in range(4): np.add.at(Wd, (np.arange(len(X)), QJ[jj[:, a], c]), w[:, a] * QW[jj[:, a], c])
+def transfer(Xc, XNc):
+    dd, jj = qt.query(Xc, K)
+    dots = (QN[jj] * XNc[:, None, :]).sum(-1)
+    ok = dots > .2; none = ~ok.any(1); ok[none] = True
+    w = ok / (dd + 2e-3) ** 2
+    W = np.zeros((len(Xc), NJ))
+    for a in range(K):
+        for c in range(4): np.add.at(W, (np.arange(len(Xc)), QJ[jj[:, a], c]), w[:, a] * QW[jj[:, a], c])
+    return W
+
+# --arms-out: the template's arms were swung down from a T/A-pose scan and baked into a new rest pose (build_citizen.py
+# ARMS_OUT). Find that swing per side (rotation about the shoulder joint, trimmed ICP against the template's arm), transfer
+# weights in the swung pose, then apply it the way the armature did: v' = (1 - w) v + w R v with w = the arm chain's weight.
+if '--arms-out' in flags:
+    names = [tg['nodes'][j].get('name', '') for j in tg['skins'][0]['joints']]
+    IBM = acc(tg, tb, tg['skins'][0]['inverseBindMatrices']).reshape(-1, 4, 4).astype(np.float64)
+    jpos = lambda n: np.linalg.inv(IBM[names.index(n)].T)[:3, 3]
+    Wq = np.zeros((len(Q), NJ))
+    for c in range(4): np.add.at(Wq, (np.arange(len(Q)), QJ[:, c]), QW[:, c])
+    rots = {}
+    for sd in 'LR':
+        chain = [names.index(n) for n in ('upperarm.' + sd, 'forearm.' + sd, 'hand.' + sd) if n in names]
+        piv = jpos('upperarm.' + sd); sg = np.sign(jpos('hand.' + sd)[0] - jpos('chest')[0]) or 1
+        T = Q[Wq[:, chain].sum(1) > .6]; tt = cKDTree(T)
+        C = (sg * (X[:, 0] - piv[0]) > .08) & (X[:, 1] > piv[1] - .45) & (X[:, 1] < piv[1] + .15)
+        A0 = X[C] - piv; a, b = A0.mean(0), (T - piv).mean(0)
+        v = np.cross(a, b); cth = a @ b / np.linalg.norm(a) / np.linalg.norm(b)
+        Vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]]); R = np.eye(3) + Vx + Vx @ Vx / (1 + cth)
+        for it in range(30):
+            Y = A0 @ R.T; d, j = tt.query(Y + piv); k = d <= np.quantile(d, .8)
+            U, _, Vt = np.linalg.svd((A0[k]).T @ (T[j[k]] - piv)); D = np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))]); R = Vt.T @ D @ U.T
+        d = tt.query(A0 @ R.T + piv)[0]
+        print(f'ARMS_OUT {sd} swing={math.degrees(math.acos(max(-1, min(1, (np.trace(R) - 1) / 2)))):.1f}deg fit mean={d.mean() * 1000:.1f}mm n={int(C.sum())}', flush=True)
+        rots[sd] = (R, piv, chain, C)
+    Xs, XNs = X.copy(), XN.copy()
+    for sd, (R, piv, chain, C) in rots.items(): Xs[C] = (X[C] - piv) @ R.T + piv; XNs[C] = XN[C] @ R.T
+    Wd = transfer(Xs, XNs); tot = Wd.sum(1, keepdims=True) + 1e-12
+    Xf, XNf = X.copy(), XN.copy()
+    for sd, (R, piv, chain, C) in rots.items():
+        w = (Wd[:, chain].sum(1, keepdims=True) / tot)
+        Xf = Xf + w * (((X - piv) @ R.T + piv) - X); XNf = XNf + w * (XN @ R.T - XN)
+    X, XN = Xf, XNf / (np.linalg.norm(XNf, axis=1, keepdims=True) + 1e-12)
+    print('ARMS_OUT err after', f'{qt.query(X)[0].mean() * 1000:.2f}mm', flush=True)
+else:
+    Wd = transfer(X, XN)
 # --smooth-hips=N: N Laplacian passes over the weights between the knees and the waist (welded across UV seams), so coat hems
 # hanging over the thighs bend smoothly in Sit/Ride instead of tearing into shards between hip- and thigh-weighted vertices.
 if '--smooth-hips' in flags:
@@ -114,6 +152,17 @@ if '--smooth-hips' in flags:
     print('SMOOTH_HIPS verts', int(band.sum()), flush=True)
 top = np.argsort(-Wd, 1)[:, :4]; tw = np.take_along_axis(Wd, top, 1); tw[tw < 1e-3 * tw[:, :1]] = 0; tw /= tw.sum(1, keepdims=True)
 J4, W4 = top.astype(np.uint8), tw.astype(np.float32)
+
+# ---- --cut-leg-webs: like scripts/city-citizens/build_citizen.py, delete faces below 32% of the height that join a
+# left-leg vertex to a right-leg vertex (touching shoes or trouser hems in the scan), so the legs separate when walking.
+if '--cut-leg-webs' in flags:
+    names = [tg['nodes'][j].get('name', '') for j in tg['skins'][0]['joints']]
+    Lj = [i for i, n in enumerate(names) if n in ('thigh.L', 'shin.L', 'foot.L', 'toe.L')]; Rj = [i for i, n in enumerate(names) if n in ('thigh.R', 'shin.R', 'foot.R', 'toe.R')]
+    tot = Wd.sum(1) + 1e-12; wl = Wd[:, Lj].sum(1) / tot; wr = Wd[:, Rj].sum(1) / tot
+    Hh = Q[:, 1].max() - Q[:, 1].min(); low = X[:, 1] < Q[:, 1].min() + .32 * Hh
+    side = np.where(low & (wl + wr >= .5), np.where(wl > wr, 1, 2), 0)
+    sv = side[IDX]; web = ((sv == 1).any(1)) & ((sv == 2).any(1))
+    IDX = IDX[~web]; print('LEG_WEBS cut', int(web.sum()), flush=True)
 
 # ---- --removed-from=<pre-edit.gltf>: the template had parts cut out of its index buffer by hand (e.g. Blackbeard's cutlass);
 # drop the new triangles that land on those removed parts (nearest old triangle, sampled at corners + centroids).
@@ -158,20 +207,26 @@ if NORMALS == 'smooth':
     bad = (sm * XN).sum(1) < 0   # thin double-sided parts: keep the source direction
     sm[bad] = XN[bad]; XN = sm
 
-# ---- write: keep every template accessor except the old mesh's, append the new mesh
+# ---- write: keep every template accessor except the old mesh's, append the new mesh. Data in extra buffers (e.g. the
+# citizens' <id>.walk.bin gait clip) stays in its own file and its views/accessors stay last, so tools that append there
+# (scripts/city-citizens/rebake_walk.py, extras.citizenWalkBase) keep working.
 old = set(tp['attributes'].values()) | {tp['indices']}
 og = json.loads(json.dumps(tg)); keepA = [i for i in range(len(tg['accessors'])) if i not in old]
-bin_ = bytearray(); views = []; accs = []; amap = {}
-def pad(): 
+bufof = lambda i: tg['bufferViews'][tg['accessors'][i]['bufferView']].get('buffer', 0)
+bin_ = bytearray(); views = []; accs = []; amap = {}; vmap = {}
+def pad():
     while len(bin_) % 4: bin_.append(0)
-vmap = {}
-for i in keepA:
+def keep(i, compact):
     a = dict(tg['accessors'][i]); v = tg['bufferViews'][a['bufferView']]
     if a['bufferView'] not in vmap:
-        pad(); raw = tb[v.get('buffer', 0)][v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']]
-        nv = {k2: v2 for k2, v2 in v.items() if k2 != 'byteOffset'}; nv['buffer'] = 0; nv['byteOffset'] = len(bin_); bin_ += raw
+        if compact:
+            pad(); raw = tb[v.get('buffer', 0)][v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']]
+            nv = {k2: v2 for k2, v2 in v.items() if k2 != 'byteOffset'}; nv['buffer'] = 0; nv['byteOffset'] = len(bin_); bin_.extend(raw)
+        else: nv = dict(v)
         vmap[a['bufferView']] = len(views); views.append(nv)
     a['bufferView'] = vmap[a['bufferView']]; amap[i] = len(accs); accs.append(a)
+for i in keepA:
+    if bufof(i) == 0: keep(i, True)
 def add(arr, ctype, typ, target=None, minmax=False):
     pad(); raw = np.ascontiguousarray(arr).tobytes(); v = {'buffer': 0, 'byteOffset': len(bin_), 'byteLength': len(raw)}
     if target: v['target'] = target
@@ -182,6 +237,9 @@ def add(arr, ctype, typ, target=None, minmax=False):
 attrs = {'POSITION': add(X.astype(np.float32), 5126, 'VEC3', 34962, True), 'NORMAL': add(XN.astype(np.float32), 5126, 'VEC3', 34962),
          'TEXCOORD_0': add(UV, 5126, 'VEC2', 34962), 'JOINTS_0': add(J4, 5121, 'VEC4', 34962), 'WEIGHTS_0': add(W4, 5126, 'VEC4', 34962)}
 ind = add(IDX.astype(np.uint16 if len(X) < 65536 else np.uint32).ravel(), 5123 if len(X) < 65536 else 5125, 'SCALAR', 34963)
+extra0 = (len(views), len(accs))
+for i in keepA:
+    if bufof(i) != 0: keep(i, False)
 def fix(o):
     if isinstance(o, dict):
         for k2, v2 in list(o.items()):
@@ -193,7 +251,13 @@ fix(og.get('skins', [])); fix(og.get('animations', []))
 pr = og['meshes'][0]['primitives'][0]; pr['attributes'] = attrs; pr['indices'] = ind
 og['accessors'] = accs; og['bufferViews'] = views
 base = os.path.splitext(os.path.basename(OUT))[0]
-og['buffers'] = [{'byteLength': len(bin_), 'uri': base + '.bin'}]
+og['buffers'] = [{'byteLength': len(bin_), 'uri': base + '.bin'}] + tg['buffers'][1:]
+for an in og.get('animations', []):
+    if 'citizenWalkBase' in an.get('extras', {}): an['extras']['citizenWalkBase'] = [1, extra0[0], extra0[1]]
+import shutil
+for bf in tg['buffers'][1:]:   # extra buffer files travel with the output
+    src_, dst_ = os.path.join(os.path.dirname(TPL), bf['uri']), os.path.join(os.path.dirname(OUT) or '.', bf['uri'])
+    if os.path.abspath(src_) != os.path.abspath(dst_): shutil.copyfile(src_, dst_)
 og['asset']['generator'] = tg['asset'].get('generator', '') + ' + Burn City reskin (meshoptimizer)'
 open(os.path.join(os.path.dirname(OUT) or '.', base + '.bin'), 'wb').write(bin_)
 json.dump(og, open(OUT, 'w'), separators=(',', ':'))

@@ -9,6 +9,7 @@ import './skate.js';
 import './citylife.js';
 import './cityprops.mjs';   // CC BY street props: sliding shop doors, vending/arcade machines, pigeons, ducks, moored boat, see city-credits.html
 import './citizens.mjs';   // CC BY 3D people for the sidewalk crowd (far VAT instancing + near rigged LOD), see city-credits.html
+import './citybuildings2.mjs';   // CC BY sci-fi street buildings around the BURN, IMM and XRPyro towers (lazy, ?buildings2=0), see city-credits.html
 import './streetprops.js';
 import './events.js';
 import './airport.js';
@@ -570,22 +571,30 @@ E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/
   let rot=r0()*Math.PI;{let best=1e9;streets.forEach(s=>{const d=s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b);if(d<best){best=d;rot=s.type==='ring'?Math.atan2(z-s.c.z,x-s.c.x):Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z)}})}
   sats.push({x,z,w:bw,h,c:IPAL[(r0()*IPAL.length)|0].clone().multiplyScalar(.8+r0()*.3),rot,n:null,infill:1});colliders.push({x,z,r:bw*1.02,h});placed++}
  window.__infill=placed}
-{const segs=[],trims=[],crowns=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>22?4:s.h>12?3:s.h>6?2:(rnd()<.4?2:1),FR=[[1],[.62,.38],[.5,.3,.2],[.4,.26,.2,.14]][ns-1].map(f=>f*(.85+rnd()*.3)),fs=FR.reduce((a,b)=>a+b,0),slab=rnd()<.28,shr=.7+rnd()*.18,ca=Math.cos(s.rot),sa=Math.sin(s.rot);let ox=0,oz=0;
+{const segs=[],trims=[],crowns=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>22?4:s.h>12?3:s.h>6?2:(rnd()<.4?2:1),FR=[[1],[.62,.38],[.5,.3,.2],[.4,.26,.2,.14]][ns-1].map(f=>f*(.85+rnd()*.3)),fs=FR.reduce((a,b)=>a+b,0),slab=rnd()<.28,shr=.7+rnd()*.18,ca=Math.cos(s.rot),sa=Math.sin(s.rot);let ox=0,oz=0;s._seg=segs.length;s._trim=trims.length;
  for(let j=0;j<ns;j++){const sh=s.h*FR[j]/fs,ax=slab?1.2:1,az=slab?.8:1;if(j&&rnd()<.6){const o=(rnd()-.5)*w*.22;ox+=o*ca;oz+=o*sa}
   segs.push({x:s.x+ox,z:s.z+oz,y:y+sh/2,w,sx:w*ax,sz:w*az,h:sh,c:s.c,rot:s.rot});if(ns>1&&j<ns-1||s.h>9)trims.push({x:s.x+ox,z:s.z+oz,y:y+sh,sx:w*ax*(j===ns-1?.86:.9),sz:w*az*(j===ns-1?.86:.9),c:s.c,rot:s.rot});y+=sh;w*=shr}
- s.top=y;s.topW=w;s.ox=ox;s.oz=oz;if(TIER!=='low'&&s.h>14&&rnd()<.42)crowns.push(s)});
+ s._seg1=segs.length;s._trim1=trims.length;s.top=y;s.topW=w;s.ox=ox;s.oz=oz;if(TIER!=='low'&&s.h>14&&rnd()<.42)crowns.push(s)});
  const im=new THREE.InstancedMesh(segGeo,bMat(0xffffff,1.6),segs.length);
  segs.forEach((s,i)=>{_m.compose(_v.set(s.x,s.y,s.z),_q.setFromAxisAngle(UPV,s.rot),_s.set(s.sx,s.h,s.sz));im.setMatrixAt(i,_m);im.setColorAt(i,s.c)});S.add(im);
- {const tg=new THREE.CylinderGeometry(.84,.84,.22,4).rotateY(Math.PI/4),tm=new THREE.InstancedMesh(tg,new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,trims.length));trims.forEach((t,i)=>{_m.compose(_v.set(t.x,t.y,t.z),_q.setFromAxisAngle(UPV,t.rot),_s.set(t.sx,1,t.sz));tm.setMatrixAt(i,_m);tm.setColorAt(i,new THREE.Color(t.c).lerp(new THREE.Color(0xffffff),.35).multiplyScalar(.95))});tm.count=trims.length;S.add(tm);
-  if(crowns.length){const cg=new THREE.ConeGeometry(.7,1,4).rotateY(Math.PI/4),cm=new THREE.InstancedMesh(cg,new THREE.MeshBasicMaterial({color:0xffffff}),crowns.length);crowns.forEach((c,i)=>{const hh=c.topW*(1.6+rnd()*1.4);_m.compose(_v.set(c.x+c.ox,c.top+hh/2,c.z+c.oz),_q.setFromAxisAngle(UPV,c.rot),_s.set(c.topW*1.3,hh,c.topW*1.3));cm.setMatrixAt(i,_m);cm.setColorAt(i,new THREE.Color(c.c).multiplyScalar(.8));c.top2=c.top+hh});S.add(cm)}}
+ let TM=null,CM=null;{const tg=new THREE.CylinderGeometry(.84,.84,.22,4).rotateY(Math.PI/4),tm=new THREE.InstancedMesh(tg,new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,trims.length));trims.forEach((t,i)=>{_m.compose(_v.set(t.x,t.y,t.z),_q.setFromAxisAngle(UPV,t.rot),_s.set(t.sx,1,t.sz));tm.setMatrixAt(i,_m);tm.setColorAt(i,new THREE.Color(t.c).lerp(new THREE.Color(0xffffff),.35).multiplyScalar(.95))});tm.count=trims.length;S.add(tm);TM=tm;
+  if(crowns.length){const cg=new THREE.ConeGeometry(.7,1,4).rotateY(Math.PI/4),cm=new THREE.InstancedMesh(cg,new THREE.MeshBasicMaterial({color:0xffffff}),crowns.length);crowns.forEach((c,i)=>{const hh=c.topW*(1.6+rnd()*1.4);_m.compose(_v.set(c.x+c.ox,c.top+hh/2,c.z+c.oz),_q.setFromAxisAngle(UPV,c.rot),_s.set(c.topW*1.3,hh,c.topW*1.3));cm.setMatrixAt(i,_m);cm.setColorAt(i,new THREE.Color(c.c).multiplyScalar(.8));c.top2=c.top+hh;c._crown=i});S.add(cm);CM=cm}}
  const ac=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x1a2030,metalness:.7,roughness:.5,emissive:0x0a1020}),sats.length*2);let ai=0;const antG=[],padG=[],blink=[];
- sats.forEach(s=>{for(let j=0;j<2;j++){_m.compose(_v.set(s.x+(rnd()-.5)*s.topW,s.top+.3,s.z+(rnd()-.5)*s.topW),_q.setFromAxisAngle(UPV,s.rot),_s.set(.5+rnd()*.5,.6,.5+rnd()*.4));ac.setMatrixAt(ai++,_m)}
-  if(rnd()<.35){antG.push(s);blink.push(s.x,s.top+s.h*.25+.6,s.z)}else if(rnd()<.3)padG.push(s)});ac.count=ai;S.add(ac);
+ sats.forEach(s=>{s._ac=ai;for(let j=0;j<2;j++){_m.compose(_v.set(s.x+(rnd()-.5)*s.topW,s.top+.3,s.z+(rnd()-.5)*s.topW),_q.setFromAxisAngle(UPV,s.rot),_s.set(.5+rnd()*.5,.6,.5+rnd()*.4));ac.setMatrixAt(ai++,_m)}
+  if(rnd()<.35){s._ant=antG.length;s._blink=blink.length;antG.push(s);blink.push(s.x,s.top+s.h*.25+.6,s.z)}else if(rnd()<.3){s._pad=padG.length;padG.push(s)}});ac.count=ai;S.add(ac);
  const ant=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.07,1,3),new THREE.MeshBasicMaterial({color:0x8899bb}),Math.max(1,antG.length));antG.forEach((s,i)=>{_m.compose(_v.set(s.x,s.top+s.h*.125,s.z),_q.identity(),_s.set(1,s.h*.25,1));ant.setMatrixAt(i,_m)});ant.count=antG.length;S.add(ant);
- const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(blink,3));const bm=glowMat(0xff3030,2.2);S.add(new THREE.Points(bg,bm));anim.push(t=>bm.opacity=Math.sin(t*2.6)>.3?1:.15);
+ const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(blink,3));const blinkP=bg.attributes.position;const bm=glowMat(0xff3030,2.2);S.add(new THREE.Points(bg,bm));anim.push(t=>bm.opacity=Math.sin(t*2.6)>.3?1:.15);
  const pad=new THREE.InstancedMesh(new THREE.RingGeometry(.55,.7,20).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,side:2}),Math.max(1,padG.length));padG.forEach((s,i)=>{_m.compose(_v.set(s.x,s.top+.05,s.z),_q.identity(),_s.set(s.topW,1,s.topW));pad.setMatrixAt(i,_m)});pad.count=padG.length;S.add(pad);
  const signs=sats.filter(()=>rnd()<.45);const sg=new THREE.InstancedMesh(new THREE.BoxGeometry(.25,1,.9),new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,signs.length));
- const NEON=[0xff2bd6,0x00e5ff,0xffd166,0x66ff99,0xff5a1a];signs.forEach((s,i)=>{const a=s.rot+Math.PI/4;const hh=Math.min(6,s.h*.35);_m.compose(_v.set(s.x+Math.cos(a)*s.w*.95,s.h*.35+hh/2,s.z-Math.sin(a)*s.w*.95),_q.setFromAxisAngle(UPV,a),_s.set(1,hh,1));sg.setMatrixAt(i,_m);sg.setColorAt(i,new THREE.Color(NEON[i%NEON.length]).multiplyScalar(.9))});sg.count=signs.length;S.add(sg)}
+ const NEON=[0xff2bd6,0x00e5ff,0xffd166,0x66ff99,0xff5a1a];signs.forEach((s,i)=>{const a=s.rot+Math.PI/4;const hh=Math.min(6,s.h*.35);_m.compose(_v.set(s.x+Math.cos(a)*s.w*.95,s.h*.35+hh/2,s.z-Math.sin(a)*s.w*.95),_q.setFromAxisAngle(UPV,a),_s.set(1,hh,1));sg.setMatrixAt(i,_m);sg.setColorAt(i,new THREE.Color(NEON[i%NEON.length]).multiplyScalar(.9))});sg.count=signs.length;S.add(sg)
+ // hide / restore one lot's procedural exterior (segments, trims, crown, roof boxes, antenna + blink, pad, sign) for the CC BY street
+ // buildings in citybuildings2.mjs; matrices are kept so a failed model load or ?buildings2=0 simply leaves the lot as it was. Rendering-only:
+ // the lot's collider, layout and the shared rnd() sequence are untouched.
+ signs.forEach((s,i)=>s._sign=i);const _z=new THREE.Matrix4().makeScale(0,0,0),_kept=new Map();
+ const sw=(m,i,on,key)=>{if(i==null||i<0)return;const k=key+i;if(!on){if(!_kept.has(k)){const t=new THREE.Matrix4();m.getMatrixAt(i,t);_kept.set(k,t)}m.setMatrixAt(i,_z)}else if(_kept.has(k)){m.setMatrixAt(i,_kept.get(k));_kept.delete(k)}m.instanceMatrix.needsUpdate=true};
+ window.__satHide=(s,hide=true)=>{const on=!hide;for(let i=s._seg;i<s._seg1;i++)sw(im,i,on,'s');for(let i=s._trim;i<s._trim1;i++)sw(TM,i,on,'t');if(s._crown!=null&&CM)sw(CM,s._crown,on,'c');
+  for(let i=s._ac;i<s._ac+2;i++)sw(ac,i,on,'a');sw(ant,s._ant,on,'n');sw(pad,s._pad,on,'p');sw(sg,s._sign,on,'g');
+  if(s._blink!=null){const j=s._blink/3;if(on&&s._by!=null){blinkP.setY(j,s._by);s._by=null}else if(!on&&s._by==null){s._by=blinkP.getY(j);blinkP.setY(j,-1e4)}blinkP.needsUpdate=true}}}
 
 await stage(0.45,'Igniting districts');
 // ---------- fire / inferno / ice ----------

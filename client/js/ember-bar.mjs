@@ -165,7 +165,7 @@ function updServing(dt) {
   if (B) {
     B.root.position.copy(B.base);
     if (s.t < hopDur) {   // celebration: two joyful full-body hops behind the counter, arms up on each take-off
-      const u = s.t / hopDur; B.root.position.y += hop(u); const arms = Math.sin(Math.min(1, (u % .5) * 2) * Math.PI) * .75;
+      const u = s.t / hopDur; B.root.position.y += hop(u); const arms = Math.sin(Math.min(1, (u % .5) * 2) * Math.PI) * .3;   // small arm lift: her coat tails are skinned to the arms and stretch on bigger raises
       bend(B, 'upperarm.L', AZ, arms); bend(B, 'upperarm.R', AZ, -arms);
       const squash = (u % .5) < .08 || (u % .5) > .44 ? .96 : 1; B.root.scale.set(1, squash, 1);
     } else {              // serve: reach across the counter, set the cup on the mat, settle back

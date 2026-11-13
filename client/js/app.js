@@ -9,7 +9,7 @@ import './skate.js';
 import './citylife.js';
 import './cityprops.mjs';   // CC BY street props: sliding shop doors, vending/arcade machines, pigeons, ducks, moored boat, see city-credits.html
 import './citizens.mjs';   // CC BY 3D people for the sidewalk crowd (far VAT instancing + near rigged LOD), see city-credits.html
-import './citybuildings2.mjs';   // CC BY sci-fi street buildings around the BURN, IMM and XRPyro towers (lazy, ?buildings2=0), see city-credits.html
+import './citybuildings2.mjs';   // CC BY sci-fi street buildings around the BURN, IMM, XRPyro, IMG, DRGN and RACC towers (lazy, ?buildings2=0), see city-credits.html
 import './streetprops.js';
 import './events.js';
 import './airport.js';

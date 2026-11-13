@@ -45,4 +45,15 @@ for m in ('pirate', 'blackbeard'):
     im.resize((2048, 2048), Image.LANCZOS).save(f'{out}/{m}-tex/material_0_baseColor.webp', quality=82, method=6)
     im.resize((1024, 1024), Image.LANCZOS).save(f'{out}/{m}-tex-512/material_0_baseColor.webp', quality=85, method=6)
 PYX
+# ---- City citizens (10 CC BY scans in $NPC_SRC/<id>/scene.gltf): head 3500 + body 5500 tris, border locked. The Walk clip lives
+# in <id>.walk.bin (second buffer, scripts/city-citizens/rebake_walk.py) and is carried over as-is; the far VAT LODs are not touched.
+# --cut-leg-webs drops the thigh-to-thigh skirt/coat faces that tear when the legs stride; gothic-elegance was exported with its
+# arms out, so --arms-out swings the new mesh's arms down onto the old rig before the weights are transferred.
+NPC_SRC=${NPC_SRC:-/workspace/npc-src}; C="$A/citizens"
+for id in casual-w blonde-black exec-navy trekker elegance-black-b gothic-elegance athletic-black casual-m-b keys-portrait inked-warrior; do
+  prep "$NPC_SRC/$id/scene.gltf" "$id-hi.glb" 0.84
+  simp "$id-hi-head.glb" "$id-h.glb" 3500 -slb; simp "$id-hi-body.glb" "$id-b.glb" 5500 -slb
+  X=""; [ "$id" = gothic-elegance ] && X=--arms-out
+  $PY "$HERE/reskin.py" "$C/$id.gltf" "$id-h.glb,$id-b.glb" "$C/$id.gltf" --cut-leg-webs $X
+done
 echo SKIN_REMESH_DONE

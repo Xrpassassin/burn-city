@@ -13,7 +13,9 @@ into holes at distance LODs. meshoptimizer keeps attribute seams and borders.
 3. `reskin.py` aligns the new mesh to the old one (yaw search + bbox fit + trimmed ICP), transfers skin weights from the k
    nearest old vertices that face the same way, rebuilds smooth normals across UV seams and writes a compact .gltf/.bin.
    Options: `--drop-head` (first-person body), `--weights-from`, `--smooth-hips=N` (coat hems in Sit/Ride),
-   `--removed-from` (keep hand-cut parts out, e.g. Blackbeard's cutlass), `--cut-box` (drop a held prop).
+   `--removed-from` (keep hand-cut parts out, e.g. Blackbeard's cutlass), `--cut-box` (drop a held prop),
+   `--cut-leg-webs` (drop faces bridging the two legs below 0.32 H), `--arms-out` (swing an arms-out source's arms down onto
+   the template rig first). Extra buffers (the citizens' `<id>.walk.bin` Walk clip) are kept and copied next to the output.
 
-`build.sh` runs the whole thing for the bar characters and the Gas Mask Guy player. Sources and licences: `client/city-credits.html`
+`build.sh` runs the whole thing for the bar characters, the Gas Mask Guy player and the 10 City citizens. Sources and licences: `client/city-credits.html`
 (all CC BY 4.0). Requires Blender 4.2, Node (npx gltfpack) and Python with numpy, scipy and pillow.

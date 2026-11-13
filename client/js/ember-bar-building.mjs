@@ -40,6 +40,25 @@ function hangTex() {
   });
 }
 
+// City street lights are instanced (window.__lamps: pole + LED bar, plus one glow point each). Any light standing in front of the
+// facade slides along the curb to just past the building's corner, so the sign and door stay clear and the street stays lit.
+function moveLamps(c, x, z, yaw) {
+  const Lm = window.__lamps; if (!Lm || !Lm.pole) return 0;
+  const s = Math.sin(yaw), co = Math.cos(yaw), m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  const glow = []; c.S.traverse(o => { if (o.isPoints && o.geometry.attributes.position && o.geometry.attributes.position.count === Lm.n) glow.push(o); });
+  let moved = 0;
+  for (let i = 0; i < Lm.pole.count; i++) {
+    Lm.pole.getMatrixAt(i, m); m.decompose(p, q, sc);
+    const dx = p.x - x, dz = p.z - z, lx = dx * co - dz * s, lz = dx * s + dz * co;
+    if (Math.abs(lx) > W / 2 + 1.5 || lz < D / 2 - 1 || lz > D / 2 + 7) continue;
+    const nlx = (lx < 0 ? -1 : 1) * (W / 2 + 2.6), ddx = (nlx - lx) * co, ddz = -(nlx - lx) * s;
+    p.x += ddx; p.z += ddz; m.compose(p, q, sc); Lm.pole.setMatrixAt(i, m); if (Lm.bar) Lm.bar.setMatrixAt(i, m);
+    for (const g of glow) { const a = g.geometry.attributes.position; a.setXYZ(i, a.getX(i) + ddx, a.getY(i), a.getZ(i) + ddz); a.needsUpdate = true; g.geometry.computeBoundingSphere(); }
+    moved++;
+  }
+  if (moved) { Lm.pole.instanceMatrix.needsUpdate = true; if (Lm.bar) Lm.bar.instanceMatrix.needsUpdate = true; Lm.pole.computeBoundingSphere(); Lm.bar && Lm.bar.computeBoundingSphere(); }
+  return moved;
+}
 function init() {
   const c = window.__city, S = c.S, C = c.C;
   const pk = window.__skate && window.__skate.parkArea, lake = window.__estate && window.__estate.lakeC;
@@ -51,12 +70,12 @@ function init() {
   const loc = (lx, lz) => new THREE.Vector3(x + side.x * lx + front.x * lz, gy, z + side.z * lx + front.z * lz);
 
   // ---- materials
-  const planks = tex(512, 512, (g, w, h) => { for (let i = 0; i < 16; i++) { const k = 62 + rnd() * 24 | 0; g.fillStyle = `rgb(${k + 18},${k * .64 | 0},${k * .42 | 0})`; g.fillRect(0, i * 32, w, 32); g.fillStyle = '#0d0704'; g.fillRect(0, i * 32, w, 3);
+  const planks = tex(512, 512, (g, w, h) => { for (let i = 0; i < 16; i++) { const k = 132 + rnd() * 28 | 0; g.fillStyle = `rgb(${k + 8},${k * .8 | 0},${k * .6 | 0})`; g.fillRect(0, i * 32, w, 32); g.fillStyle = '#0d0704'; g.fillRect(0, i * 32, w, 3);
     for (let j = 0; j < 30; j++) { g.fillStyle = `rgba(10,5,2,${.1 + rnd() * .15})`; g.fillRect(rnd() * w, i * 32 + 4 + rnd() * 26, 20 + rnd() * 120, 1.5); } } });
   const shingles = tex(256, 256, (g, w, h) => { g.fillStyle = '#140b0a'; g.fillRect(0, 0, w, h); for (let r = 0; r < 8; r++) for (let k = 0; k < 8; k++) { const v = 34 + rnd() * 26 | 0; g.fillStyle = `rgb(${v + 22},${v * .5 | 0},${v * .42 | 0})`; g.fillRect(k * 32 + (r % 2) * 16 + 1, r * 32 + 1, 30, 29); g.fillStyle = '#0a0504'; g.fillRect(k * 32 + (r % 2) * 16, r * 32 + 26, 32, 5); } });
   const stoneT = tex(256, 256, (g, w, h) => { g.fillStyle = '#17130f'; g.fillRect(0, 0, w, h); for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) { const v = 52 + rnd() * 30 | 0; g.fillStyle = `rgb(${v},${v * .92 | 0},${v * .84 | 0})`; g.fillRect(k * 64 + (r % 2) * 32 + 3, r * 64 + 3, 58, 58); } });
   const M = {
-    wall: new THREE.MeshStandardMaterial({ map: planks, roughness: .85, metalness: 0, emissive: new THREE.Color(0x2a1206), emissiveIntensity: 0 }),
+    wall: new THREE.MeshStandardMaterial({ map: planks, roughness: .8, metalness: 0, emissive: new THREE.Color(0x1c0c04), emissiveIntensity: 0 }),
     beam: new THREE.MeshStandardMaterial({ color: 0x2a190e, roughness: .8, metalness: 0 }),
     roof: new THREE.MeshStandardMaterial({ map: shingles, roughness: .9, metalness: 0 }),
     stone: new THREE.MeshStandardMaterial({ map: stoneT, roughness: .95, metalness: 0 }),
@@ -116,6 +135,7 @@ function init() {
   const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, color: 0xff9a4a, transparent: true, opacity: .3, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4 });
   const pool = new THREE.Mesh(new THREE.PlaneGeometry(9, 6).rotateX(-Math.PI / 2), poolMat); pool.position.set(0, .06, fz + 2.6); pool.renderOrder = 2; grp.add(pool);
   S.add(grp); grp.updateMatrixWorld(true);
+  EB.movedLamps = moveLamps(c, x, z, yaw);
 
   // ---- collision: a row of circles covering the footprint (the City collider is a circle test)
   // ---- collision: the City collider is a circle test, so: small circles along the walls (square-ish corners) + big ones inside
@@ -123,26 +143,41 @@ function init() {
     const ix = W / 2 - .9, iz = D / 2 - .9;
     for (let lx = -ix; lx <= ix + 1e-6; lx += ix / 5) { push(lx, iz, 1.2); push(lx, -iz, 1.2); }
     for (let lz = -iz + iz / 3; lz < iz - 1e-6; lz += iz / 3) { push(ix, lz, 1.2); push(-ix, lz, 1.2); }
-    for (const lx of [-3.5, 0, 3.5]) push(lx, 0, 3); }
-  const doorIn = loc(0, fz + 1.2), doorOut = loc(0, fz + 3.4), faceOut = loc(14, fz + 4.4);   // step out and turn along the street (the follow camera stays on the pavement)
+    for (const lx of [-3.5, 0, 3.5]) push(lx, 0, 3);
+  }
+  const doorIn = loc(0, fz + 1.2), doorOut = loc(0, fz + 4.6), faceOut = loc(14, fz + 5.6);   // step out and turn along the street (the follow camera stays on the pavement)
   EB.lot = { x, z, yaw, w: W, d: D }; EB.door = doorIn; EB.group = grp;
   EB.stats = () => { let tris = 0, draws = 0; grp.traverse(o => { if (o.isMesh) { draws++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } }); return { draws, tris, colliders: c.colliders.filter(o => Math.hypot(o.x - x, o.z - z) < 9).length }; };
   EB.spot = () => ({ x: doorOut.x, z: doorOut.z, face: { x: x, z: z } });
   const enter = () => { if (window.__openBurnTowerInterior) window.__openBurnTowerInterior({ venue: 'ember' }); else (window.__bcToast || console.log)('The Ember Bar is opening its doors, try again in a moment.'); };
   EB.enter = enter;
   EB.goToDoor = () => { const s = EB.spot(); const ok = window.__walkTo && window.__walkTo(s.x, s.z, s.face); if (ok && window.__bcToast) window.__bcToast('THE EMBER BAR · walk up to the door and press E (or tap) to go in.', '#ff9b4a'); return ok; };
+  let armed = true;   // after leaving, the door prompt stays quiet until the player has stepped away from it
   (window.__interactors = window.__interactors || []).push(p => {
-    const d = Math.hypot(p.x - doorIn.x, p.z - doorIn.z); if (d > 3.4 || p.y > gy + 3) return null;
+    const d = Math.hypot(p.x - doorIn.x, p.z - doorIn.z);
+    if (!armed) { if (d > 5.5 || performance.now() > EB.quietUntil) armed = true; else return null; }
+    if (d > 3.2 || p.y > gy + 3) return null;
     return { d: Math.max(0, d - 1), label: 'Enter THE EMBER BAR', act: enter };
   });
   // leaving the bar: back on the pavement outside the door, turned along the street
-  addEventListener('burntower:close', e => { if (e.detail?.venue !== 'ember') return; setTimeout(() => { if (window.__walkTo) window.__walkTo(doorOut.x, doorOut.z, { x: faceOut.x, z: faceOut.z }); }, 0); });
+  EB.quietUntil = 0;
+  addEventListener('burntower:close', e => { if (e.detail?.venue !== 'ember') return; armed = false; EB.quietUntil = performance.now() + 8000; setTimeout(() => { if (window.__walkTo) window.__walkTo(doorOut.x, doorOut.z, { x: faceOut.x, z: faceOut.z }); }, 0); });
   (window.__mmHooks = window.__mmHooks || []).push((mm, sc, cw) => {
     const px = x * sc, pz = z * sc, s = Math.max(3, W * sc);
     mm.save(); mm.shadowColor = '#ff7a1a'; mm.shadowBlur = 8; mm.fillStyle = '#ff8a2a'; mm.translate(px, pz); mm.rotate(-yaw); mm.fillRect(-s / 2, -s / 3, s, s * .66); mm.restore();
     mm.fillStyle = '#ffd9a8'; mm.font = Math.round(cw / 30) + 'px system-ui'; mm.textAlign = 'center'; mm.fillText('Ember Bar', px, pz + s + 8);
   });
   (window.__tourHooks = window.__tourHooks || []).push(V3 => { const cam = loc(9, fz + 24); return [V3(cam.x, gy + 8, cam.z), V3(x, gy + 4, z), 'The Ember Bar: a pirate tavern on the BURN ring road. Walk in, meet the bartender and Blackbeard, order a house special'] });
+  // front steps: walkable treads (.24 then .47 m). A City collider would push players off before they could stand on it, so the
+  // treads lift the walker late in the frame instead (same idea as the dock decks); stepping off drops back to the pavement.
+  const tread = (px, pz) => { const dx = px - x, dz = pz - z, lx = dx * Math.cos(yaw) - dz * Math.sin(yaw), lz = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+    if (Math.abs(lx) > 1.4) return 0; if (lz > fz + .75 && lz < fz + 1.22) return .24; if (lz > fz + .2 && lz <= fz + .75) return .47; return 0; };
+  EB.treadAt = (px, pz) => gy + tread(px, pz);
+  (window.__preRender = window.__preRender || []).push(() => {
+    if (window.__burnTowerOpen || !c.P || (window.__burnMode && window.__burnMode() !== 'explore')) return;
+    const P = c.P, h = gy + tread(P.pos.x, P.pos.z); if (h <= gy) return;
+    if (P.pos.y < h + .02 && P.pos.y > h - .45 && !(P.vel && P.vel.y > .5)) { P.pos.y = h; if (P.vel) P.vel.y = 0; P.onGround = true; if (c.avatar) c.avatar.position.y = h; }
+  });
   // night: walls catch a little of their own window glow; signs and windows a touch brighter after dark
   (window.__preRender = window.__preRender || []).push(() => {
     if (window.__burnTowerOpen) return;

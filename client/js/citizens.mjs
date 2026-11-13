@@ -10,10 +10,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { validateCitizen, activeEntry, resolvePlace, pickNear, budgetFor } from './citizens-core.mjs';
+import { initMotion, stepMotion, makeGrid, avoidPush, wrap } from './citizens-motion.mjs';
+import { makeLifeLayer } from './citizens-life.mjs';
 
 const Q = new URLSearchParams(location.search);
 const ASSETS = new URL('../assets/citizens/', import.meta.url), DATA = new URL('../data/citizens/', import.meta.url);
-const gaitAsset = file => new URL(file + '?gait=2', ASSETS);
+const gaitAsset = file => new URL(file + '?gait=3', ASSETS);
 const CC = window.__cityCitizens = { ready: false, stats: {} };
 
 function farMaterial(meta, tex, vatP, vatN) {
@@ -81,14 +83,14 @@ async function init() {
   const agents = [], rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
   const tint = i => new THREE.Color().setHSL(rnd(i, 3) * .1, .06 + rnd(i, 4) * .1, .5).multiplyScalar(1.6 + rnd(i, 5) * .35);
   // even mix: crowd member k uses model k mod N
-  const add = (src, i, k) => agents.push({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, walkWeight: 0, ph: rnd(k, 2), hidden: true });
+  const add = (src, i, k) => agents.push(initMotion({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, walkWeight: 0, hidden: true }, rnd(k, 7), rnd(k, 2), rnd(k, 9)));
   let k = 0;
   if (peds) for (let i = 0; i < peds.count; i++) add(peds, i, k++);
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
   const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
   for (const s of named) {
     const p = resolvePlace(activeEntry(s.schedule, nowMin()).place, world()) || { x: 0, z: 52 };
-    agents.push({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, walkWeight: 0, ph: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 });
+    agents.push(initMotion({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
   if (peds) peds.visible = false; if (shop) shop.visible = false;
@@ -105,7 +107,9 @@ async function init() {
     const g = NEAR[model], root = SkeletonUtils.clone(g.scene); root.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
     const mixer = new THREE.AnimationMixer(root), clip = n => g.animations.find(a => a.name === n) || g.animations[0];
     const walk = mixer.clipAction(clip('Walk')), idle = mixer.clipAction(clip('Idle')); walk.play(); walk.paused = true; idle.play();
-    s = { model, root, mixer, walk, idle, agent: null }; root.visible = false; c.S.add(root); slots.push(s); return s;
+    const bones = {}; root.traverse(o => { if (o.isBone) bones[o.name.replace('.', '')] = o; });
+    root.rotation.order = 'YXZ';
+    s = { model, root, mixer, walk, idle, bones, handsBusy: model === 'keys-portrait', agent: null };   // keys stay in hand root.visible = false; c.S.add(root); slots.push(s); return s;
   };
   // DOM name tags + dialogue for named citizens
   const css = document.createElement('style'); css.textContent = `.czTag{position:fixed;left:0;top:0;pointer-events:none;z-index:4;font:700 11px system-ui;color:#ffe2b8;text-shadow:0 0 4px #000;white-space:nowrap;transform:translate(-50%,-100%)}
@@ -114,60 +118,69 @@ async function init() {
   for (const a of agents) if (a.named) { a.tag = document.createElement('div'); a.tag.className = 'czTag'; a.bub = document.createElement('div'); a.bub.className = 'czBub'; document.body.append(a.tag, a.bub); a.next = 0; }
   const fr = new THREE.Frustum(), pm = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.2), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
   let nearSet = [], pickT = 0, last = performance.now(), fpsN = 0;
+  const grid = makeGrid(2);
   const vis = a => fr.intersectsSphere(sph.set(v.set(a.x, 1, a.z), 1.2));
   function stepNamed(a, dt, now) {
     const e = activeEntry(a.named.schedule, nowMin());
     if (a.place !== e.place) { a.place = e.place; a.entry = e; a.tgt = resolvePlace(e.place, world()); a.arrived = false; if (e.say) a.pending = e.say; }
     if (!a.tgt || a.arrived) return;
-    const dx = a.tgt.x - a.x, dz = a.tgt.z - a.z, d = Math.hypot(dx, dz);
+    const n = a.n, dx = a.tgt.x - n.x, dz = a.tgt.z - n.z, d = Math.hypot(dx, dz);
     if (d < 1.2) { a.arrived = true; return; }
-    const s = Math.min(d, 1.35 * dt); a.x += dx / d * s; a.z += dz / d * s; a.yaw = Math.atan2(dx, dz);
-    for (const o of c.colliders) { if (!o.r) continue; const ex = a.x - o.x, ez = a.z - o.z, mm = o.r + .5; if (Math.abs(ex) > mm || Math.abs(ez) > mm) continue; const ee = Math.hypot(ex, ez); if (ee < mm) { a.x += ex / (ee || 1) * (mm - ee); a.z += ez / (ee || 1) * (mm - ee); } }
-    if (now - a.last > 3000) { if (a.lp && Math.hypot(a.x - a.lp.x, a.z - a.lp.z) < .6) { a.x += (Math.random() - .5) * 4; a.z += (Math.random() - .5) * 4; a.stuck++; if (a.stuck > 6) { a.x = a.tgt.x; a.z = a.tgt.z; a.stuck = 0; } } a.lp = { x: a.x, z: a.z }; a.last = now; }
+    const s = Math.min(d, 1.35 * dt); n.x += dx / d * s; n.z += dz / d * s; n.yaw = Math.atan2(dx, dz);
+    for (const o of c.colliders) { if (!o.r) continue; const ex = n.x - o.x, ez = n.z - o.z, mm = o.r + .5; if (Math.abs(ex) > mm || Math.abs(ez) > mm) continue; const ee = Math.hypot(ex, ez); if (ee < mm) { n.x += ex / (ee || 1) * (mm - ee); n.z += ez / (ee || 1) * (mm - ee); } }
+    if (now - a.last > 3000) { if (a.lp && Math.hypot(n.x - a.lp.x, n.z - a.lp.z) < .6) { n.x += (Math.random() - .5) * 4; n.z += (Math.random() - .5) * 4; a.stuck++; if (a.stuck > 6) { n.x = a.tgt.x; n.z = a.tgt.z; a.stuck = 0; } } a.lp = { x: n.x, z: n.z }; a.last = now; }
   }
+  const lifeLayer = makeLifeLayer(THREE);
   function tick() {
     requestAnimationFrame(tick); if (window.__cityPaused) return;
     const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; if (dt <= 0) return;
     const cam = c.C; cam.updateMatrixWorld(); pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); fr.setFromProjectionMatrix(pm);
     const cx = cam.position.x, cz = cam.position.z;
+    // GTA-style locomotion: the crowd sims say where people are headed; each body eases, turns, leans and sidesteps.
+    const P = c.getMode && c.getMode() === 'explore' && c.P && c.P.pos ? c.P.pos : null;
+    grid.clear(); for (const a of agents) if (!a.hidden && Math.abs(a.x - cx) < 70 && Math.abs(a.z - cz) < 70) grid.add(a);
     for (const a of agents) {
-      const prevX = a.x, prevZ = a.z;
-      const wasHidden = a.hidden;
-      if (a.named) {
-        stepNamed(a, dt, now);
-      } else {
+      let tx, tz, tyaw;
+      if (a.named) { stepNamed(a, dt, now); tx = a.n.x; tz = a.n.z; tyaw = a.n.yaw; }
+      else {
         const e = a.src.instanceMatrix.array, o = a.i * 16;
         a.hidden = o >= e.length || e[o] * e[o] + e[o + 1] * e[o + 1] + e[o + 2] * e[o + 2] < 1e-6;
-        if (a.hidden) { a.walkWeight = 0; continue; }
-        a.x = e[o + 12]; a.z = e[o + 14]; a.yaw = Math.atan2(e[o + 8], e[o + 10]);
+        if (a.hidden) { a.walkWeight = 0; a.init = false; a.ptx = undefined; continue; }
+        tx = e[o + 12]; tz = e[o + 14]; tyaw = Math.atan2(e[o + 8], e[o + 10]);
       }
-      const traveled = wasHidden ? 0 : Math.hypot(a.x - prevX, a.z - prevZ);
-      // Route corrections and shop teleports are not steps. A small tolerance
-      // allows for the crowd and renderer sampling on separate frame callbacks.
-      const distance = traveled <= .08 + 4 * dt ? traveled : 0;
-      a.ph = (a.ph + distance / FAR[a.model].stride) % 1;
-      a.walkWeight += ((distance > .15 * dt ? 1 : 0) - a.walkWeight) * (1 - Math.exp(-10 * dt));
+      const close = Math.abs(a.x - cx) < 45 && Math.abs(a.z - cz) < 45;
+      const push = close ? avoidPush(a, grid, P && Math.hypot(P.x - a.x, P.z - a.z) < 4 ? P : null, a.push || (a.push = { x: 0, z: 0 })) : null;
+      const prevYaw = a.yaw;
+      const step = stepMotion(a, tx, tz, tyaw, dt, push);
+      // feet step while pivoting on the spot, so turns are not a slide
+      const pivot = a.v < .35 ? Math.abs(wrap(a.yaw - prevYaw)) * .22 : 0;
+      a.ph = (a.ph + (step + pivot) / FAR[a.model].stride) % 1;
+      const ww = Math.min(1, Math.max(a.v / .75, pivot > 0 ? Math.min(.6, Math.abs(a.yawRate) * .4) : 0));
+      a.walkWeight += (ww * ww * (3 - 2 * ww) - a.walkWeight) * (1 - Math.exp(-12 * dt));
+      a.still = a.v < .08 ? (a.still || 0) + dt : 0;
     }
     if ((pickT -= dt) <= 0) {
       pickT = .25; const sel = new Set(pickNear(agents, cx, cz, B.near, B.nearR, vis));
-      for (const s of slots) if (s.agent && !sel.has(agents.indexOf(s.agent))) { s.agent.slot = null; s.agent = null; s.root.visible = false; }
+      for (const s of slots) if (s.agent && !sel.has(agents.indexOf(s.agent))) { lifeLayer.restore(s); s.agent.slot = null; s.agent = null; s.root.visible = false; }
       for (const i of sel) { const a = agents[i]; if (a.slot) continue; let s = null; try { s = getSlot(a.model); } catch (e) { CC.nearError = String(e && e.stack || e); } if (!s) continue; s.agent = a; a.slot = s; s.idle.reset().play(); }
       nearSet = slots.filter(s => s.agent).length;
     }
     for (const s of slots) if (s.agent) {
-      const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.y = a.yaw;
+      const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.set(0, a.yaw, a.lean);
       s.root.visible = !a.hidden;
       if (a.hidden) continue;
       s.walk.time = a.ph * s.walk.getClip().duration;
-      s.walk.setEffectiveWeight(a.walkWeight); s.idle.setEffectiveWeight(1 - a.walkWeight); s.mixer.update(dt);
+      lifeLayer.restore(s); s.walk.setEffectiveWeight(a.walkWeight); s.idle.setEffectiveWeight(1 - a.walkWeight); s.mixer.update(dt);
+      lifeLayer(s, a, dt, now, P);
     }
     for (const id in FAR) FAR[id].mesh.count = 0;
+    const eu = new THREE.Euler(0, 0, 0, 'YXZ');
     let drawn = 0;
     for (const a of agents) {
       if (a.hidden || a.slot) continue;
       const dx = a.x - cx, dz = a.z - cz; if (dx * dx + dz * dz > B.farR * B.farR || !vis(a)) continue;
       const F = FAR[a.model], n = F.mesh.count++;
-      q.setFromAxisAngle(up, a.yaw); m4.compose(pv.set(a.x, 0, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
+      q.setFromEuler(eu.set(0, a.yaw, a.lean)); m4.compose(pv.set(a.x, 0, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
       F.anim.array[n * 2] = a.ph; F.anim.array[n * 2 + 1] = a.walkWeight; drawn++;
     }
     for (const id in FAR) { const M = FAR[id].mesh; M.visible = M.count > 0; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }

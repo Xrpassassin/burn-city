@@ -10,7 +10,7 @@ writeFileSync(new URL('city-credits.html', root), `<!doctype html><html lang="en
 <style>body{margin:0;background:#0c0a0d;color:#eee;font:15px/1.55 system-ui;padding:22px}main{max-width:760px;margin:auto}h1{color:#ffb16a;font:800 22px/1.2 monospace}a{color:#ffbd84}li{margin:8px 0}p{color:#b9b2b0}</style></head><body><main>
 <h1>BURN City · artists &amp; licenses</h1>
 <h2>City citizens (3D people)</h2>
-<p>The people walking around BURN City are based on these 3D models from Sketchfab. Changes: the meshes were simplified for phones, textures were resized and re-encoded, a humanoid skeleton was added, and original walk and idle animations were created in-house.</p>
+<p>The people walking around BURN City are based on these 3D models from Sketchfab. Changes: the meshes were simplified for phones, textures were resized and re-encoded, a humanoid skeleton was added (with hand and thigh skin weights separated), and original walk and idle animations, per-person gaits and idle gestures were created in-house.</p>
 <ul>
 ${rows}
 </ul>

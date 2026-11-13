@@ -335,7 +335,7 @@ const NFTOF = id => NFT_PLAYER_AVATARS_ENABLED ? net?.roster.get(id)?.look?.nft 
 function riderNft(p, c) {
   if (!NFT_PLAYER_AVATARS_ENABLED) {
     c.userData.defaultAvatar ??= mountDefaultPlayerAvatar(c, {
-      height: 1.12, seated: true, offset: [0, .25, -.2],
+      height: 1.12, seated: true, yaw: Math.PI, offset: [0, .25, -.2],
       fallback: visible => { c.children[0].visible = visible; }
     });
     c.userData.defaultAvatar.update(0);

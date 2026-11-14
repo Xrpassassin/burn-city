@@ -1,6 +1,7 @@
 // Offsets are normalized against the docking corridor. Distance is in game meters.
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
-const dockable = (x, y) => Math.hypot(x, y) <= .2;
+export const DOCKING_TOLERANCE = .2;
+const dockable = (x, y) => Math.hypot(x, y) <= DOCKING_TOLERANCE;
 
 export function beginFlight() {
   return { phase: 'launch', elapsed: 0, distance: 90, x: -.44, y: .28 };
@@ -25,5 +26,5 @@ export function advanceFlight(flight, dt, { x = 0, y = 0, approach = false } = {
 export function dockingStatus(flight) {
   if (flight.phase === 'launch') return 'Launching CB1';
   if (flight.phase === 'docked') return 'Docked at the ISS';
-  return dockable(flight.x, flight.y) ? 'Aligned · hold Approach' : 'Align CB1 with the docking target';
+  return dockable(flight.x, flight.y) ? 'Aligned · hold Approach' : 'Steer the dot into the ring';
 }

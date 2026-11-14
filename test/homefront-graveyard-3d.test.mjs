@@ -109,12 +109,6 @@ assert.match(scene, /Gunfire draws infected/, 'warn players that noise escalates
 assert.match(scene, /route surveyed; inspect local clues/, 'surveying a route points players toward evidence rather than implying completion');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
-assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');
-assert.match(scene, /cameraYawOffset \+= event\.movementX \* 0\.006/, 'camera orbit changes the follow heading');
-assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, 'camera pitch stays within a safe view angle');
-assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
-assert.match(scene, /const masterView = 'third-person'/, 'exploration camera is locked to third-person');
-assert.doesNotMatch(scene, /masterView = masterView === 'third-person'/, 'tactical overhead is not a general exploration hotkey');
 assert.match(page, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
 assert.match(page, /orbit/i, 'the game explains camera orbit controls to the player');
 assert.match(page, /zoom/i, 'the game explains camera zoom controls to the player');
@@ -235,8 +229,8 @@ assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaus
 assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/, 'the refuge yard camera is third-/first-person and only goes overhead while building');
 assert.match(page, /camera\.position\.lerp\((?:new THREE\.Vector3|yardCamTarget\.set)\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
 assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
-assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
-assert.match(scene, /attachViewControls\(host, \{\s*onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,/, 'Graveyard taps and direct-walk orbit come from the shared controller');
+assert.match(page, /yardView=attachViewControls\(host,\{rightDrag:true,canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'refuge right-drag uses shared look and pauses during construction');
+assert.match(scene, /attachViewControls\(host, \{\s*onTap: onWorldTap, rightDrag: true,/, 'Wastes taps and right-drag look come from the shared controller');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
 assert.match(scene, /worldMove\(view\.move\(\), heading, 0\)/, 'joystick / WASD travel is relative to the camera heading');
 assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');
@@ -416,7 +410,7 @@ assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter pl
 assert.match(scene, /WEAPON_DELAY\[equippedWeaponId\]/, 'autofire cadence mirrors the server tier table');
 for (const id of ['smg','assault_rifle','machine_gun','heavy_machine_gun']) assert.match(scene, new RegExp("'" + id + "'"), id + ' is wired into Graveyard feedback');
 
-assert.match(scene, /walkingCameraHeading\(localActor\?\.rotation\.y \|\| 0, cameraYawOffset, view\.yaw, continuousInput\.enabled\)/,
+assert.match(scene, /walkingCameraHeading\(localActor\?\.rotation\.y \|\| 0, view\.yaw, continuousInput\.enabled\)/,
   'direct walking uses stable camera yaw instead of rotating movement with the avatar');
 assert.match(scene, /directSprintRequested\(sprintTravel, view\.running\(\), aiming\)/,
   'direct walking includes Shift and the shared touch RUN button and respects aiming');

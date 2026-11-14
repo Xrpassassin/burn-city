@@ -599,7 +599,12 @@ export function buildNftChar(n, opts = {}) {
 export function disposeNftChar(g) {
   // Most geometries, materials and NFT textures are intentionally shared/cached. Do not dispose them per avatar.
   if(!g)return;
-  if(g.userData.representation==='collection-placeholder'){g.removeFromParent();return;}
+  if(g.userData.representation==='gas-mask-guy'||g.userData.representation==='collection-placeholder'){
+    // Shared walker geometry/materials stay cached; free only this avatar's clone, mixer and card.
+    g.userData.defaultAvatar?.dispose?.();
+    for(const s of [g.userData.card,g.userData.frame])s?.material?.dispose?.();
+    g.userData.artTexture?.dispose?.();
+    g.removeFromParent();return;}
   g.traverse(o=>{if(o.isSprite||(o.isMesh&&o.material?.map))o.material.dispose()});
   g.removeFromParent();
 }

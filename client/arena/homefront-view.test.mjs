@@ -19,12 +19,18 @@ const fp = cameraPose({ ...at, mode: 'first' });
 assert.ok(Math.abs(fp.py - (at.y + 1.62)) < 1e-9 && Math.hypot(fp.px - at.x, fp.pz - at.z) < 0.2, 'first-person camera sits at eye height on the character');
 const tp = cameraPose({ ...at, mode: 'third' });
 assert.ok(Math.hypot(tp.px - at.x, tp.pz - at.z) > 3, 'third-person camera sits behind the character');
-const lookLeft = lookDragAngles(0, 0, -60, 0);
-assert.ok(lookLeft.yaw < 0, 'dragging left turns the camera left');
+for (const mode of ['third', 'first']) {
+  for (const heading of [0, 0.7, Math.PI]) {
+    const screenRight = worldMove({ x: 1, y: 0 }, heading);
+    for (const dx of [-60, 60]) {
+      const drag = lookDragAngles(heading, 0, dx, 0);
+      const pose = cameraPose({ mode, heading: drag.yaw });
+      const horizontalTurn = (pose.lx - pose.px) * screenRight.x + (pose.lz - pose.pz) * screenRight.z;
+      assert.equal(Math.sign(horizontalTurn), Math.sign(dx), mode + ' look follows the drag in screen space');
+    }
+  }
+}
 assert.ok(lookDragAngles(0, 0, 0, 60).pitch < 0, 'dragging downward looks down');
-const lookRight = lookDragAngles(0, 0, 60, 0);
-assert.ok(lookRight.yaw > 0 && (() => { const camera = cameraPose({ mode: 'third', heading: lookRight.yaw }); return camera.lx - camera.px > 0; })(),
-  'rightward mouse/touch drag turns the third-person camera right in the yard and Wastes');
 const lookUp = lookDragAngles(0, 0, 0, -60);
 assert.ok(lookUp.pitch > 0, 'upward touch/mouse drag increases view pitch');
 assert.ok(cameraPose({ mode: 'first', pitch: lookUp.pitch }).ly > cameraPose({ mode: 'first', pitch: 0 }).ly,
@@ -42,10 +48,10 @@ const fwd = worldMove({ x: 0, y: 1 }, 0); assert.ok(Math.abs(fwd.x) < 1e-9 && Ma
 const right = worldMove({ x: 1, y: 0 }, 0); assert.ok(Math.abs(Math.hypot(right.x, right.z) - 1) < 1e-9 && Math.abs(right.z) < 1e-9, 'strafe is perpendicular to heading');
 const diag = worldMove({ x: 1, y: 1 }, 1.2); assert.ok(Math.abs(Math.hypot(diag.x, diag.z) - 1) < 1e-9, 'diagonal input is normalized');
 
-const directA = walkingCameraHeading(0.35, 0.7, -0.1, true);
-const directB = walkingCameraHeading(2.8, 0.7, -0.1, true);
+const directA = walkingCameraHeading(0.35, -0.1, true);
+const directB = walkingCameraHeading(2.8, -0.1, true);
 assert.equal(directA, directB, 'direct walk heading remains stable while the avatar turns');
-assert.equal(walkingCameraHeading(0.35, 0.7, -0.1, false), 0.35 + 0.7 - 0.1,
+assert.equal(walkingCameraHeading(0.35, -0.1, false), 0.35 - 0.1,
   'existing legacy camera movement stays actor-relative');
 assert.equal(directSprintRequested(false, true, false), true, 'Shift/RUN triggers direct sprint');
 assert.equal(directSprintRequested(true, false, false), true, 'existing sprint toggle triggers direct sprint');

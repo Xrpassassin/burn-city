@@ -46,12 +46,12 @@ export function worldMove(vec, heading, deadzone = 0.15) {
 
 // Direct walking keeps camera heading independent of the avatar's movement-facing yaw.
 // Legacy movement retains the established actor-relative camera behavior.
-export function walkingCameraHeading(actorYaw = 0, orbitYaw = 0, lookYaw = 0, direct = false) {
-  return (direct ? 0 : actorYaw) + orbitYaw + lookYaw;
+export function walkingCameraHeading(actorYaw = 0, lookYaw = 0, direct = false) {
+  return (direct ? 0 : actorYaw) + lookYaw;
 }
-// Screen-space drag deltas: right turns right, upward drag looks upward.
+// Heading zero faces +Z, so screen right is -X and a rightward drag decreases heading.
 export function lookDragAngles(yaw, pitch, dx, dy) {
-  return { yaw: yaw + dx * 0.006, pitch: Math.max(-0.9, Math.min(0.7, pitch - dy * 0.004)) };
+  return { yaw: yaw - dx * 0.006, pitch: Math.max(-0.9, Math.min(0.7, pitch - dy * 0.004)) };
 }
 export function directSprintRequested(toggle = false, runPressed = false, aiming = false) {
   return !aiming && !!(toggle || runPressed);
@@ -188,6 +188,9 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     state.pitch = angles.pitch;
   };
   if (rightDrag) {
+    host.addEventListener('contextmenu', e => {
+      if (e.target.tagName === 'CANVAS') e.preventDefault();
+    });
     let orbit = null;
     const stopOrbit = e => {
       if (orbit && (!e || e.pointerId === orbit.id)) orbit = null;
@@ -211,11 +214,12 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     });
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) host.addEventListener(type, stopOrbit);
     window.addEventListener('blur', () => stopOrbit());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopOrbit(); });
   }
   host.addEventListener('pointerdown', e => {
     activeView = state;
     if (e.target !== host && e.target.tagName !== 'CANVAS') return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return; // right-drag orbit is handled by the scene
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // right-drag look is handled separately
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) start = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, button: e.button, type: e.pointerType };
     if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = state.distance; if (start) start.moved = true; }

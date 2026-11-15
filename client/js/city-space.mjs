@@ -9,7 +9,7 @@
 //   the flight only moves the City camera from a late __preRender hook. Disable everything with ?space=0.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { advanceFlight, beginFlight, dockingStatus } from '../space/flight.mjs';
+import { advanceFlight, beginFlight, dockingStatus, DOCKING_TOLERANCE } from '../space/flight.mjs';
 import { issOrbit, ascentPoint, issSunTint, issLevel, shipLevel, PAD, ASCENT_S, RETURN_S } from './city-space-core.mjs';
 
 const Q = new URLSearchParams(location.search);
@@ -90,10 +90,15 @@ function css() {
 #bcSpaceHud .bot{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 18px);display:flex;justify-content:center;align-items:flex-end;gap:14px;flex-wrap:wrap}
 #bcSpaceHud button{pointer-events:auto;min-height:44px;min-width:44px;border-radius:10px;border:1px solid #43eaff;background:#082433e6;color:#e7fbff;font:700 14px system-ui;padding:8px 14px;touch-action:none;user-select:none;-webkit-user-select:none}
 #bcSpaceHud .pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:6px}#bcSpaceHud .pad [data-c=up]{grid-column:2}#bcSpaceHud .pad [data-c=left]{grid-column:1;grid-row:2}#bcSpaceHud .pad [data-c=down]{grid-column:2;grid-row:2}#bcSpaceHud .pad [data-c=right]{grid-column:3;grid-row:2}
+#bcSpaceHud .target{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120px;height:120px;border-radius:14px;border:1px solid #43eaff80;background:#04121d99}
+#bcSpaceHud .target::before,#bcSpaceHud .dot{content:'';position:absolute;left:50%;top:50%;border-radius:50%;transform:translate(-50%,-50%)}
+#bcSpaceHud .target::before{width:var(--corridor);height:var(--corridor);border:2px solid #a1f5ff;box-sizing:border-box}
+#bcSpaceHud .target.aligned::before{border-color:#94ffb6;background:#94ffb633}
+#bcSpaceHud .dot{left:var(--dot-x,50%);top:var(--dot-y,50%);width:8px;height:8px;background:#fff;box-shadow:0 0 0 2px #082433}
 #bcSpaceHud [hidden]{display:none!important}#bcSpaceHud .ret{border-color:#ffffff55;background:#0d1620e6}`;
   document.head.append(s);
   const h = document.createElement('div'); h.id = 'bcSpaceHud'; h.setAttribute('role', 'region'); h.setAttribute('aria-label', 'CB1 flight');
-  h.innerHTML = `<div class="top"><b id="bcSpStatus" role="status">Ready</b><small id="bcSpRange"></small></div><div class="bot"><div class="pad" id="bcSpPad" hidden>
+  h.innerHTML = `<div class="top"><b id="bcSpStatus" role="status">Ready</b><small id="bcSpRange"></small></div><div class="target" id="bcSpTarget" aria-hidden="true" hidden><i class="dot"></i></div><div class="bot"><div class="pad" id="bcSpPad" hidden>
 <button type="button" data-c="up" aria-label="Align up">↑</button><button type="button" data-c="left" aria-label="Align left">←</button><button type="button" data-c="down" aria-label="Align down">↓</button><button type="button" data-c="right" aria-label="Align right">→</button></div>
 <button type="button" data-c="approach" id="bcSpGo" hidden>Hold to approach</button><button type="button" class="ret" id="bcSpRet">Return to BURN City</button></div>`;
   document.body.append(h); return h;
@@ -105,13 +110,36 @@ function init() {
   const KEYS = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'approach' };
   const pressed = new Set(), held = new Map();
   const on = k => [...pressed].some(code => KEYS[code] === k) || [...held.values()].includes(k);
-  addEventListener('keydown', e => { if (!fs || !KEYS[e.code] || e.target.closest?.('input,textarea')) return; pressed.add(e.code); if (e.code === 'Space') e.preventDefault(); });
-  addEventListener('keyup', e => pressed.delete(e.code));
-  addEventListener('blur', () => { pressed.clear(); held.clear(); });
+  const clearControls = () => { pressed.clear(); held.clear(); };
+  const isApproaching = () => fs?.stage === 'dock' && fs.f.phase === 'approach';
+  addEventListener('keydown', e => {
+    if (!isApproaching() || !Object.hasOwn(KEYS, e.code) || e.altKey || e.ctrlKey || e.metaKey ||
+        e.target.closest?.('input, textarea, select, button, a, [contenteditable]')) return;
+    pressed.add(e.code);
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+  addEventListener('keyup', e => pressed.delete(e.code), true);
+  addEventListener('blur', clearControls);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearControls(); });
   hud.querySelectorAll('[data-c]').forEach(b => {
-    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { b.setPointerCapture(e.pointerId); } catch {} held.set(e.pointerId, b.dataset.c); });
+    b.addEventListener('pointerdown', e => {
+      if (!isApproaching() || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { b.setPointerCapture(e.pointerId); } catch {}
+      held.set(e.pointerId, b.dataset.c);
+    });
     for (const n of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(n, e => held.delete(e.pointerId));
   });
+  const target = $('bcSpTarget'), padControl = $('bcSpPad'), approachControl = $('bcSpGo');
+  // Reserve the outer 8% for the marker at full deflection.
+  const targetTravel = 42;
+  target.style.setProperty('--corridor', `${2 * targetTravel * DOCKING_TOLERANCE}%`);
+  function showDockingControls(show) {
+    target.hidden = padControl.hidden = approachControl.hidden = !show;
+    if (!show) clearControls();
+  }
   $('bcSpRet').addEventListener('click', e => { e.stopPropagation(); startReturn(); });
 
   // ---- launch pad (one merged vertex-colour mesh, one draw call)
@@ -201,25 +229,28 @@ function init() {
   setTimeout(() => idle(() => loadIss('far'), { timeout: 5000 }), Q.has('iss') || Q.get('spacePreview') === '1' ? 0 : 6000);
 
   // ---- flight
-  let fs = null; const tmp = V(), tmp2 = V(), look = V(), camPos = V();
+  let fs = null; const tmp = V(), tmp2 = V(), look = V(), camPos = V(), facing = V();
   const frame = { pos: V(), dir: V(0, 0, 1), right: V(1, 0, 0), up: V(0, 1, 0) };
   function setFrame(o) { frame.pos.set(o.pos.x, o.pos.y, o.pos.z); frame.dir.set(o.dir.x, o.dir.y, o.dir.z).normalize(); frame.right.crossVectors(frame.dir, UP).normalize(); frame.up.crossVectors(frame.right, frame.dir).normalize(); }
   const dockPort = () => tmp2.copy(frame.pos).addScaledVector(frame.dir, dockZ * ISS_SCALE);
   const shipHalf = () => .62 * SHIP_SCALE;
-  function approachPos(f, out) { return out.copy(dockPort()).addScaledVector(frame.dir, f.distance + shipHalf()).addScaledVector(frame.right, f.x * 14).addScaledVector(frame.up, f.y * 10); }
+  // The station’s right vector points left from the trailing camera.
+  function approachPos(f, out) { return out.copy(dockPort()).addScaledVector(frame.dir, f.distance + shipHalf()).addScaledVector(frame.right, -f.x * 14).addScaledVector(frame.up, f.y * 10); }
   function blocked() { return !!(window.__estatesIslandLive?.active || window.__burnTowerOpen || window.__cityPaused || document.body.classList.contains('wl-travel')); }
   SP.launch = function launch(opts = {}) {
     if (fs || !SP.ready || blocked()) return false;
     const mode = window.__burnMode ? window.__burnMode() : 'orbit';
     fs = { stage: 'ascent', t: 0, prevMode: mode, from: opts.from || 'pad', camFrom: C.position.clone() };
-    document.getElementById('info') && (document.getElementById('info').style.display = 'none');
+    const info = document.getElementById('info');
+    document.activeElement?.blur?.();
+    if (info) info.style.display = 'none';
     window.__setBurnMode && window.__setBurnMode('orbit'); if (BC && BC.orbit) BC.orbit.enabled = false;
     setFrame(issOrbit(Date.now() / 1000)); fs.rdv = approachPos(beginFlight(), V());
-    camPos.copy(C.position); look.copy(padTop); wantShip('near'); loadIss('near'); pressed.clear(); held.clear();
-    hud.classList.add('on'); $('bcSpPad').hidden = $('bcSpGo').hidden = true; $('bcSpRet').textContent = 'Abort · return to BURN City';
+    camPos.copy(C.position); look.copy(padTop); wantShip('near'); loadIss('near');
+    hud.classList.add('on'); showDockingControls(false); $('bcSpRet').textContent = 'Abort · return to BURN City';
     return true;
   };
-  function startReturn() { if (!fs || fs.stage === 'return') return; fs.stage = 'return'; fs.t = 0; fs.from3 = ship.position.clone(); $('bcSpPad').hidden = $('bcSpGo').hidden = true; $('bcSpRet').hidden = true; }
+  function startReturn() { if (!fs || fs.stage === 'return') return; fs.stage = 'return'; fs.t = 0; fs.from3 = ship.position.clone(); showDockingControls(false); $('bcSpRet').hidden = true; }
   function finish() {
     const prev = fs.prevMode; fs = null; hud.classList.remove('on'); $('bcSpRet').hidden = false;
     ship.position.copy(parkPos()); ship.rotation.set(0, -Math.PI / 2, 0);
@@ -227,8 +258,8 @@ function init() {
     else { window.__setBurnMode && window.__setBurnMode('orbit'); if (BC && BC.orbit) { BC.orbit.enabled = true; BC.orbit.target.copy(padTop); C.position.set(PAD.x + 70, padY + 45, PAD.z + 70); C.lookAt(padTop); } }
   }
   const status = (a, b = '') => { if ($('bcSpStatus').textContent !== a) $('bcSpStatus').textContent = a; if ($('bcSpRange').textContent !== b) $('bcSpRange').textContent = b; };
-  function faceAlong(obj, dir) { obj.lookAt(tmp.copy(obj.position).sub(dir)); }   // CB1 nose is model -z
-  const camGoal = V(), camLook = V();
+  function faceAlong(obj, dir) { obj.lookAt(facing.copy(obj.position).sub(dir)); }   // CB1 nose is model -z
+  const camGoal = V();
   function camTo(pos, at, dt, k = 4) { const a = 1 - Math.exp(-dt * k); camPos.lerp(pos, a); C.position.copy(camPos); look.lerp(at, a); C.lookAt(look); if (BC && BC.orbit) BC.orbit.target.copy(at); }
 
   function stepFlight(dt) {
@@ -244,8 +275,16 @@ function init() {
       fs.f = advanceFlight(fs.f, dt, { x: Number(on('right')) - Number(on('left')), y: Number(on('up')) - Number(on('down')), approach: on('approach') });
       const f = fs.f; approachPos(f, ship.position); faceAlong(ship, tmp.copy(frame.dir).negate());
       camTo(camGoal.copy(ship.position).addScaledVector(frame.dir, 34).addScaledVector(frame.up, 9), dockPort().clone(), dt, 3);
-      const app = f.phase === 'approach'; $('bcSpPad').hidden = $('bcSpGo').hidden = !app;
-      status(f.phase === 'launch' ? 'Matching orbit with the ISS' : dockingStatus(f), app ? `Range ${Math.round(f.distance)} m · horizontal ${Math.round(f.x * 100)}% · vertical ${Math.round(f.y * 100)}%` : (c.MOBILE ? '' : 'WASD / arrows to align · hold Space to approach'));
+      const app = f.phase === 'approach';
+      showDockingControls(app);
+      if (app) {
+        target.style.setProperty('--dot-x', `${50 + f.x * targetTravel}%`);
+        target.style.setProperty('--dot-y', `${50 - f.y * targetTravel}%`);
+        target.classList.toggle('aligned', Math.hypot(f.x, f.y) <= DOCKING_TOLERANCE);
+      }
+      const help = c.MOBILE ? 'Use the arrows to steer' : 'WASD / arrows to steer · Space to approach';
+      status(f.phase === 'launch' ? 'Matching orbit with the ISS' : dockingStatus(f),
+        app ? `Range ${Math.round(f.distance)} m · ${help}` : '');
       if (f.phase === 'docked') { fs.stage = 'docked'; fs.t = 0; $('bcSpRet').textContent = 'Undock · return to BURN City'; }
     } else if (fs.stage === 'docked') {
       approachPos(fs.f, ship.position); const a = fs.t * .12;

@@ -194,7 +194,21 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
   }
 
   async function run(from, limit, burnBps) {
-    await scan(from,burnBps);
+    try {
+      await scan(from,burnBps);
+    } catch (error) {
+      error.polluxStage = 'scan';
+      throw error;
+    }
+    try {
+      return await payClosedRewards(limit);
+    } catch (error) {
+      error.polluxStage = 'payout';
+      throw error;
+    }
+  }
+
+  async function payClosedRewards(limit) {
     if (paused()) return;
     const checkpoint = db.prepare('SELECT through_ms FROM estate_pollux_xrp_checkpoint WHERE id=1').get();
     if (!checkpoint) return;
@@ -227,7 +241,10 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
       const credit = db.prepare('SELECT fractional_bps FROM estate_pollux_xrp_burn_credit WHERE id=1').get()?.fractional_bps || '0';
       const spent = db.prepare("SELECT xrp_spent FROM estate_pollux_burn_batches WHERE asset='XRP'").all()
         .reduce((sum,row)=>sum+BigInt(row.xrp_spent),0n);
-      return { throughMs, ledgerIndex, receivedDrops:String(received), paidDrops:String(paid), burnPendingDrops:String(BigInt(credit)/10000n-spent) };
+      const states = db.prepare("SELECT state,COUNT(*) AS count FROM estate_pollux_xrp_payments GROUP BY state").all();
+      return { throughMs, ledgerIndex, receivedDrops:String(received), paidDrops:String(paid), burnPendingDrops:String(BigInt(credit)/10000n-spent),
+        paymentCounts:Object.fromEntries(states.map(row=>[row.state,row.count])) };
+
     }
     const earned = db.prepare('SELECT COALESCE(SUM(drops),0) AS drops FROM estate_pollux_xrp_allocations WHERE owner=?').get(owner).drops;
     const spent = db.prepare('SELECT COALESCE(SUM(spent_drops),0) AS drops FROM estate_pollux_xrp_payments WHERE owner=?').get(owner).drops;

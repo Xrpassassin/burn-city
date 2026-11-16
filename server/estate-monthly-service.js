@@ -7,6 +7,19 @@
 const P=require('./estate-monthly-plan');
 const {createEstateMonthlyExecutor}=require('./estate-monthly-executor');
 const RLUSD_XRP_REF={currency:P.RLUSD_HEX,issuer:P.RLUSD_ISSUER};
+function polluxXrpFailure(error){
+ const msg=String(error?.message||'');
+ const rpc=String(error?.data?.error||'');
+ let reason='unexpected_processing_error';
+ if(/quota|rate.?limit|slowDown|tooBusy|too many|429|ECONNRESET|NotConnected|DisconnectedError|timeout/i.test(msg+' '+rpc))reason='xrpl_temporarily_unavailable';
+ else if(['pollux_xrp_reserve_required','capital_reserve_underflow','invalid_reward_reserve','treasury_signer_required','treasury_paused',
+  'unsafe_pollux_xrp_payment','pollux_xrp_payment_proof_required','pollux_xrp_payment_proof_mismatch',
+  'pollux_history_incomplete','pollux_history_entry_invalid','pollux_history_backfill_incomplete','pollux_history_start_unavailable',
+  'pollux_validated_head_required'].includes(msg))reason=msg;
+ else if(/^step_(pending|expired|rejected|failed):/.test(msg))reason=msg.split(':',1)[0];
+ else if(/^ERR_SQLITE/.test(String(error?.code||'')))reason='accounting_database_error';
+ return {stage:error?.polluxStage==='scan'?'scan':'payout',reason};
+}
 function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=null,executor=null}){
  const cfg=P.monthlyConfig(env);
  // Policy v4 (OFF unless ESTATE_POLICY_V4_ENABLED=1): 90/5/5 IMG/PLX, IMG/XRP, IMG/RLUSD for new
@@ -30,7 +43,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  // purchase calls kick() to queue and start its deposit immediately. Single-flight: never two passes.
  const T={setTimeout:(f,ms)=>setTimeout(f,ms),clearTimeout:t=>clearTimeout(t),now:()=>Date.now(),...(timers||{})};
  const FAST=cfg.depositChunkIntervalMs,IDLE=cfg.idleIntervalMs||3600e3,V4_WAKE=15*60e3;
- let timer=null,busy=false,again=false,started=false,lastError=null,polluxXrpError=null,polluxBurnError=null,last=null,lastMonthlyAt=0,rateLimitStreak=0,nextRunAt=null,mode='idle';
+ let timer=null,busy=false,again=false,started=false,lastError=null,polluxXrpError=null,polluxXrpDiagnostic=null,polluxBurnError=null,last=null,lastMonthlyAt=0,rateLimitStreak=0,nextRunAt=null,mode='idle';
  const isRateLimit=e=>/quota|rate.?limit|slowDown|tooBusy|too many|429|ECONNRESET|NotConnected|DisconnectedError|timeout/i.test(String(e?.message||'')+' '+String(e?.data?.error||''));
  function schedule(ms){if(timer)T.clearTimeout(timer);nextRunAt=T.now()+ms;timer=T.setTimeout(()=>{timer=null;void tick();},ms);timer?.unref?.();}
  function nextDelay(){
@@ -51,8 +64,12 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
    last={deposits,...(dueMonthly&&!v4On?{monthly:await ex.runMonthly()}:{}),at:T.now()};
    if(v4On&&ex.processV4Deposits){
     if(accountingEnabled&&ex.runPolluxXrp){
-     try{await ex.runPolluxXrp();polluxXrpError=null;}
-     catch(e){polluxXrpError='pollux_xrp_processing_delayed';console.error('[estate-pollux-xrp]',e.message);}
+     try{await ex.runPolluxXrp();polluxXrpError=null;polluxXrpDiagnostic=null;}
+     catch(e){
+      polluxXrpError='pollux_xrp_processing_delayed';
+      polluxXrpDiagnostic=polluxXrpFailure(e);
+      console.error('[estate-pollux-xrp]',e.message);
+     }
     }
     last.v4Deposits=await ex.processV4Deposits();
     last.pollux=await ex.runPolluxPayouts();
@@ -79,7 +96,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  }
  function start(){if(!enabled||started)return false;started=true;schedule(30e3);return true;}
  function stop(){started=false;if(timer)T.clearTimeout(timer);timer=null;}
- const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,policyV4Blockers:v4Blockers,polluxXrpError,polluxBurnError,lastError,rewardsGuaranteed:false});
+ const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,policyV4Blockers:v4Blockers,polluxXrpError,polluxXrpDiagnostic,polluxBurnError,lastError,rewardsGuaranteed:false});
  return {start,stop,tick,kick,status,polluxRewards:owner=>ex.polluxRewards(owner),executor:ex};
 }
 module.exports={createEstateMonthlyService};

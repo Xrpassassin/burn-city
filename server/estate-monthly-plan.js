@@ -203,8 +203,11 @@ function createEstateMonthlyLedger(db){
   },
   queued:()=>db.prepare("SELECT * FROM estate_mp_deposits WHERE state='queued' ORDER BY created,id").all(),
   update(id,f){const k=Object.keys(f);db.prepare(`UPDATE estate_mp_deposits SET ${k.map(x=>x+'=?').join(',')},updated=? WHERE id=?`).run(...k.map(x=>f[x]),now(),id);},
-  principalK:()=>sum('principal_k').toFixed(),
-  trackedLp(){const lpOut=sum('lp_out');const lpIn=db.prepare('SELECT lp_in v FROM estate_mp_harvests').all().reduce((n,r)=>n.plus(r.v),new N(0));return lpOut.minus(lpIn).toFixed();},
+  // The one-shot IMG/PLX migration (estate-plx-migration.js) moves principal LP out by operator decision;
+  // its pro-rata share is removed here so the fee harvest keeps working on what stays. Zero without a migration.
+  principalK:()=>{const v=sum('principal_k').minus(require('./estate-plx-migration').migrationPlanAdjustment(db).principalK);return (v.gt(0)?v:new N(0)).toFixed();},
+  trackedLp(){const lpOut=sum('lp_out');const lpIn=db.prepare('SELECT lp_in v FROM estate_mp_harvests').all().reduce((n,r)=>n.plus(r.v),new N(0));
+   const v=lpOut.minus(lpIn).minus(require('./estate-plx-migration').migrationPlanAdjustment(db).trackedLp);return (v.gt(0)?v:new N(0)).toFixed();},
   lastPeriod:()=>db.prepare('SELECT MAX(period) p FROM estate_mp_harvests').get().p||null,
   harvest:p=>db.prepare('SELECT * FROM estate_mp_harvests WHERE period=?').get(p),
   carry(){const o={};for(const r of db.prepare('SELECT * FROM estate_mp_carry').all())o[r.acct]={img:r.img,rlusd:r.rlusd};return o;},

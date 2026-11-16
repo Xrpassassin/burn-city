@@ -38,6 +38,9 @@ function estateCashReserve(db){
  if(reserveExists(db,'estate_xrp_profit_credits'))for(const r of db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits').all())n+=integer(r.amount_drops);
  // Policy v3 (monthly IMG/RLUSD plan): XRP already swapped into the two-sided deposit is no longer cash.
  if(reserveExists(db,'estate_mp_deposits'))for(const r of db.prepare("SELECT xrp_drops,xrp_remaining_drops FROM estate_mp_deposits WHERE kind='purchase'").all())n-=integer(r.xrp_drops)-integer(r.xrp_remaining_drops);
+ // Policy v4 (flag): XRP already swapped into IMG/PLX or IMG/XRP deposits is no longer cash.
+ n-=require('./estate-v4-plan').v4SpentXrpDrops(db);
+ n+=require('./estate-plx-migration').migrationHeldXrpDrops(db); // migration XRP mid-route is estate cash
  n+=rewardCashReserve(db);if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){

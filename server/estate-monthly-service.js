@@ -11,6 +11,9 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  const cfg=P.monthlyConfig(env);
  // Hourly holder drip (OFF unless ESTATE_HOURLY_DRIP_ENABLED=1 AND the plan above is fully enabled).
  const drip=require('./estate-hourly-drip').hdConfig(env);
+ // Policy v4 (OFF unless ESTATE_POLICY_V4_ENABLED=1): 90/5/5 IMG/PLX, IMG/XRP, IMG/RLUSD for new
+ // purchases, auto-compound (fee harvest skipped), Pollux hourly IMG to holders with an IMG burn.
+ const v4=require('./estate-v4-plan').v4Config(env);
  const live=config.NETWORK==='mainnet'&&config.DRY_RUN===false;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}
  const poolOk=cfg.poolAccount===P.IMG_RLUSD_POOL&&cfg.imgIssuer===P.IMG_ISSUER&&cfg.rlusdIssuer===P.RLUSD_ISSUER;
@@ -18,11 +21,13 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  const enabled=blockers.length===0;
  const dripBlockers=drip.enabled?[...blockers,!drip.maxLp&&'hourly_drip_max_lp_not_set'].filter(Boolean):['hourly_drip_switch_off'];
  const dripOn=drip.enabled&&dripBlockers.length===0;
+ const v4Blockers=v4.enabled?[...blockers,!v4.poolOk&&'img_plx_pool_account_not_set'].filter(Boolean):['policy_v4_switch_off'];
+ const v4On=v4.enabled&&v4Blockers.length===0;
  const client={request:async q=>(await pay.ledger()).request(q),autofill:async q=>(await pay.ledger()).autofill(q)};
  const ex=executor||createEstateMonthlyExecutor({db,client,treasury:config.ESTATE_TREASURY,cfg,enabled,paused:()=>guard.paused(),
   xrpRlusdAsset:RLUSD_XRP_REF,xrpImgAsset:{currency:cfg.imgCurrency,issuer:cfg.imgIssuer},
   wallet:()=>{try{return require('xrpl').Wallet.fromSeed(config.TREASURY_SEED);}catch{return null;}},
-  log:(k,o)=>guard.log('estate-monthly-'+k,o),drip:{...drip,enabled:dripOn}});
+  log:(k,o)=>guard.log('estate-monthly-'+k,o),drip:{...drip,enabled:dripOn},v4:{...v4,enabled:v4On}});
  // Scheduler: deposit chunks every depositChunkIntervalMs while deposits are queued, hourly when
  // the queue is empty. The harvest is checked at most hourly (timing unchanged). A settled
  // purchase calls kick() to queue and start its deposit immediately. Single-flight: never two passes.
@@ -34,10 +39,10 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  function nextDelay(){
   if(rateLimitStreak>0)return Math.min(IDLE,FAST*2**Math.min(rateLimitStreak,4)); // 10,20,40,60 min backoff
   if(/^step_(failed|rejected|expired)/.test(lastError||''))return IDLE; // ledger step failure: no fast retries
-  let queued=0;try{queued=ex.queuedCount();}catch{}
+  let queued=0;try{queued=ex.queuedCount()+(v4On&&ex.v4QueuedCount?ex.v4QueuedCount():0);}catch{}
   mode=queued>0?'fast':'idle';
   // Drip on: wake at least every 15 min so each UTC hour gets its one slice (the hour key de-dupes).
-  return queued>0?FAST:(dripOn?Math.min(IDLE,DRIP_WAKE):IDLE);
+  return queued>0?FAST:(dripOn||v4On?Math.min(IDLE,DRIP_WAKE):IDLE);
  }
  async function tick({monthly}={}){
   if(busy){again=true;return {ok:false,error:'tick_in_progress'};}
@@ -45,7 +50,9 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
   try{
    const deposits=await ex.processDeposits();
    const dueMonthly=monthly===true||T.now()-lastMonthlyAt>=IDLE-1000;
-   last={deposits,...(dueMonthly?{monthly:await ex.runMonthly()}:{}),at:T.now()};
+   // v4 auto-compounds every pool: the fee harvest is skipped while v4 is on.
+   last={deposits,...(dueMonthly&&!v4On?{monthly:await ex.runMonthly()}:{}),at:T.now()};
+   if(v4On&&ex.processV4Deposits){last.v4Deposits=await ex.processV4Deposits();last.pollux=await ex.runPolluxPayouts();}
    if(dripOn&&ex.runHourlyDrip)last.hourlyDrip=await ex.runHourlyDrip();
    if(dueMonthly)lastMonthlyAt=T.now();
    lastError=null;rateLimitStreak=0;
@@ -65,7 +72,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  }
  function start(){if(!enabled||started)return false;started=true;schedule(30e3);return true;}
  function stop(){started=false;if(timer)T.clearTimeout(timer);timer=null;}
- const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,hourlyDripBlockers:dripBlockers,lastError,rewardsGuaranteed:false});
+ const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,hourlyDripBlockers:dripBlockers,policyV4Blockers:v4Blockers,lastError,rewardsGuaranteed:false});
  return {start,stop,tick,kick,status,executor:ex};
 }
 module.exports={createEstateMonthlyService};

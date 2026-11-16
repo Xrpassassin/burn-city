@@ -52,6 +52,13 @@ function createEstateCapitalAllocation(db,{policyVersion=POLICY.version}={}){
   return {capitalAllocationPolicy:POLICY,capitalAllocations:rows.map(({purchase_tx,...r})=>{
    const positions=hasJobs?db.prepare('SELECT pair,state,note,data_json FROM estate_liquidity_jobs WHERE purchase_tx=?').all(purchase_tx).filter(p=>p.state!=='manually_migrated'):[];
    const historic=r.policy_version===1;
+   if(r.policy_version===3&&db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_v4_splits'").get()&&db.prepare('SELECT 1 FROM estate_v4_splits WHERE purchase_tx=?').get(purchase_tx)){
+    // Policy v4 split (flag): IMG/PLX 90%, IMG/XRP 5%, IMG/RLUSD 5% (small legs folded into IMG/PLX).
+    const legs=[...db.prepare('SELECT state,note,xrp_remaining_drops FROM estate_v4_deposits WHERE purchase_tx=?').all(purchase_tx),
+     ...(db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_mp_deposits'").get()?db.prepare('SELECT state,note,xrp_remaining_drops FROM estate_mp_deposits WHERE source=?').all(purchase_tx):[])];
+    return {...r,pool:'IMG/PLX 90% · IMG/XRP 5% · IMG/RLUSD 5%',fundingState:legs.every(l=>l.state==='deposited')?'invested':legs.some(l=>l.note)?'held':'in_progress',
+     uninvestedXrpDrops:legs.reduce((n,l)=>n+BigInt(l.xrp_remaining_drops),0n).toString()};
+   }
    if(r.policy_version===3){
     const dep=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_mp_deposits'").get()?db.prepare('SELECT state,note,xrp_remaining_drops FROM estate_mp_deposits WHERE source=?').get(purchase_tx):null;
     return {...r,pool:'IMG/RLUSD',fundingState:!dep?'pending':dep.state==='deposited'?'invested':dep.note?'held':'in_progress',

@@ -8,9 +8,11 @@ const {N,value,balanceDelta}=require('./estate-liquidity-ledger');
 const P=require('./estate-monthly-plan');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=false,paused=()=>true,
- xrpRlusdAsset,xrpImgAsset,now=()=>Date.now(),pollMs=1000,pollTries=30,log=()=>{},drip=null}){
+ xrpRlusdAsset,xrpImgAsset,now=()=>Date.now(),pollMs=1000,pollTries=30,log=()=>{},drip=null,v4=null}){
  const L=P.createEstateMonthlyLedger(db);
  const D=require('./estate-hourly-drip');const HL=D.createEstateHourlyDripLedger(db);
+ const V=require('./estate-v4-plan');const VL=V.createEstateV4Ledger(db);
+ const v4On=!!(v4&&v4.enabled);
  const IMG={currency:cfg.imgCurrency,issuer:cfg.imgIssuer},RL={currency:cfg.rlusdCurrency,issuer:cfg.rlusdIssuer};
  const XRP={currency:'XRP'};
  const ctxBase={treasury,poolAccount:cfg.poolAccount,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,rlusdIssuer:cfg.rlusdIssuer,rlusdCurrency:cfg.rlusdCurrency};
@@ -30,7 +32,8 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   }
   const w=wallet();if(!w||w.classicAddress!==treasury)throw Error('treasury_signer_required');
   const filled=await client.autofill({...tx,Account:treasury});
-  P.assertSafeTransaction(filled,{...ctxBase,...ctx});
+  if(ctx.v4)V.assertSafeV4Transaction(filled,{treasury,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,plxIssuer:v4.plxIssuer,rlusdPool:cfg.poolAccount,holders:ctx.holders});
+  else P.assertSafeTransaction(filled,{...ctxBase,...ctx});
   const signed=w.sign(filled);
   T("INSERT INTO estate_mp_txs(step,hash,blob,last_ledger,state,created,updated) VALUES(?,?,?,?,'submitted',?,?)",step,signed.hash,signed.tx_blob,filled.LastLedgerSequence,now(),now());
   const sub=(await client.request({command:'submit',tx_blob:signed.tx_blob})).result;
@@ -75,10 +78,31 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  let depositRunning=false;
  function syncPurchases(){
   // Every settled v3 allocation (and the #517 re-booked sale) becomes a queued two-sided deposit.
+  // Policy v4 (flag): purchases settled after the v4 start snapshot are split 90/5/5 instead
+  // (IMG/PLX, IMG/XRP, and IMG/RLUSD through this same queue). A split purchase is never re-queued whole.
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_capital_allocations'").get())return 0;
-  let n=0;for(const r of db.prepare('SELECT purchase_tx,img_rlusd_drops FROM estate_capital_allocations WHERE policy_version=3').all())
-   if(BigInt(r.img_rlusd_drops||'0')>0n&&L.enqueuePurchase({purchaseTx:r.purchase_tx,investDrops:r.img_rlusd_drops}))n++;
+  if(v4On&&!VL.program())VL.start(v4,now());
+  const prog=v4On?VL.program():null;
+  let n=0;for(const r of db.prepare('SELECT purchase_tx,img_rlusd_drops,created_at FROM estate_capital_allocations WHERE policy_version=3').all()){
+   if(!(BigInt(r.img_rlusd_drops||'0')>0n))continue;
+   if(VL.split(r.purchase_tx))continue;
+   if(prog&&Number(r.created_at)>=prog.started_ms&&!db.prepare('SELECT 1 FROM estate_mp_deposits WHERE source=?').get(r.purchase_tx)){splitV4Purchase(r);n++;continue;}
+   if(L.enqueuePurchase({purchaseTx:r.purchase_tx,investDrops:r.img_rlusd_drops}))n++;
+  }
   return n;
+ }
+ function splitV4Purchase(r){
+  const sp=V.splitV4(r.img_rlusd_drops,v4,cfg.minSwapDrops);
+  db.exec('BEGIN');
+  try{
+   db.prepare('INSERT INTO estate_v4_splits VALUES(?,?,?,?,?,?,?)').run(r.purchase_tx,r.img_rlusd_drops,sp.plxDrops,sp.xrpDrops,sp.rlusdDrops,JSON.stringify(sp.folded),now());
+   const ins=db.prepare("INSERT INTO estate_v4_deposits(id,purchase_tx,pair,state,xrp_drops,xrp_remaining_drops,created,updated) VALUES(?,?,?,'queued',?,?,?,?)");
+   if(BigInt(sp.plxDrops)>0n)ins.run('v4:'+r.purchase_tx+':img-plx',r.purchase_tx,'img-plx',sp.plxDrops,sp.plxDrops,now(),now());
+   if(BigInt(sp.xrpDrops)>0n)ins.run('v4:'+r.purchase_tx+':img-xrp',r.purchase_tx,'img-xrp',sp.xrpDrops,sp.xrpDrops,now(),now());
+   if(BigInt(sp.rlusdDrops)>0n)L.enqueuePurchase({purchaseTx:r.purchase_tx,investDrops:sp.rlusdDrops});
+   db.exec('COMMIT');
+  }catch(e){db.exec('ROLLBACK');throw e;}
+  log('v4_split',{purchaseTx:r.purchase_tx,...sp});
  }
  async function processDeposit(row){
   const chunk=row.chunk_json?JSON.parse(row.chunk_json):null;
@@ -218,6 +242,145 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   }
   return {ok:true,period,state:'paid',...JSON.parse(L.harvest(period).split_json||'{}')};
  }
+ // ---- policy v4: IMG/PLX and IMG/XRP two-sided deposits (auto-compounding, never withdrawn) ----
+ const PLX=v4?{currency:v4.plxCurrency,issuer:v4.plxIssuer}:null;
+ async function ammPair(other,expected){
+  const a=(await client.request({command:'amm_info',asset:IMG,asset2:other,ledger_index:'validated'})).result.amm;
+  if(!a||a.account!==expected)throw Error('pool_account_mismatch');if(a.asset_frozen||a.asset2_frozen)throw Error('pool_frozen');
+  const imgFirst=typeof a.amount==='object'&&a.amount.currency===IMG.currency&&a.amount.issuer===IMG.issuer;
+  const o=imgFirst?a.amount2:a.amount,i=imgFirst?a.amount:a.amount2;
+  return {poolImg:i.value,poolOther:typeof o==='string'?new N(o).div(1e6).toFixed():o.value,lpCurrency:a.lp_token.currency,account:a.account};
+ }
+ const v4Fee=r=>BigInt((r.tx_json||r).Fee||'0');
+ async function processV4Deposit(row){
+  const isPlx=row.pair==='img-plx',poolAcct=isPlx?V.IMG_PLX_POOL:V.IMG_XRP_POOL,other=isPlx?PLX:XRP;
+  let c=row.chunk_json?JSON.parse(row.chunk_json):null;
+  if(!c){
+   if(BigInt(row.xrp_remaining_drops)>0n){
+    const [xi,xo,pl]=await Promise.all([xrpPool(xrpImgAsset),isPlx?xrpPool(PLX):null,ammPair(other,poolAcct)]);
+    let cap=BigInt(cfg.maxDepositDrops),legs,qi,qo;
+    for(;;){
+     legs=P.depositLegs(row.xrp_remaining_drops,{...cfg,maxDepositDrops:cap.toString()});
+     qi=P.quoteSwap({amountIn:legs.imgLegDrops,poolIn:xi.drops,poolOut:xi.tokens,tradingFee:xi.tradingFee});
+     qo=isPlx?P.quoteSwap({amountIn:legs.rlusdLegDrops,poolIn:xo.drops,poolOut:xo.tokens,tradingFee:xo.tradingFee}):null;
+     if((qi.impactBps<=cfg.maxPriceImpactBps&&(!qo||qo.impactBps<=cfg.maxPriceImpactBps))||cap/2n<BigInt(cfg.minSwapDrops)*2n)break;
+     cap/=2n;
+    }
+    if(BigInt(legs.imgLegDrops)<BigInt(cfg.minSwapDrops))return v4Note(row,'below_min_swap');
+    if(await spendableDrops()<BigInt(legs.spendDrops))return v4Note(row,'insufficient_xrp');
+    if(qi.impactBps>cfg.maxPriceImpactBps)return v4Note(row,'guard:price_impact_img_leg');
+    if(qo&&qo.impactBps>cfg.maxPriceImpactBps)return v4Note(row,'guard:price_impact_plx_leg');
+    // Pool price (other per IMG) vs. the XRP-market reference.
+    const ref=isPlx?qo.spot.div(qi.spot):new N(1).div(qi.spot).div(1e6),poolPx=new N(pl.poolOther).div(pl.poolImg);
+    if(P.poolDeviationBps(poolPx,ref)>cfg.maxPoolDeviationBps)return v4Note(row,'guard:pool_price_deviation');
+    c={seq:Number(db.prepare('SELECT COUNT(*) n FROM estate_mp_txs WHERE step LIKE ?').get(row.id+':%:amm').n),legs,
+     imgMin:P.fx(P.minOut(qi.out,cfg)).toFixed(),plxMin:qo?P.fx(P.minOut(qo.out,cfg)).toFixed():null,done:{}};
+   }else{
+    if(!(new N(row.held_img).gt(0)&&(isPlx?new N(row.held_plx).gt(0):BigInt(row.held_xrp_drops)>0n)))return v4Finish(row);
+    c={seq:Number(db.prepare('SELECT COUNT(*) n FROM estate_mp_txs WHERE step LIKE ?').get(row.id+':%:amm').n),legs:null,done:{img:true,other:true}};
+   }
+   VL.update(row.id,{chunk_json:JSON.stringify(c),note:null});
+  }
+  const id=row.id+':'+c.seq;let cur=VL.get(row.id);
+  if(!c.done.other){
+   if(isPlx){
+    const r=await send(id+':plx',{TransactionType:'Payment',Destination:treasury,Amount:iou(PLX,c.plxMin),SendMax:c.legs.rlusdLegDrops},{v4:true});
+    VL.update(row.id,{held_plx:new N(cur.held_plx).plus(tokenDelta(r,PLX)).toFixed(),xrp_remaining_drops:(BigInt(cur.xrp_remaining_drops)-BigInt(c.legs.rlusdLegDrops)).toString()});
+   }else{ // IMG/XRP: the XRP half is kept (still protected cash) for the deposit
+    VL.update(row.id,{held_xrp_drops:(BigInt(cur.held_xrp_drops)+BigInt(c.legs.rlusdLegDrops)).toString(),xrp_remaining_drops:(BigInt(cur.xrp_remaining_drops)-BigInt(c.legs.rlusdLegDrops)).toString()});
+   }
+   c.done.other=true;VL.update(row.id,{chunk_json:JSON.stringify(c)});cur=VL.get(row.id);
+  }
+  if(!c.done.img){
+   const r=await send(id+':img',{TransactionType:'Payment',Destination:treasury,Amount:iou(IMG,c.imgMin),SendMax:c.legs.imgLegDrops},{v4:true});
+   c.done.img=true;VL.update(row.id,{chunk_json:JSON.stringify(c),held_img:new N(cur.held_img).plus(tokenDelta(r,IMG)).toFixed(),
+    xrp_remaining_drops:(BigInt(cur.xrp_remaining_drops)-BigInt(c.legs.imgLegDrops)).toString()});
+   cur=VL.get(row.id);
+  }
+  if(!c.done.amm){
+   if(paused())return v4Note(cur,'treasury_paused');
+   const pl=await ammPair(other,poolAcct);
+   if(!c.amounts){
+    const heldOther=isPlx?cur.held_plx:new N(cur.held_xrp_drops).div(1e6).toFixed();
+    const a=P.ratioDeposit({heldImg:cur.held_img,heldRlusd:heldOther,poolImg:pl.poolImg,poolRlusd:pl.poolOther});
+    c.amounts={img:a.img,other:isPlx?a.rlusd:new N(a.rlusd).times(1e6).integerValue(N.ROUND_DOWN).toFixed()};
+    VL.update(row.id,{chunk_json:JSON.stringify(c)});
+   }
+   const r=await send(id+':amm',{TransactionType:'AMMDeposit',Asset:IMG,Asset2:isPlx?PLX:XRP,Amount:iou(IMG,c.amounts.img),
+    Amount2:isPlx?iou(PLX,c.amounts.other):c.amounts.other,Flags:P.TF.twoAsset},{v4:true});
+   const dImg=tokenDelta(r,IMG).negated(),lp=tokenDelta(r,{currency:pl.lpCurrency,issuer:poolAcct});
+   const dOther=isPlx?tokenDelta(r,PLX).negated():tokenDelta(r,XRP).negated().minus(v4Fee(r).toString()); // XRP delta includes the fee
+   if(!dImg.gt(0)||!dOther.gt(0)||!lp.gt(0))throw Error('deposit_not_two_sided');
+   c.done.amm=true;
+   VL.update(row.id,{chunk_json:null,held_img:new N(cur.held_img).minus(dImg).toFixed(),
+    ...(isPlx?{held_plx:new N(cur.held_plx).minus(dOther).toFixed()}:{held_xrp_drops:(BigInt(cur.held_xrp_drops)-BigInt(dOther.toFixed(0))).toString()}),
+    img_in:new N(cur.img_in).plus(dImg).toFixed(),counter_in:new N(cur.counter_in).plus(isPlx?dOther:dOther.div(1e6)).toFixed(),lp_out:new N(cur.lp_out).plus(lp).toFixed()});
+  }
+  return v4Finish(VL.get(row.id));
+ }
+ function v4Note(row,n){VL.update(row.id,{note:n});log('v4_deposit_held',{id:row.id,note:n});return {id:row.id,held:n};}
+ function v4Finish(row){
+  if(BigInt(row.xrp_remaining_drops)>=BigInt(cfg.minSwapDrops)*2n)return {id:row.id,state:'queued',remaining:row.xrp_remaining_drops};
+  VL.update(row.id,{state:'deposited',note:null});return {id:row.id,state:'deposited'};
+ }
+ let v4Running=false;
+ async function processV4Deposits(){
+  if(!v4On)return {ok:false,error:'policy_v4_disabled'};
+  if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
+  if(paused())return {ok:false,error:'treasury_paused'};
+  syncPurchases();if(v4Running)return {ok:false,error:'deposit_run_in_progress'};
+  v4Running=true;const out=[];
+  try{for(const row of VL.queued())out.push(await processV4Deposit(row));}finally{v4Running=false;}
+  return {ok:true,results:out};
+ }
+ // ---- policy v4: Pollux hourly IMG rewards -> 3.22% burn -> holders ----
+ // Source of truth: the existing validated-ledger scanner's closed hourly batches and per-owner
+ // entitlements (ownership at receipt time). Only hours at or after the v4 start are paid here.
+ async function runPolluxPayouts(){
+  if(!v4On||!v4.polluxPayoutsEnabled)return {ok:false,error:'pollux_payouts_disabled'};
+  if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
+  if(paused())return {ok:false,error:'treasury_paused'};
+  const prog=VL.program();if(!prog)return {ok:false,error:'policy_v4_not_started'};
+  if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_img_hourly_batches'").get())return {ok:false,error:'pollux_accounting_missing'};
+  let h=db.prepare("SELECT * FROM estate_px_hours WHERE state='split' ORDER BY epoch_start_ms").get();
+  if(!h){
+   const b=db.prepare('SELECT epoch_start_ms,total_units FROM estate_img_hourly_batches b WHERE epoch_start_ms>=? AND NOT EXISTS(SELECT 1 FROM estate_px_hours p WHERE p.epoch_start_ms=b.epoch_start_ms) ORDER BY epoch_start_ms LIMIT 1').get(Math.floor(prog.started_ms/3600e3)*3600e3);
+   if(!b)return {ok:true,state:'not_due'};
+   const ent=db.prepare('SELECT owner,amount_units FROM estate_img_hourly_entitlements WHERE epoch_start_ms=? ORDER BY owner').all(b.epoch_start_ms);
+   const sp=V.splitPolluxHour({entitlements:ent,burnBps:v4.burnBps});
+   if(sp.totalUnits!==BigInt(b.total_units))throw Error('pollux_entitlement_total_mismatch');
+   const dust=BigInt(new N(v4.dustImg).times(1e6).toFixed(0));
+   db.exec('BEGIN');
+   try{
+    db.prepare("INSERT INTO estate_px_hours VALUES(?,?,?,'split',?,?)").run(b.epoch_start_ms,sp.totalUnits.toString(),sp.burnUnits.toString(),now(),now());
+    for(const p of sp.payouts){
+     if(p.acct===treasury||p.acct===cfg.imgIssuer)continue;
+     const amt=p.units+VL.carry(p.acct);
+     if(amt<dust){VL.setCarry(p.acct,amt);continue;}
+     VL.setCarry(p.acct,0n);db.prepare("INSERT INTO estate_px_payouts VALUES(?,?,?,'pending',NULL)").run(b.epoch_start_ms,p.acct,amt.toString());
+    }
+    db.exec('COMMIT');
+   }catch(e){db.exec('ROLLBACK');throw e;}
+   h=db.prepare('SELECT * FROM estate_px_hours WHERE epoch_start_ms=?').get(b.epoch_start_ms);
+  }
+  const hour=h.epoch_start_ms;
+  if(BigInt(h.burn_units)>0n)await send(`px:${hour}:burn`,{TransactionType:'Payment',Destination:cfg.imgIssuer,Amount:iou(IMG,V.micro(h.burn_units))},{v4:true});
+  const holders=new Set(db.prepare('SELECT acct FROM estate_px_payouts WHERE epoch_start_ms=?').all(hour).map(r=>r.acct));
+  let sent=0;
+  for(const p of db.prepare("SELECT * FROM estate_px_payouts WHERE epoch_start_ms=? AND state='pending' ORDER BY acct").all(hour)){
+   if(paused())return {ok:false,error:'treasury_paused'};
+   if(sent++>=v4.maxPayoutsPerRun)return {ok:true,hour,state:'paying'};
+   try{
+    const r=await send(`px:${hour}:pay:${p.acct}`,{TransactionType:'Payment',Destination:p.acct,Amount:iou(IMG,V.micro(p.amount_units))},{v4:true,holders});
+    db.prepare("UPDATE estate_px_payouts SET state='paid',tx_hash=? WHERE epoch_start_ms=? AND acct=?").run(r.hash||r.tx_json?.hash,hour,p.acct);
+   }catch(e){
+    if(!/^tec/.test(e.result||''))throw e; // e.g. no IMG trust line: carry to a later hour
+    db.exec('BEGIN');VL.setCarry(p.acct,VL.carry(p.acct)+BigInt(p.amount_units));db.prepare("UPDATE estate_px_payouts SET state='carried' WHERE epoch_start_ms=? AND acct=?").run(hour,p.acct);db.exec('COMMIT');
+   }
+  }
+  db.prepare("UPDATE estate_px_hours SET state='paid',updated=? WHERE epoch_start_ms=?").run(now(),hour);
+  return {ok:true,hour,state:'paid',burnUnits:h.burn_units,totalUnits:h.total_units};
+ }
  // ---- hourly holder drip (operator decision Nov 15, 2026; OFF unless drip.enabled) ----
  // One slice per UTC hour from a fixed LP budget: withdraw (proportional) -> burn IMG -> pay holders.
  // Same journal (estate_mp_txs), guard (assertSafeTransaction), pause and single-flight tick as the plan.
@@ -295,10 +458,12 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
     slicesDone:HL.slicesDone(),lpRemaining:new N(p.budget_lp).minus(HL.withdrawnLp()).toFixed()}:null,
    totals:HL.totals(),lastHour:db.prepare('SELECT MAX(hour) h FROM estate_hd_runs').get().h||null};
  }
+ function v4Status(){const p=VL.program();return {enabled:v4On,polluxPayoutsEnabled:!!(v4On&&v4.polluxPayoutsEnabled),
+  splitBps:v4?{imgPlx:v4.plxBps,imgXrp:v4.xrpBps,imgRlusd:v4.rlusdBps}:null,burnBps:v4?.burnBps??null,autoCompound:true,startedMs:p?.started_ms||null,totals:VL.totals()};}
  function status(){
-  return {hourlyDrip:dripStatus(),policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
+  return {policyV4:v4Status(),hourlyDrip:dripStatus(),policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
    queuedDeposits:L.queued().length,pendingXrpDrops:L.pendingXrpDrops(),lastHarvestPeriod:L.lastPeriod(),payoutCurrencies:['IMG','RLUSD'],dustRlusd:cfg.dust};
  }
- return {processDeposits,runMonthly,runHourlyDrip,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
+ return {processDeposits,runMonthly,runHourlyDrip,processV4Deposits,runPolluxPayouts,v4QueuedCount:()=>VL.queued().length,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
 }
 module.exports={createEstateMonthlyExecutor};

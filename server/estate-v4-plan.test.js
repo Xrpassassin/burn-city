@@ -55,7 +55,8 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
    switch(q.command){
     case 'amm_info':{const p=pool(q.asset,q.asset2);const amt=x=>x.currency==='XRP'?String(Math.round(p.r.XRP*1e6)):{...x,value:String(p.r[key(x)])};
      return {result:{amm:{account:p.acct,amount:amt(p.a),amount2:amt(p.b),trading_fee:500,lp_token:{currency:p.lpc,issuer:p.acct,value:String(p.lp)}}}};}
-    case 'account_info':return {result:{account_data:{Balance:String(bal.XRP),OwnerCount:6}}};
+    case 'account_info':return {result:{validated:true,ledger_index:seq,account_data:{Account:treasury,Balance:String(bal.XRP),OwnerCount:6,Sequence:acctSeq++}}};
+    case 'fee':return {result:{drops:{open_ledger_fee:'10'}}};
     case 'server_state':return {result:{state:{validated_ledger:{reserve_base:1000000,reserve_inc:200000}}}};
     case 'ledger':return {result:{ledger_index:seq,validated:true,ledger:{close_time:closeTime}}};
     case 'account_tx':return {result:{account:treasury,validated:true,ledger_index_min:q.ledger_index_min,ledger_index_max:q.ledger_index_max,
@@ -202,7 +203,10 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
  assert.equal(s.L.submits.length,0);
  s.L.incoming({date:arrival+3600000,drops:'320000',memo});
+ const autofill=s.L.client.autofill;
+ s.L.client.autofill=()=>{throw Error('old payout autofill path unavailable');};
  await s.ex.runPolluxXrp();
+ s.L.client.autofill=autofill;
  assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
  assert.equal(s.ex.polluxRewards(B).xrp.payments[0].amount_drops,309684);
  assert.equal(s.ex.polluxRewards(B).xrp.payments[0].fee_drops,12);

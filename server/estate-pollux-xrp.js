@@ -42,7 +42,7 @@ function xrpRewardReserve(db) {
   return accrued - spent + BigInt(burn)/10000n - burnSpent;
 }
 
-function createPolluxXrpRewards({ db, client, treasury, pool, source, send, lookup, spendable, paused, now }) {
+function createPolluxXrpRewards({ db, client, treasury, pool, source, send, lookup, availableDrops, paused, now }) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS estate_pollux_xrp_burn_credit (
       id INTEGER PRIMARY KEY CHECK(id=1), fractional_bps TEXT NOT NULL
@@ -156,29 +156,42 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
 
   async function settle(row) {
     const step = 'px-xrp:' + row.id;
-    if (!db.prepare('SELECT 1 FROM estate_mp_txs WHERE step=?').get(step)) {
-      const probe = await client.autofill({ Account:treasury, TransactionType:'Payment', Destination:row.owner, Amount:'1' });
-      if (!DROPS.test(probe.Fee || '') || Number(probe.Fee) > MAX_FEE) return;
-      row.fee_drops = Number(probe.Fee);
+    const job = db.prepare('SELECT * FROM estate_mp_txs WHERE step=?').get(step);
+    let payment, beforeSign;
+    if (!job) {
+      // Use one account snapshot for both the sequence and reserve check.
+      // Supplying the complete envelope avoids two redundant autofill RPC rounds.
+      const account = (await client.request({command:'account_info',account:treasury,ledger_index:'validated'})).result;
+      const root = account?.account_data;
+      const index = Number(account?.ledger_index);
+      if (account?.validated !== true || root?.Account !== treasury || !Number.isSafeInteger(index) || index < 1 ||
+          !Number.isSafeInteger(root.Sequence) || root.Sequence < 1) throw Error('pollux_xrp_account_snapshot_required');
+      const fee = (await client.request({command:'fee'})).result?.drops?.open_ledger_fee;
+      if (typeof fee !== 'string' || !DROPS.test(fee) || BigInt(fee) > BigInt(MAX_FEE)) return;
+      // Use the same 20% fee cushion as the standard payment client.
+      row.fee_drops = Number((BigInt(fee)*12n+9n)/10n);
+      if (row.fee_drops > MAX_FEE) return;
       row.amount_drops = row.gross_drops - row.fee_drops;
       db.prepare('UPDATE estate_pollux_xrp_payments SET amount_drops=?,fee_drops=? WHERE id=?')
         .run(row.amount_drops,row.fee_drops,row.id);
+      payment = {Account:treasury,TransactionType:'Payment',Destination:row.owner,Amount:String(row.amount_drops),
+        Fee:String(row.fee_drops),Sequence:root.Sequence,LastLedgerSequence:index+20,Flags:0};
+      beforeSign = async () => {
+        if (paused() || await availableDrops(root) < xrpRewardReserve(db)) throw Error('pollux_xrp_reserve_required');
+      };
     }
     let proof;
     try {
-      proof = await send(step, { TransactionType:'Payment', Destination:row.owner, Amount:String(row.amount_drops), Fee:String(row.fee_drops) },
-        { polluxXrp:row, beforeSign:async () => {
-          if (paused() || await spendable() < xrpRewardReserve(db)) throw Error('pollux_xrp_reserve_required');
-        } });
+      proof = await send(step,payment,{polluxXrp:row,beforeSign});
     } catch (error) {
-      const job = db.prepare('SELECT * FROM estate_mp_txs WHERE step=?').get(step);
-      if (job?.state !== 'failed') throw error;
-      if (/^(expired|tefPAST_SEQ|tefMAX_LEDGER)$/.test(job.result)) {
+      const failed = db.prepare('SELECT * FROM estate_mp_txs WHERE step=?').get(step);
+      if (failed?.state !== 'failed') throw error;
+      if (/^(expired|tefPAST_SEQ|tefMAX_LEDGER)$/.test(failed.result)) {
         db.prepare("DELETE FROM estate_mp_txs WHERE step=? AND state='failed'").run(step);
         return;
       }
-      if (!/^tec/.test(job.result || '')) throw error;
-      proof = await lookup(job.hash);
+      if (!/^tec/.test(failed.result || '')) throw error;
+      proof = await lookup(failed.hash);
     }
     if (proof?.validated !== true) throw Error('pollux_xrp_payment_proof_required');
     const tx = proof.tx_json || proof;

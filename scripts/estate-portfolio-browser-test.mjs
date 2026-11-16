@@ -9,6 +9,8 @@ const live=()=>({capitalAllocationPolicy:{version:2},imgRlusdFundingEnabled:fals
 function portfolio(wallet){const id=wallet==='wallet-b'?'apartment-01':'trailer-01',property=catalog.properties.find(p=>p.id===id),tier=tiers.get(property.tier),share=tier.shareUnits;
  return {...live(),owned:[{propertyId:id,property,tier,shareUnits:share}],capitalAllocations:[{property_id:id,fundingState:'invested'}],payoutPreference:{currency:'IMG'},xrpProfitCreditDrops:'0',
  portfolio:{properties:[{propertyId:id,imgAllocated24hUnits:'864000000',imgAverageHourlyUnits:'36000000',xrpAllocated24hDrops:'2400000',xrpAverageHourlyDrops:'100000'}],portfolioShareUnits:share,totalShareUnits:6,imgHistoryAvailable:true,xrpHistoryAvailable:true,dataThroughMs:Date.now()-1000,scannerCurrent:true,walletReceived:{complete:true,imgUnits:'1234567',xrpDrops:'51200'}},
+ polluxRewards:{imgCreditUnits:'20000',imgPayments:[{epoch_start_ms:Date.now(),amount_units:'2000000',state:'paid',tx_hash:'B'.repeat(64)}],
+ xrp:{pendingDrops:'45',minPayoutDrops:'1000',payments:[{created_ms:Date.now(),amount_drops:988,state:'paid',tx_hash:'C'.repeat(64)}]}},
  payouts:[{epoch_start_ms:Date.now()-3600000,state:'confirmed',delivered:JSON.stringify('12345'),tx_hash:'A'.repeat(64)}],xrpProfitPayouts:[]};}
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
@@ -44,7 +46,13 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  await page.locator('#scenario-net').fill('-5');await page.getByText('Hypothetical allocation: 0.000000 IMG',{exact:false}).waitFor();
  await page.locator('#scenario-net').fill('1e3');await page.getByText('Enter an amount with at most six decimal places.',{exact:true}).waitFor();
  await page.locator('#wallet-controls').getByRole('button',{name:'Set up IMG trustline in Xaman'}).waitFor();
- await page.locator('#payout-currency').selectOption('XRP');assert.equal(await page.locator('#wallet-controls [data-img-trustline]').isVisible(),false);
+ await page.getByText('IMG carried forward: 0.020000 IMG',{exact:true}).waitFor();
+ await page.getByText('XRP awaiting payment: 0.000045 XRP',{exact:true}).waitFor();
+ await page.getByText('0.000988 XRP · Payment confirmed',{exact:false}).waitFor();
+ await page.getByText('2.000000 IMG · Payment confirmed',{exact:false}).waitFor();
+ await page.getByText('Other reward preferences',{exact:true}).click();
+ await page.locator('#payout-currency').selectOption('XRP');
+ assert.equal(await page.locator('#wallet-controls [data-img-trustline]').isVisible(),true,'IMG setup is available with either legacy preference');
  await page.locator('#payout-currency').selectOption('IMG');assert.equal(await page.locator('#wallet-controls [data-img-trustline]').isVisible(),true);
  assert.equal(calls.some(c=>c.method==='POST'),false,'loading, reporting and scenario inputs never initiate payments');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'page fits viewport');
@@ -67,7 +75,7 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  paused=true;await page.getByRole('button',{name:'Refresh wallet portfolio'}).click();await page.getByText('Property purchases are temporarily paused.',{exact:true}).waitFor();
  await page.evaluate(()=>{localStorage.removeItem('bcToken');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));});
  await page.waitForFunction(()=>!document.querySelector('[data-owned-property]'));
- assert.equal(await page.locator('#scenario-net').isDisabled(),true);assert.equal(await page.locator('#wallet-history').textContent(),'');assert.equal(await page.locator('#scenario-property option').count(),0);
+ assert.equal(await page.locator('#scenario-net').isDisabled(),true);assert.equal(await page.locator('#wallet-history').textContent(),'');assert.equal(await page.locator('#pollux-credits').textContent(),'');assert.equal(await page.locator('#scenario-property option').count(),0);
  unavailable=true;await page.getByRole('button',{name:'Refresh wallet portfolio'}).click();await page.getByText('Live sales status unavailable. Please refresh.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('textbox',{name:'Xaman bearer token'}).count(),0,'players never paste credentials');
  // Owner inspection shows private wallet deliveries only to the owning session.

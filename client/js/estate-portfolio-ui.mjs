@@ -20,7 +20,9 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  function renderStatus(s){
   liveSalesEnabled=s.salesEnabled===true;
   $('live-status').textContent=s.salesEnabled?'Property sales are open.':s.salesStatus==='treasury_paused'?'Property purchases are temporarily paused.':'Property purchases are currently unavailable.';
-  $('reward-status').textContent=s.distributionsEnabled?'Discretionary bonus processing is enabled; no payout is guaranteed.':'Discretionary bonuses are paused or unavailable; no payout is guaranteed.';
+  const pollux=s.monthlyPlan?.policyV4?.polluxPayoutsEnabled===true;
+  const paused=s.monthlyPlan?.blockers?.includes('treasury_paused');
+  $('reward-status').textContent=pollux?(paused?'PLX/IMG pool reward payments are paused.':'PLX/IMG pool rewards are paid in IMG or XRP as received.')+(s.monthlyPlan.polluxXrpError?' XRP reward processing is delayed.':''):s.distributionsEnabled?'Discretionary bonus processing is enabled; no payout is guaranteed.':'Discretionary bonuses are paused or unavailable; no payout is guaranteed.';
   const allocation=$('allocation-status');if(allocation)allocation.textContent=s.capitalAllocationPolicy?.version===2?'New purchases: 99% allocated to IMG/RLUSD; 1% retained for XRP operating costs. '+(s.imgRlusdFundingEnabled?'Pool routing enabled.':'Pool routing awaits activation; proceeds remain reserved in the treasury.'):'Checking purchase allocation policy…';
   const pool=$('pool-status');if(pool)pool.textContent=(s.imgRlusdPositionCount??s.liquidityPositions?.length??0)+' tracked IMG/RLUSD positions · '+({awaiting_pool_activation:'Awaiting pool activation',enabled:'Processing enabled',treasury_paused:'Treasury paused',disabled:'Routing disabled'}[s.imgRlusdStatus]||'Processing delayed or requires review')+'.';
  }
@@ -56,7 +58,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  }
  function clearPrivate(message){
   trustlineDispose?.();trustlineDispose=null;current=null;$('scenario-property').replaceChildren();$('payout-currency').value='';$('preference-status').textContent='';$('history-through').textContent='';$('owned-properties').replaceChildren(make('p',message));$('portfolio-summary').textContent='';
-  $('wallet-history').replaceChildren();$('wallet-controls').hidden=true;$('scenario-fields').disabled=true;
+  $('pollux-credits')?.replaceChildren();$('wallet-history').replaceChildren();$('wallet-controls').hidden=true;$('scenario-fields').disabled=true;
   $('scenario-result').textContent='Sign in to calculate from your verified property shares.';
   renderCatalog();
  }
@@ -64,6 +66,22 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   const list=$('wallet-history');list.replaceChildren();
   const labels={queued:'Awaiting payment',preparing:'Preparing payment',submitted:'Awaiting ledger validation',confirmed:'Payment confirmed',held:'Held for review'};
   const add=(text,hash)=>{const p=make('p',text);if(/^[A-Fa-f0-9]{64}$/.test(hash||'')){const a=make('a',' View transaction');a.href='https://livenet.xrpl.org/transactions/'+hash;a.target='_blank';a.rel='noopener noreferrer';p.append(a);}list.append(p);};
+  const pollux=s.polluxRewards;
+  if(pollux){
+   const credits=$('pollux-credits');
+   if(credits){
+    credits.replaceChildren(
+     field('IMG carried forward',formatRewardUnits(pollux.imgCreditUnits)+' IMG'),
+     field('XRP awaiting payment',formatRewardUnits(pollux.xrp.pendingDrops)+' XRP'),
+     make('p','XRP payouts start at '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP per wallet, before the network fee.','muted'));
+   }
+   const recent=[
+    ...pollux.imgPayments.map(r=>({at:r.epoch_start_ms,asset:'IMG',amount:r.amount_units,state:r.state,hash:r.tx_hash})),
+    ...pollux.xrp.payments.map(r=>({at:r.created_ms,asset:'XRP',amount:r.amount_drops,state:r.state,hash:r.tx_hash}))
+   ].sort((a,b)=>b.at-a.at).slice(0,20);
+   const states={paid:'Payment confirmed',pending:'Awaiting payment',carried:'Carried forward',held:'Held for review'};
+   for(const r of recent)add('PLX/IMG pool · '+new Date(r.at).toLocaleString()+' · '+formatRewardUnits(r.amount)+' '+r.asset+' · '+states[r.state],r.hash);
+  }
   for(const r of (s.payouts||[]).slice(0,20)){
    let amount='Amount pending settlement';
    if(r.state==='confirmed'&&r.delivered){try{const d=JSON.parse(r.delivered);if(typeof d==='string'&&/^\d+$/.test(d))amount=formatRewardUnits(d)+' XRP';else if(d?.currency==='IMG'&&typeof d.value==='string')amount=d.value+' IMG';}catch{}}
@@ -113,7 +131,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   }
   $('history-through').textContent=report.dataThroughMs?'IMG ledger coverage through '+new Date(report.dataThroughMs).toLocaleString()+(report.scannerCurrent?'':'. Coverage is delayed; recent allocations may be missing.'):'Verified ledger coverage is not available yet.';
   $('wallet-controls').hidden=false;$('payout-currency').value=s.payoutPreference?.currency||'';
-  trustlineDispose?.();const auth=token();trustlineDispose=mountEstateImgTrustline($('wallet-controls'),$('payout-currency'),{doc,request:async(path,body)=>{if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');const r=await request(path,auth,body);if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');return r;}});
+  trustlineDispose?.();const auth=token();trustlineDispose=mountEstateImgTrustline($('wallet-controls'),$('payout-currency'),{doc,alwaysVisible:true,request:async(path,body)=>{if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');const r=await request(path,auth,body);if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');return r;}});
 
   renderHistory(s);renderScenarioOptions();renderCatalog();
  }
@@ -153,7 +171,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  $('save-preference').addEventListener('click',async()=>{
   const auth=token(),currency=$('payout-currency').value;if(!auth||!currency){$('preference-status').textContent='Choose IMG or XRP while signed in.';return;}
   $('save-preference').disabled=true;
-  try{await request('/payout-preference',auth,{currency});if(token()===auth)$('preference-status').textContent='Wallet payout preference saved. Existing payout requests may retain their original currency. New IMG/RLUSD profits follow your selected payout currency; already-created payments retain their currency.';}
+  try{await request('/payout-preference',auth,{currency});if(token()===auth)$('preference-status').textContent='Wallet payout preference saved. Existing payout requests may retain their original currency. New IMG/RLUSD profits follow your selection. PLX/IMG rewards follow the asset the pool pays.';}
   catch(e){$('preference-status').textContent=e.message;}finally{$('save-preference').disabled=false;}
  });
  for(const id of ['scenario-property','scenario-net','scenario-asset','scenario-period'])$(id).addEventListener('input',calculate);

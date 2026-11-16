@@ -240,6 +240,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct)}));
       if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
         ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
+        polluxRewards:estateMonthly.polluxRewards(u.acct),monthlyPlan:estateMonthly.status(),
         portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct}),tycoon:estateTycoon.portfolio(u.acct)});
       if (url.pathname === '/api/estates/free-style' && req.method === 'GET') {
         const result=estateFreeStyles.state({propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct});
@@ -340,7 +341,7 @@ const server = http.createServer(async (req, res) => {
         if(gate('estate-img-trustline:'+u.acct,3,600000))return json(res,429,{error:'slow_down'});
         try{return json(res,200,await estateImgTrustline.start(u.acct));}catch(e){const known=['img_trustline_frozen','trustline_limit_review_required','trustline_request_pending'];return json(res,known.includes(e.message)?409:503,{error:known.includes(e.message)?e.message:'img_trustline_unavailable'});}
       }
-      if (url.pathname === '/api/estates/payouts' && req.method === 'GET') return json(res, 200, estateHourly.status(u.acct));
+      if (url.pathname === '/api/estates/payouts' && req.method === 'GET') return json(res, 200, {...estateHourly.status(u.acct),polluxRewards:estateMonthly.polluxRewards(u.acct)});
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'GET') return json(res, 200, Estates.payoutPreference(u.acct));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'POST') {
         if (gate('estate-payout-preference:' + u.acct, 6, 60e3)) return json(res, 429, { error: 'slow_down' });

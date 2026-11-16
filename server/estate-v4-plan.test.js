@@ -18,7 +18,8 @@ const IMG={currency:'IMG',issuer:P.IMG_ISSUER},RL={currency:P.RLUSD_HEX,issuer:P
 const ZERO='rrrrrrrrrrrrrrrrrrrrBZbvji';
 const key=a=>typeof a==='string'||a.currency==='XRP'?'XRP':a.currency+'.'+a.issuer;
 function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
- const pools={},bal={XRP:200e6},paid={},submits=[],txs=new Map();let seq=9000,acctSeq=1;
+ const pools={},bal={XRP:200e6},paid={},submits=[],txs=new Map(),history=[];
+ let closeTime=Date.UTC(2026,10,16,8)/1000-946684800;let seq=9000,acctSeq=1;
  const addPool=(acct,a,b,ra,rb,lp,lpc)=>{pools[[key(a),key(b)].sort().join('|')]={acct,a,b,r:{[key(a)]:ra,[key(b)]:rb},lp,lpc};};
  addPool(P.IMG_RLUSD_POOL,IMG,RL,38052,61.45,1525,'03'+'A'.repeat(38));
  addPool(V.IMG_XRP_POOL,IMG,{currency:'XRP'},268420,448.627,10886485,'03'+'B'.repeat(38));
@@ -30,13 +31,12 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
  const line=(k,before,after)=>{const [cur,iss]=k.split('.');return {ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{Balance:{currency:cur,issuer:ZERO,value:String(+after.toFixed(12))},LowLimit:{currency:cur,issuer:treasury,value:'1e15'},HighLimit:{currency:cur,issuer:iss,value:'0'}},PreviousFields:{Balance:{currency:cur,issuer:ZERO,value:String(+before.toFixed(12))}}}};};
  function apply(tx){
   const before={...bal},nodes=[];let result='tesSUCCESS';
-  const fee=12/1e6;
   if(tx.TransactionType==='Payment'&&tx.Destination===treasury){
    const k=key(tx.Amount),p=pool({currency:'XRP'},tx.Amount),xin=Number(tx.SendMax)/1e6;
    const out=p.r[k]*xin*(1-0.005)/(p.r.XRP+xin);if(out<Number(tx.Amount.value))result='tecPATH_PARTIAL';
    else{p.r.XRP+=xin;p.r[k]-=out;bal.XRP-=Number(tx.SendMax);bal[k]=b(k)+out;}
   }else if(tx.TransactionType==='Payment'){
-   const k=key(tx.Amount),amt=Number(tx.Amount.value);
+   const k=key(tx.Amount),amt=Number(typeof tx.Amount==='string'?tx.Amount:tx.Amount.value);
    if(noTrust.has(tx.Destination))result='tecPATH_DRY';else if(amt>b(k)+1e-9)result='tecUNFUNDED_PAYMENT';
    else{bal[k]-=amt;paid[tx.Destination]=(paid[tx.Destination]||0)+amt;}
   }else if(tx.TransactionType==='AMMDeposit'){
@@ -57,17 +57,25 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
      return {result:{amm:{account:p.acct,amount:amt(p.a),amount2:amt(p.b),trading_fee:500,lp_token:{currency:p.lpc,issuer:p.acct,value:String(p.lp)}}}};}
     case 'account_info':return {result:{account_data:{Balance:String(bal.XRP),OwnerCount:6}}};
     case 'server_state':return {result:{state:{validated_ledger:{reserve_base:1000000,reserve_inc:200000}}}};
-    case 'ledger':return {result:{ledger_index:seq}};
+    case 'ledger':return {result:{ledger_index:seq,validated:true,ledger:{close_time:closeTime}}};
+    case 'account_tx':return {result:{account:treasury,validated:true,ledger_index_min:q.ledger_index_min,ledger_index_max:q.ledger_index_max,
+     transactions:history.filter(r=>r.ledger_index>=q.ledger_index_min&&r.ledger_index<=q.ledger_index_max).toReversed()}};
     case 'account_lines':{const p=Object.values(pools).find(x=>x.acct===q.peer);return {result:{lines:p?[{currency:p.lpc,balance:String(b(p.lpc+'.'+p.acct))}]:[]}};}
     case 'submit':{const tx=xrpl.decode(q.tx_blob),hash=xrpl.hashes.hashSignedTx(q.tx_blob);seq++;const {result,nodes}=apply(tx);submits.push({type:tx.TransactionType,tx,result});
-     txs.set(hash,{...tx,hash,validated:true,meta:{TransactionResult:result,AffectedNodes:nodes}});return {result:{engine_result:result.startsWith('tes')?'tesSUCCESS':result}};}
+     txs.set(hash,{...tx,hash,validated:true,meta:{TransactionResult:result,AffectedNodes:nodes,delivered_amount:tx.Amount}});return {result:{engine_result:result.startsWith('tes')?'tesSUCCESS':result}};}
     case 'tx':{const t=txs.get(String(q.transaction).toUpperCase());if(!t){const e=Error('txnNotFound');e.data={error:'txnNotFound'};throw e;}return {result:structuredClone(t)};}
    }
    throw Error('unexpected:'+q.command);
   },
   async autofill(tx){return {...tx,Fee:'12',Sequence:acctSeq++,LastLedgerSequence:seq+20,Flags:tx.Flags||0};}
  };
- return {client,bal,paid,submits,pools,pool};
+ function incoming({date,drops,memo,source=V.POLLUX_SOURCE,destination=treasury}){
+  seq++;
+  const hash=seq.toString(16).padStart(64,'0').toUpperCase();
+  history.push({hash,ledger_index:seq,validated:true,tx_json:{TransactionType:'Payment',Account:source,Destination:destination,date:date/1000-946684800,
+   Memos:[{Memo:{MemoData:Buffer.from(JSON.stringify(memo)).toString('hex')}}]},meta:{TransactionResult:'tesSUCCESS',delivered_amount:drops}});
+ }
+ return {client,bal,paid,submits,pools,pool,incoming,setClose:ms=>{closeTime=ms/1000-946684800;seq++;}};
 }
 function setup({env={},t0=Date.UTC(2026,10,16,2,0),ledger={}}={}){
  const db=new DatabaseSync(':memory:');
@@ -156,14 +164,54 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  batch(h0,[[B,999999]]);batch(h1,[[B,2500000],[A,100000],[C,10000]]);batch(h2,[[C,50000]]);
  let p=await s.ex.runPolluxPayouts();
  assert.equal(p.hour,h1,'pre-start hour skipped');assert.equal(p.burnUnits,String(2610000n-(2419500n+96780n+9678n)));
- const burnTx=s.L.submits.filter(x=>x.tx.Destination===P.IMG_ISSUER).pop();assert.equal(burnTx.tx.Amount.value,V.micro(p.burnUnits));
- assert(Math.abs(Number(p.burnUnits)/2610000-0.0322)<1e-4,'3.22% of the hour burned');
+ await s.ex.runPolluxBurns();
+ assert(!s.L.submits.some(x=>x.tx.Destination===P.IMG_ISSUER),'small burn accrues without holding back owners');
+ assert(Math.abs(Number(p.burnUnits)/2610000-0.0322)<1e-4,'3.22% of the hour reserved');
  assert.equal(s.db.prepare('SELECT amount_units FROM estate_px_payouts WHERE acct=?').get(B).amount_units,'2419500');
  assert.equal(s.db.prepare('SELECT units FROM estate_px_carry WHERE acct=?').get(C).units,'9678','under 0.05 IMG carries');
  p=await s.ex.runPolluxPayouts();assert.equal(p.hour,h2);
  assert.equal(s.db.prepare('SELECT amount_units FROM estate_px_payouts WHERE acct=? AND epoch_start_ms=?').get(C,h2).amount_units,String(9678n+48390n),'carry joins the next payout');
  const n=s.L.submits.length;p=await s.ex.runPolluxPayouts();assert.equal(p.state,'not_due');assert.equal(s.L.submits.length,n,'idempotent');
  assert.equal(s.ex.status().policyV4.totals.polluxHours,2);
+
+ // Larger IMG rewards flush pending burn credits once, including the earlier small hours.
+ const h3=Date.UTC(2026,10,16,6);
+ s.L.bal['IMG.'+P.IMG_ISSUER]+=40;
+ batch(h3,[[B,40000000]]);
+ await s.ex.runPolluxPayouts();
+ await s.ex.runPolluxBurns();
+ const burn=s.L.submits.filter(x=>x.tx.Destination===P.IMG_ISSUER);
+ assert.equal(burn.length,1);
+ assert.equal(burn[0].tx.Amount.value,'1.373652');
+ await s.ex.runPolluxBurns();
+ assert.equal(s.L.submits.filter(x=>x.tx.Destination===P.IMG_ISSUER).length,1);
+
+ // Mainnet memo shape, validated delivery, historical owner after a resale, dust, and XRP settlement.
+ s=setup({env:ON});s.ex.syncPurchases();
+ const arrival=Date.UTC(2026,10,16,4,7);
+ s.sell(H,'trailer-01',B,3000000,arrival-1000);
+ s.db.exec('CREATE TABLE estate_ownership_history(id INTEGER PRIMARY KEY,property_id TEXT,from_acct TEXT,to_acct TEXT,kind TEXT,at INTEGER)');
+ s.db.prepare("INSERT INTO estate_ownership_history VALUES(1,?,?,?,'resale',?)").run('trailer-01',A,B,arrival+1000);
+ const memo={payoutType:'lp_floor',rewardAsset:'XRP',floorToken:'IMG',floorKey:'IMG:'+P.IMG_ISSUER,pools:['PLX/IMG'],roundId:'PLX-FLOOR-2026-11-16T04:00Z',fallback:'thin_inventory'};
+ s.L.incoming({date:arrival-7200000-600000,drops:'3000',memo});
+ s.L.incoming({date:arrival,drops:'46',memo});
+ s.L.incoming({date:arrival+1000,drops:'182',memo:{payoutType:'base',token:'XRP'}});
+ s.L.incoming({date:arrival+1000,drops:'900',memo:{...memo,pools:['PLX/IMG','PLX/RLUSD']}});
+ await s.ex.runPolluxXrp();
+ assert.equal(s.ex.polluxRewards(A).xrp.pendingDrops,'45','receipt uses seller at the time of earning');
+ assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
+ assert.equal(s.L.submits.length,0);
+ s.L.incoming({date:arrival+3600000,drops:'320000',memo});
+ await s.ex.runPolluxXrp();
+ assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
+ assert.equal(s.ex.polluxRewards(B).xrp.payments[0].amount_drops,309684);
+ assert.equal(s.ex.polluxRewards(B).xrp.payments[0].fee_drops,12);
+ assert.equal(s.L.paid[B],309684);
+ await s.ex.runPolluxBurns();
+ assert.equal(s.L.submits.filter(x=>x.tx.Destination===P.IMG_ISSUER).length,1,'only the XRP burn reserve is converted and retired');
+ await s.ex.runPolluxXrp();
+ await s.ex.runPolluxBurns();
+ assert.equal(s.L.submits.length,3,'one XRP payout, one burn conversion and one IMG burn');
 
  // tec (no IMG trust line) carries forward.
  s=setup({env:ON,ledger:{noTrust:new Set([A])}});s.ex.syncPurchases();s.L.bal['IMG.'+P.IMG_ISSUER]=5;
@@ -187,5 +235,5 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  svc=createEstateMonthlyService({db:s.db,pay,config:live,guard:{paused:()=>false,log:()=>{}},env:{ESTATE_MONTHLY_PLAN_ENABLED:'1',ESTATE_IMG_RLUSD_POOL_ACCOUNT:P.IMG_RLUSD_POOL,...ON},executor:stub});
  assert.deepEqual(svc.status().policyV4Blockers,[]);
  await svc.tick({monthly:true});assert.deepEqual(calls,['dep','v4','pollux'],'fee harvest skipped: auto-compound');
- console.log('Estates policy v4: off by default, 90/5/5 split with folds, IMG/PLX + IMG/XRP two-sided deposits, no withdrawals, Pollux hourly IMG with 3.22% burn, carry, idempotency, reserve, harvest skipped');
+ console.log('Estates policy v4: off by default, 90/5/5 split with folds, IMG/PLX + IMG/XRP two-sided deposits, no withdrawals, Pollux hourly IMG with 3.22% burn, XRP fallback and burn batching, carry, idempotency, reserve, harvest skipped');
 })().catch(e=>{console.error(e);process.exit(1);});

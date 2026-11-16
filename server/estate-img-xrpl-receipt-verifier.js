@@ -4,6 +4,7 @@
 const ACCOUNT=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const HASH=/^[A-Fa-f0-9]{64}$/;
 const {splitImgAmount}=require('./estate-img-amount');
+const {matchesPoolReward}=require('./estate-pollux-xrp');
 function canonicalUnits(value){
  return splitImgAmount(value).exact;
 }
@@ -38,10 +39,7 @@ function createImgRewardVerifier(client,{treasury,imgIssuer,allowedSources,skipN
     (delivered&&typeof delivered==='object'&&typeof delivered.currency==='string'&&typeof delivered.issuer==='string'&&
      (delivered.currency!=='IMG'||delivered.issuer!==imgIssuer)&&splitImgAmount(delivered.value))))return ignored();
   if(!delivered||typeof delivered!=='object'||delivered.currency!=='IMG'||delivered.issuer!==imgIssuer)throw new Error('unexpected_delivered_asset');
-  if(rewardPoolAccount){
-   const matches=(tx.Memos||[]).filter(m=>{try{const memo=m?.Memo;if(!/^[A-Fa-f0-9]+$/.test(memo?.MemoData||'')||memo.MemoData.length>8192)return false;const data=JSON.parse(Buffer.from(memo.MemoData,'hex').toString('utf8'));return data.payoutType==='lp'&&data.poolAccount===rewardPoolAccount&&data.rewardAsset==='IMG'&&typeof data.roundId==='string'&&data.roundId.length>0;}catch{return false;}});
-   if(matches.length!==1)return ignored();
-  }
+  if(rewardPoolAccount&&!matchesPoolReward(tx,rewardPoolAccount,'IMG'))return ignored();
   const amount=canonicalUnits(delivered.value);
   return Object.freeze({txHash:txHash.toUpperCase(),ledgerIndex:r.ledger_index,source:tx.Account,destination:tx.Destination,issuer:imgIssuer,amount,receivedAtMs,verified:true});
  };

@@ -4,7 +4,7 @@
 // Every transaction is: built here -> assertSafeTransaction -> signed -> hash+blob persisted
 // BEFORE submit -> resolved from the validated ledger. A restart resumes the same tx; it never
 // re-signs a new one while an earlier one may still validate.
-const {N,value,balanceDelta}=require('./estate-liquidity-ledger');
+const {N,value,balanceDelta,xrpMovement}=require('./estate-liquidity-ledger');
 const P=require('./estate-monthly-plan');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=false,paused=()=>true,
@@ -14,6 +14,11 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  const v4On=!!(v4&&v4.enabled);
  const M=require('./estate-plx-migration');const ML=M.createMigrationLedger(db);
  const IMG={currency:cfg.imgCurrency,issuer:cfg.imgIssuer},RL={currency:cfg.rlusdCurrency,issuer:cfg.rlusdIssuer};
+ const polluxXrpModule=require('./estate-pollux-xrp');
+ const polluxXrp=polluxXrpModule.createPolluxXrpRewards({
+  db,client,treasury,pool:V.IMG_PLX_POOL,source:V.POLLUX_SOURCE,send,lookup,paused,now,
+  spendable:async()=>await spendableDrops()-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db)
+ });
  const XRP={currency:'XRP'};
  const ctxBase={treasury,poolAccount:cfg.poolAccount,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,rlusdIssuer:cfg.rlusdIssuer,rlusdCurrency:cfg.rlusdCurrency};
  const iou=(a,v)=>({currency:a.currency,issuer:a.issuer,value:String(v)});
@@ -32,9 +37,27 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   }
   const w=wallet();if(!w||w.classicAddress!==treasury)throw Error('treasury_signer_required');
   const filled=await client.autofill({...tx,Account:treasury});
-  if(ctx.migration)M.assertSafeMigrationTransaction(filled,{treasury,imgIssuer:cfg.imgIssuer,plxIssuer:(mig&&mig.plxIssuer)||V.PLX_ISSUER,maxLpIn:ctx.maxLpIn});
+  if(ctx.polluxXrp){
+   const row=ctx.polluxXrp;
+   if(filled.TransactionType!=='Payment'||filled.Account!==treasury||filled.Destination!==row.owner||
+      filled.Amount!==String(row.amount_drops)||filled.Fee!==String(row.fee_drops)||
+      filled.SendMax!==undefined||filled.Paths!==undefined||filled.DeliverMin!==undefined||
+      filled.DestinationTag!==undefined||Number(filled.Flags||0)!==0||
+      !Number.isSafeInteger(filled.LastLedgerSequence)||filled.LastLedgerSequence<1||
+      [treasury,cfg.imgIssuer,V.IMG_PLX_POOL,V.IMG_XRP_POOL,cfg.poolAccount].includes(filled.Destination))
+    throw Error('unsafe_pollux_xrp_payment');
+   await ctx.beforeSign();
+   if(paused())throw Error('treasury_paused');
+  }else if(ctx.migration)M.assertSafeMigrationTransaction(filled,{treasury,imgIssuer:cfg.imgIssuer,plxIssuer:(mig&&mig.plxIssuer)||V.PLX_ISSUER,maxLpIn:ctx.maxLpIn});
   else if(ctx.v4)V.assertSafeV4Transaction(filled,{treasury,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,plxIssuer:v4.plxIssuer,rlusdPool:cfg.poolAccount,holders:ctx.holders});
   else P.assertSafeTransaction(filled,{...ctxBase,...ctx});
+  if(ctx.polluxBurn){
+   if(!/^[1-9]\d*$/.test(filled.Fee||'')||BigInt(filled.Fee)>100n||paused())throw Error('pollux_burn_fee_or_pause');
+   if(!Number.isSafeInteger(filled.LastLedgerSequence)||filled.LastLedgerSequence<1||
+      filled.Paths!==undefined||filled.DeliverMin!==undefined||
+      filled.Destination!==tx.Destination||filled.SendMax!==tx.SendMax||
+      JSON.stringify(filled.Amount)!==JSON.stringify(tx.Amount))throw Error('unsafe_pollux_burn');
+  }
   const signed=w.sign(filled);
   T("INSERT INTO estate_mp_txs(step,hash,blob,last_ledger,state,created,updated) VALUES(?,?,?,?,'submitted',?,?)",step,signed.hash,signed.tx_blob,filled.LastLedgerSequence,now(),now());
   const sub=(await client.request({command:'submit',tx_blob:signed.tx_blob})).result;
@@ -337,12 +360,27 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  // ---- policy v4: Pollux hourly IMG rewards -> 3.22% burn -> holders ----
  // Source of truth: the existing validated-ledger scanner's closed hourly batches and per-owner
  // entitlements (ownership at receipt time). Only hours at or after the v4 start are paid here.
+ function polluxStart(){
+  return Math.min(VL.program()?.started_ms??Infinity,ML.get()?.completed||Infinity);
+ }
+ async function runPolluxXrp(){
+  if(!enabled||!v4On||!v4.polluxPayoutsEnabled)return;
+  const from=polluxStart();
+  if(Number.isFinite(from))await polluxXrp.run(from,v4.maxPayoutsPerRun,v4.burnBps);
+ }
+ function polluxRewards(owner){
+  if(!owner)return polluxXrp.status();
+  return {
+   imgCreditUnits:VL.carry(owner).toString(),
+   imgPayments:db.prepare('SELECT epoch_start_ms,amount_units,state,tx_hash FROM estate_px_payouts WHERE acct=? ORDER BY epoch_start_ms DESC LIMIT 20').all(owner),
+   xrp:polluxXrp.status(owner)
+  };
+ }
  async function runPolluxPayouts(){
   if(!v4On||!v4.polluxPayoutsEnabled)return {ok:false,error:'pollux_payouts_disabled'};
   if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
   if(paused())return {ok:false,error:'treasury_paused'};
-  const prog=VL.program(),mg=ML.get();
-  const from=Math.min(prog?prog.started_ms:Infinity,mg?.completed||Infinity);
+  const from=polluxStart();
   if(!Number.isFinite(from))return {ok:false,error:'policy_v4_not_started'};
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_img_hourly_batches'").get())return {ok:false,error:'pollux_accounting_missing'};
   let h=db.prepare("SELECT * FROM estate_px_hours WHERE state='split' ORDER BY epoch_start_ms").get();
@@ -367,7 +405,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
    h=db.prepare('SELECT * FROM estate_px_hours WHERE epoch_start_ms=?').get(b.epoch_start_ms);
   }
   const hour=h.epoch_start_ms;
-  if(BigInt(h.burn_units)>0n)await send(`px:${hour}:burn`,{TransactionType:'Payment',Destination:cfg.imgIssuer,Amount:iou(IMG,V.micro(h.burn_units))},{v4:true});
+  if(db.prepare('SELECT 1 FROM estate_mp_txs WHERE step=?').get(`px:${hour}:burn`))await send(`px:${hour}:burn`,{TransactionType:'Payment',Destination:cfg.imgIssuer,Amount:iou(IMG,V.micro(h.burn_units))},{v4:true});
   const holders=new Set(db.prepare('SELECT acct FROM estate_px_payouts WHERE epoch_start_ms=?').all(hour).map(r=>r.acct));
   let sent=0;
   for(const p of db.prepare("SELECT * FROM estate_px_payouts WHERE epoch_start_ms=? AND state='pending' ORDER BY acct").all(hour)){
@@ -375,6 +413,8 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
    if(sent++>=v4.maxPayoutsPerRun)return {ok:true,hour,state:'paying'};
    try{
     const r=await send(`px:${hour}:pay:${p.acct}`,{TransactionType:'Payment',Destination:p.acct,Amount:iou(IMG,V.micro(p.amount_units))},{v4:true,holders});
+    const proof=r.meta?.delivered_amount;
+    if(proof&&(proof.currency!==IMG.currency||proof.issuer!==IMG.issuer||!value(proof.value).eq(V.micro(p.amount_units))))throw Error('pollux_img_delivery_proof');
     db.prepare("UPDATE estate_px_payouts SET state='paid',tx_hash=? WHERE epoch_start_ms=? AND acct=?").run(r.hash||r.tx_json?.hash,hour,p.acct);
    }catch(e){
     if(!/^tec/.test(e.result||''))throw e; // e.g. no IMG trust line: carry to a later hour
@@ -383,6 +423,88 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   }
   db.prepare("UPDATE estate_px_hours SET state='paid',updated=? WHERE epoch_start_ms=?").run(now(),hour);
   return {ok:true,hour,state:'paid',burnUnits:h.burn_units,totalUnits:h.total_units};
+ }
+ // Reserve IMG as hours settle. XRP fallback receipts reserve the same percentage in drops.
+ // Convert only the XRP earmarked for the burn, then retire the IMG actually delivered.
+ async function runPolluxBurns(){
+  if(!enabled||!v4On||!v4.polluxPayoutsEnabled||paused())return;
+  const reserved=()=>BigInt(require('./estate-liquidity-runtime').estateCashReserve(db));
+  const burnSend=async(step,tx)=>{
+   try{return await send(step,tx,{v4:true,polluxBurn:true});}
+   catch(e){
+    const job=db.prepare('SELECT state,result FROM estate_mp_txs WHERE step=?').get(step);
+    if(job?.state==='failed'&&/^(expired|tefPAST_SEQ|tefMAX_LEDGER)$/.test(job.result)){
+     db.prepare("DELETE FROM estate_mp_txs WHERE step=? AND state='failed'").run(step);
+    }
+    throw e;
+   }
+  };
+  for(const asset of ['IMG','XRP']){
+   if(paused())return;
+   let batch=db.prepare("SELECT * FROM estate_pollux_burn_batches WHERE asset=? AND state='pending'").get(asset);
+   if(!batch){
+    const completed=db.prepare("SELECT budget,xrp_spent FROM estate_pollux_burn_batches WHERE asset=? AND state!='pending'").all(asset);
+    let budget;
+    if(asset==='IMG'){
+     const due=db.prepare(`SELECT h.burn_units FROM estate_px_hours h WHERE NOT EXISTS (
+      SELECT 1 FROM estate_mp_txs t WHERE t.step='px:'||h.epoch_start_ms||':burn')`).all();
+     budget=due.reduce((n,r)=>n+BigInt(r.burn_units),0n)-completed.reduce((n,r)=>n+BigInt(r.budget),0n);
+     if(budget<1000000n)continue;
+     const ref=await xrpPool(IMG);
+     const proceeds=P.quoteSwap({amountIn:V.micro(budget),poolIn:ref.tokens,poolOut:ref.drops,tradingFee:ref.tradingFee});
+     if(proceeds.out.lt(1000))continue; // at least ten times the maximum signed fee
+     const id=T("INSERT INTO estate_pollux_burn_batches(asset,budget,img_units,state) VALUES(?,?,?,'pending')",asset,String(budget),String(budget)).lastInsertRowid;
+     batch=db.prepare('SELECT * FROM estate_pollux_burn_batches WHERE id=?').get(id);
+    }else{
+     const credit=db.prepare('SELECT fractional_bps FROM estate_pollux_xrp_burn_credit WHERE id=1').get()?.fractional_bps||'0';
+     budget=BigInt(credit)/10000n-completed.reduce((n,r)=>n+BigInt(r.xrp_spent),0n);
+     if(budget<10000n)continue;
+     const ref=await xrpPool(IMG);
+     let cap=budget-200n,quote;
+     for(;;){
+      quote=P.quoteSwap({amountIn:String(cap),poolIn:ref.drops,poolOut:ref.tokens,tradingFee:ref.tradingFee});
+      if(quote.impactBps<=cfg.maxPriceImpactBps||cap<9800n)break;
+      cap/=2n;
+     }
+     const minimum=V.fx(P.minOut(quote.out,cfg));
+     if(cap<9800n||minimum.lt(1))continue;
+     const id=T("INSERT INTO estate_pollux_burn_batches(asset,budget,min_img,spend_max,state) VALUES(?,?,?,?,'pending')",
+      asset,String(cap+200n),minimum.toFixed(),String(cap)).lastInsertRowid;
+     batch=db.prepare('SELECT * FROM estate_pollux_burn_batches WHERE id=?').get(id);
+    }
+   }
+   const step='px-burn:'+batch.id;
+   if(asset==='XRP'&&!batch.img_units){
+    if(!db.prepare('SELECT 1 FROM estate_mp_txs WHERE step=?').get(step+':convert')&&await spendableDrops()<reserved())return;
+    let r;
+    try{
+     r=await burnSend(step+':convert',{TransactionType:'Payment',Destination:treasury,Amount:iou(IMG,batch.min_img),SendMax:batch.spend_max});
+    }catch(e){
+     const job=db.prepare('SELECT hash,result FROM estate_mp_txs WHERE step=?').get(step+':convert');
+     if(!/^tec/.test(job?.result||''))throw e;
+     const proof=await lookup(job.hash),fee=BigInt((proof?.tx_json||proof)?.Fee||0);
+     if(!proof?.validated||proof.meta?.TransactionResult!==job.result||fee<1n||fee>100n)throw e;
+     T("UPDATE estate_pollux_burn_batches SET state='failed',xrp_spent=? WHERE id=?",String(fee),batch.id);
+     return; // Requote the remaining burn reserve on the next pass.
+    }
+    const fee=BigInt((r.tx_json||r).Fee);
+    const spend=BigInt(xrpMovement(r,treasury).negated().toFixed(0));
+    const delivered=r.meta?.delivered_amount;
+    if(spend<=0n||spend>BigInt(batch.spend_max)||!delivered||delivered.currency!==IMG.currency||delivered.issuer!==IMG.issuer||
+       value(delivered.value).lt(batch.min_img)||fee<1n||fee>100n)throw Error('pollux_burn_swap_proof');
+    const units=BigInt(V.fx(delivered.value).times(1e6).toFixed(0));
+    T('UPDATE estate_pollux_burn_batches SET img_units=?,xrp_spent=? WHERE id=?',String(units),String(spend+fee),batch.id);
+    batch=db.prepare('SELECT * FROM estate_pollux_burn_batches WHERE id=?').get(batch.id);
+   }
+   if(!db.prepare('SELECT 1 FROM estate_mp_txs WHERE step=?').get(step+':retire')&&
+      await spendableDrops()<reserved()+(asset==='IMG'?100n:0n))return;
+   const r=await burnSend(step+':retire',{TransactionType:'Payment',Destination:cfg.imgIssuer,Amount:iou(IMG,V.micro(batch.img_units))});
+   const fee=BigInt((r.tx_json||r).Fee),delivery=r.meta?.delivered_amount;
+   if(fee<1n||fee>100n||delivery?.currency!==IMG.currency||delivery.issuer!==IMG.issuer||
+      !value(delivery.value).eq(V.micro(batch.img_units)))throw Error('pollux_burn_delivery_proof');
+   const spent=BigInt(batch.xrp_spent)+(asset==='XRP'?fee:0n);
+   T("UPDATE estate_pollux_burn_batches SET state='burned',xrp_spent=? WHERE id=?",String(spent),batch.id);
+  }
  }
  // ---- one-shot IMG/RLUSD -> IMG/PLX migration (operator decision t422s1646; OFF unless mig.enabled + confirm) ----
  // A tef* rejection never applies on ledger (e.g. another treasury tx took the sequence), so that
@@ -488,11 +610,12 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  function migrationStatus(){const f=ML.get();return f?{state:f.state,lpIn:f.lp_in,imgPlxLp:f.lp_out,completedMs:f.completed||null,
   residual:{img:f.img_held,plx:f.plx_held,rlusd:f.rlusd_left}}:null;}
  function v4Status(){const p=VL.program();return {enabled:v4On,polluxPayoutsEnabled:!!(v4On&&v4.polluxPayoutsEnabled),
+  polluxXrp:polluxXrp.status(),
   splitBps:v4?{imgPlx:v4.plxBps,imgXrp:v4.xrpBps,imgRlusd:v4.rlusdBps}:null,burnBps:v4?.burnBps??null,autoCompound:true,startedMs:p?.started_ms||null,totals:VL.totals()};}
  function status(){
   return {policyV4:v4Status(),plxMigration:migrationStatus(),policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
    queuedDeposits:L.queued().length,pendingXrpDrops:L.pendingXrpDrops(),lastHarvestPeriod:L.lastPeriod(),payoutCurrencies:['IMG','RLUSD'],dustRlusd:cfg.dust};
  }
- return {processDeposits,runMonthly,runPlxMigration,processV4Deposits,runPolluxPayouts,v4QueuedCount:()=>VL.queued().length,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
+ return {processDeposits,runMonthly,runPlxMigration,processV4Deposits,runPolluxPayouts,runPolluxXrp,runPolluxBurns,polluxRewards,v4QueuedCount:()=>VL.queued().length,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
 }
 module.exports={createEstateMonthlyExecutor};

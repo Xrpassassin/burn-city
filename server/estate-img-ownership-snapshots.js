@@ -7,10 +7,13 @@ function createEstateImgOwnershipSnapshots(db){
  const query=db.prepare('SELECT property_id,acct,share_units,purchased_at FROM estate_property_ownership WHERE purchased_at<=? ORDER BY property_id');
  function at(receivedAtMs){
   if(!Number.isSafeInteger(receivedAtMs)||receivedAtMs<0)throw new TypeError('invalid_receipt_timestamp');
+  const history=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_ownership_history'").get()
+   ?db.prepare("SELECT from_acct FROM estate_ownership_history WHERE property_id=? AND kind='resale' AND at>? ORDER BY at,id LIMIT 1"):null;
   return query.all(receivedAtMs).map(r=>{
    const expected=propertyWeight(r.property_id);
    if(!expected||r.share_units!==expected||typeof r.acct!=='string'||!r.acct)throw new Error('ownership_catalog_mismatch');
-   return Object.freeze({propertyId:r.property_id,acct:r.acct});
+   const transfer=history?.get(r.property_id,receivedAtMs);
+   return Object.freeze({propertyId:r.property_id,acct:transfer?.from_acct||r.acct});
   });
  }
  return Object.freeze({at});

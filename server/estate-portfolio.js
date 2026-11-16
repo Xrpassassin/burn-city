@@ -19,6 +19,12 @@ function walletRewardsReceived(db,owner,exists){
   if(r.payout_policy===2){try{const d=JSON.parse(r.delivered);if(typeof d==='string'&&/^\d+$/.test(d))xrp+=BigInt(d);else if(d?.currency==='IMG'){const n=new N(d.value).times(1000000);if(!n.isInteger()||n.lt(0))throw Error('invalid_delivery');img+=BigInt(n.toFixed());}else throw Error('invalid_delivery');}catch{complete=false;}}
   else{if(!/^\d+$/.test(r.amount_drops)){complete=false;continue;}xrp+=BigInt(r.amount_drops);}
  }else complete=false;
+ if(exists('estate_px_payouts'))for(const r of db.prepare("SELECT amount_units,tx_hash FROM estate_px_payouts WHERE acct=? AND state='paid'").all(owner)){
+  if(proof(r.tx_hash))img+=BigInt(r.amount_units);
+ }
+ if(exists('estate_pollux_xrp_payments'))for(const r of db.prepare("SELECT amount_drops,tx_hash FROM estate_pollux_xrp_payments WHERE owner=? AND state='paid'").all(owner)){
+  if(proof(r.tx_hash))xrp+=BigInt(r.amount_drops);
+ }
  return {complete,imgUnits:complete?img.toString():null,xrpDrops:complete?xrp.toString():null,basis:'confirmed_wallet_deliveries_all_properties',netInvestmentProfit:false};
 }
 function readEstatePortfolio({db,owner,now=Date.now()}){

@@ -19,22 +19,20 @@ Operator spec, Nov 15, 2026. **Ships OFF.** Nothing changes until `ESTATE_POLICY
 
 All three positions are kept in their pools. v4 has no withdraw path: `assertSafeV4Transaction` rejects `AMMWithdraw`. While v4 is on, the IMG/RLUSD daily/monthly fee harvest is skipped. AMM trading fees therefore stay in the pools and compound into the LP value.
 
-## Holder income: Pollux hourly IMG
+## Holder income from Pollux
 
-Pollux (`r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V`) pays IMG/PLX LPs IMG rewards about every hour.
+Pollux (`r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V`) can deliver IMG or XRP for the Estates PLX/IMG LP position. The scanner verifies delivered amounts, the sender, the treasury destination and the reward memo. Standalone PLX holder rewards stay outside this accounting. Eligibility follows the settled owner and property weight at receipt time, including when a property is resold before the reward is processed.
 
-- **Recording rewards.** The existing validated-ledger scanner (`ESTATE_ACCOUNTING_ENABLED=1`, the old hourly system) records each reward to the treasury. It allocates each reward by the share units owned when the reward arrived and closes the hourly batches.
-- **Paying each hour.** With `ESTATE_POLLUX_PAYOUTS_ENABLED=1`, each closed hour from the v4 start onward is processed like this:
-  - `ESTATE_POLLUX_BURN_BPS` (default 322 = 3.22%) of the IMG is paid to the IMG issuer `rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd`, which burns it.
-  - The rest is paid in IMG to each holder pro rata.
-  - Amounts under `ESTATE_POLLUX_DUST_IMG` (default 0.05 IMG) or a validated `tec` (no IMG trust line) carry forward in `estate_px_carry`.
-  - Payments are capped at `ESTATE_POLLUX_MAX_PAYOUTS_PER_RUN` per tick.
-- **Retired executor.** The legacy hourly payout executor stays retired (`ESTATE_LEGACY_HOURLY_ENGINE` stays unset). Its queued rows are not used.
+With the existing v4, accounting and Pollux switches enabled, owners receive the asset delivered by Pollux. IMG credits below 0.05 IMG, or credits where the wallet cannot receive IMG, carry forward. XRP credits from closed hours accumulate until a wallet has at least 0.001 XRP. The payout fee comes out of that wallet's XRP credit and is capped at 100 drops. The authenticated Estates portfolio shows both balances and validated payments.
+
+The default 3.22% burn share accrues separately from owner credits. IMG waits until at least 1 IMG has accrued and its quoted XRP value covers ten times the maximum burn fee. XRP burn credits wait until at least 0.01 XRP has accrued. The executor converts only that earmarked XRP into IMG within the existing impact and slippage limits, then sends the resulting IMG to its issuer. Swap and burn fees are deducted from that XRP burn reserve. Owner settlement can proceed while a burn carries forward.
+
+The XRP scanner backfills from the earlier of v4 activation or the completed LP migration. Both the read-only checkpoint and each payout use durable records to resume on restart. The legacy hourly executor remains retired.
 
 ## Safety
 
 - v4 runs inside the monthly-plan single-flight tick.
-- Every transaction passes `assertSafeV4Transaction`. The only allowed transactions are two-sided deposits into IMG/PLX or IMG/XRP, self-swaps (XRP to IMG or PLX with capped `SendMax`, no partial payments), IMG burns to the issuer, and IMG payouts to current holders. Payments to AMM accounts are rejected.
+- Every transaction passes `assertSafeV4Transaction`. The only allowed transactions are two-sided deposits into IMG/PLX or IMG/XRP, self-swaps (XRP to IMG or PLX with capped `SendMax`, no partial payments), IMG retirement payments to the issuer, and IMG or verified-reward-funded XRP payouts to eligible owners. Payments to AMM accounts are rejected.
 - Every transaction is journaled in `estate_mp_txs` before submit, which `watch.js` treats as known.
 - **Kill switches:** unset `ESTATE_POLICY_V4_ENABLED` (new purchases go back to v3 IMG/RLUSD; already-split purchases are never re-queued whole), unset `ESTATE_POLLUX_PAYOUTS_ENABLED`, or use the treasury pause.
 

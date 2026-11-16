@@ -41,6 +41,7 @@ function estateCashReserve(db){
  // Policy v4 (flag): XRP already swapped into IMG/PLX or IMG/XRP deposits is no longer cash.
  n-=require('./estate-v4-plan').v4SpentXrpDrops(db);
  n+=require('./estate-plx-migration').migrationHeldXrpDrops(db); // migration XRP mid-route is estate cash
+ n+=require('./estate-pollux-xrp').xrpRewardReserve(db);
  n+=rewardCashReserve(db);if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){

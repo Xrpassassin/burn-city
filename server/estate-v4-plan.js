@@ -8,10 +8,10 @@
 //    IMG/RLUSD: the existing monthly-plan deposit pipeline (estate_mp_deposits) for its 5% share.
 //  - All three positions auto-compound: AMM fees stay in the pools, nothing is ever withdrawn
 //    (the guard below has no AMMWithdraw case) and the monthly/daily fee harvest is skipped.
-//  - Holders' income is Pollux's hourly IMG reward to IMG/PLX LPs (source r9DW7jqM...), recorded by
+//  - Holders' income is Pollux's hourly IMG or XRP reward to IMG/PLX LPs (source r9DW7jqM...), recorded by
 //    the existing validated-ledger scanner (estate-hourly-runtime.js) and allocated per hour by the
 //    share units owned when each reward arrived. Each closed hour: ESTATE_POLLUX_BURN_BPS (default
-//    322 = 3.22%) of the IMG is sent to the IMG issuer (burn), the rest is paid in IMG pro rata.
+//    322 = 3.22%) is reserved for batched IMG burns. Owners receive the balance in its incoming asset.
 //    Amounts under ESTATE_POLLUX_DUST_IMG (default 0.05 IMG) or failing with tec carry forward.
 const {N}=require('./estate-liquidity-ledger');
 const IMG_PLX_POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
@@ -108,12 +108,16 @@ function createEstateV4Ledger(db){
   totals(){
    const s=(t,c,w='')=>db.prepare(`SELECT ${c} v FROM ${t} ${w}`).all().reduce((n,r)=>n.plus(r.v||'0'),new N(0)).toFixed();
    const su=(t,c,w='')=>db.prepare(`SELECT ${c} v FROM ${t} ${w}`).all().reduce((n,r)=>n+BigInt(r.v||'0'),0n);
+   const hasTable=name=>db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
+   const legacyBurned=hasTable('estate_mp_txs')?su('estate_px_hours h','burn_units',"WHERE EXISTS (SELECT 1 FROM estate_mp_txs t WHERE t.step='px:'||h.epoch_start_ms||':burn' AND t.state='validated')"):0n;
+   const nativeBurns=hasTable('estate_pollux_burn_batches')?db.prepare("SELECT img_units FROM estate_pollux_burn_batches WHERE state='burned'").all():[];
+   const burned=legacyBurned+nativeBurns.reduce((n,r)=>n+BigInt(r.img_units||'0'),0n);
    return {splits:db.prepare('SELECT COUNT(*) n FROM estate_v4_splits').get().n,
     xrpToImgPlx:su('estate_v4_splits','plx_drops').toString(),xrpToImgXrp:su('estate_v4_splits','xrp_drops').toString(),xrpToImgRlusd:su('estate_v4_splits','rlusd_drops').toString(),
     imgPlxLp:s('estate_v4_deposits','lp_out',"WHERE pair='img-plx'"),imgXrpLp:s('estate_v4_deposits','lp_out',"WHERE pair='img-xrp'"),
     queuedDeposits:db.prepare("SELECT COUNT(*) n FROM estate_v4_deposits WHERE state='queued'").get().n,
     polluxHours:db.prepare('SELECT COUNT(*) n FROM estate_px_hours').get().n,
-    polluxImgReceived:micro(su('estate_px_hours','total_units')),polluxImgBurned:micro(su('estate_px_hours','burn_units')),
+    polluxImgReceived:micro(su('estate_px_hours','total_units')),polluxImgBurned:micro(burned),
     polluxImgPaid:micro(su('estate_px_payouts','amount_units',"WHERE state='paid'"))};
   },
  };

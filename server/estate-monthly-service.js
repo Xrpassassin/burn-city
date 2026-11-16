@@ -12,6 +12,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  // Policy v4 (OFF unless ESTATE_POLICY_V4_ENABLED=1): 90/5/5 IMG/PLX, IMG/XRP, IMG/RLUSD for new
  // purchases, auto-compound (fee harvest skipped), Pollux hourly IMG to holders with an IMG burn.
  const v4=require('./estate-v4-plan').v4Config(env);
+ const accountingEnabled=env.ESTATE_ACCOUNTING_ENABLED==='1';
  const live=config.NETWORK==='mainnet'&&config.DRY_RUN===false;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}
  const poolOk=cfg.poolAccount===P.IMG_RLUSD_POOL&&cfg.imgIssuer===P.IMG_ISSUER&&cfg.rlusdIssuer===P.RLUSD_ISSUER;
@@ -29,7 +30,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  // purchase calls kick() to queue and start its deposit immediately. Single-flight: never two passes.
  const T={setTimeout:(f,ms)=>setTimeout(f,ms),clearTimeout:t=>clearTimeout(t),now:()=>Date.now(),...(timers||{})};
  const FAST=cfg.depositChunkIntervalMs,IDLE=cfg.idleIntervalMs||3600e3,V4_WAKE=15*60e3;
- let timer=null,busy=false,again=false,started=false,lastError=null,last=null,lastMonthlyAt=0,rateLimitStreak=0,nextRunAt=null,mode='idle';
+ let timer=null,busy=false,again=false,started=false,lastError=null,polluxXrpError=null,polluxBurnError=null,last=null,lastMonthlyAt=0,rateLimitStreak=0,nextRunAt=null,mode='idle';
  const isRateLimit=e=>/quota|rate.?limit|slowDown|tooBusy|too many|429|ECONNRESET|NotConnected|DisconnectedError|timeout/i.test(String(e?.message||'')+' '+String(e?.data?.error||''));
  function schedule(ms){if(timer)T.clearTimeout(timer);nextRunAt=T.now()+ms;timer=T.setTimeout(()=>{timer=null;void tick();},ms);timer?.unref?.();}
  function nextDelay(){
@@ -48,7 +49,18 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
    const dueMonthly=monthly===true||T.now()-lastMonthlyAt>=IDLE-1000;
    // v4 auto-compounds every pool: the fee harvest is skipped while v4 is on.
    last={deposits,...(dueMonthly&&!v4On?{monthly:await ex.runMonthly()}:{}),at:T.now()};
-   if(v4On&&ex.processV4Deposits){last.v4Deposits=await ex.processV4Deposits();last.pollux=await ex.runPolluxPayouts();}
+   if(v4On&&ex.processV4Deposits){
+    if(accountingEnabled&&ex.runPolluxXrp){
+     try{await ex.runPolluxXrp();polluxXrpError=null;}
+     catch(e){polluxXrpError='pollux_xrp_processing_delayed';console.error('[estate-pollux-xrp]',e.message);}
+    }
+    last.v4Deposits=await ex.processV4Deposits();
+    last.pollux=await ex.runPolluxPayouts();
+    if(ex.runPolluxBurns){
+     try{await ex.runPolluxBurns();polluxBurnError=null;}
+     catch(e){polluxBurnError='pollux_burn_processing_delayed';console.error('[estate-pollux-burn]',e.message);}
+    }
+   }
    if(dueMonthly)lastMonthlyAt=T.now();
    lastError=null;rateLimitStreak=0;
   }catch(e){lastError=e.message;rateLimitStreak=isRateLimit(e)?rateLimitStreak+1:0;console.error('[estate-monthly]',e.message);}
@@ -67,7 +79,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  }
  function start(){if(!enabled||started)return false;started=true;schedule(30e3);return true;}
  function stop(){started=false;if(timer)T.clearTimeout(timer);timer=null;}
- const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,policyV4Blockers:v4Blockers,lastError,rewardsGuaranteed:false});
- return {start,stop,tick,kick,status,executor:ex};
+ const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,policyV4Blockers:v4Blockers,polluxXrpError,polluxBurnError,lastError,rewardsGuaranteed:false});
+ return {start,stop,tick,kick,status,polluxRewards:owner=>ex.polluxRewards(owner),executor:ex};
 }
 module.exports={createEstateMonthlyService};

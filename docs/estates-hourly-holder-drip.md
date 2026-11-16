@@ -4,7 +4,7 @@ Requested by the operator (Derrik) on Nov 15, 2026: bring back hourly payouts to
 
 ## Background: the old hourly system (retired Nov 2)
 
-Policy v1 put 70% of each purchase into the IMG/PLX AMM (`rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ`) and 30% into IMG/XRP. Pollux (`r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V`) paid hourly IMG rewards to IMG/PLX LP holders. `estate-hourly-runtime.js` scanned validated ledgers for those receipts, allocated each one by property share units to the owners at receipt time, closed hourly batches and queued payouts (IMG, or XRP by owner preference). It paid 5 receipts (Oct 27–28, about 0.23 IMG total). The operator withdrew the IMG/PLX LP, sold the PLX and created the IMG/RLUSD pool, so the engine had no income source. It now only runs with `ESTATE_LEGACY_HOURLY_ENGINE=1`, which stays unset.
+Policy v1 put 70% of each purchase into the IMG/PLX AMM (`rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ`) and 30% into IMG/XRP. Pollux (`r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V`) paid hourly IMG rewards to IMG/PLX LP holders. `estate-hourly-runtime.js` scanned validated ledgers for those receipts, allocated each one by property share units to the owners at receipt time, closed hourly batches and queued payouts (IMG, or XRP by owner preference). It recorded 5 receipts on Oct 30, 2026 (about 0.23 IMG in total; 4 were paid out, about 0.16 IMG, and 1 arrived before there was an owner). The operator withdrew the IMG/PLX LP, sold the PLX and created the IMG/RLUSD pool, so the engine had no income source. It now only runs with `ESTATE_LEGACY_HOURLY_ENGINE=1`, which stays unset.
 
 ## What the drip does
 

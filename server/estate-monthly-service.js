@@ -15,7 +15,7 @@ function polluxXrpFailure(error){
  else if(['pollux_xrp_reserve_required','capital_reserve_underflow','invalid_reward_reserve','treasury_signer_required','treasury_paused',
   'unsafe_pollux_xrp_payment','pollux_xrp_payment_proof_required','pollux_xrp_payment_proof_mismatch',
   'pollux_history_incomplete','pollux_history_entry_invalid','pollux_history_backfill_incomplete','pollux_history_start_unavailable',
-  'pollux_validated_head_required'].includes(msg))reason=msg;
+  'pollux_validated_head_required','pollux_xrp_account_snapshot_required'].includes(msg))reason=msg;
  else if(/^step_(pending|expired|rejected|failed):/.test(msg))reason=msg.split(':',1)[0];
  else if(/^ERR_SQLITE/.test(String(error?.code||'')))reason='accounting_database_error';
  return {stage:error?.polluxStage==='scan'?'scan':'payout',reason};
@@ -48,6 +48,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  function schedule(ms){if(timer)T.clearTimeout(timer);nextRunAt=T.now()+ms;timer=T.setTimeout(()=>{timer=null;void tick();},ms);timer?.unref?.();}
  function nextDelay(){
   if(rateLimitStreak>0)return Math.min(IDLE,FAST*2**Math.min(rateLimitStreak,4)); // 10,20,40,60 min backoff
+  if(v4On&&polluxXrpDiagnostic?.reason==='xrpl_temporarily_unavailable')return Math.min(120000,IDLE);
   if(/^step_(failed|rejected|expired)/.test(lastError||''))return IDLE; // ledger step failure: no fast retries
   let queued=0;try{queued=ex.queuedCount()+(v4On&&ex.v4QueuedCount?ex.v4QueuedCount():0);}catch{}
   mode=queued>0?'fast':'idle';

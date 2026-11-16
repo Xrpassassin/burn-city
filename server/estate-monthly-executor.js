@@ -17,7 +17,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  const polluxXrpModule=require('./estate-pollux-xrp');
  const polluxXrp=polluxXrpModule.createPolluxXrpRewards({
   db,client,treasury,pool:V.IMG_PLX_POOL,source:V.POLLUX_SOURCE,send,lookup,paused,now,
-  spendable:async()=>await spendableDrops()-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db)
+  availableDrops:async account=>await spendableDrops(account)-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db)
  });
  const XRP={currency:'XRP'};
  const ctxBase={treasury,poolAccount:cfg.poolAccount,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,rlusdIssuer:cfg.rlusdIssuer,rlusdCurrency:cfg.rlusdCurrency};
@@ -36,13 +36,14 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
    return wait(step,prior.hash);
   }
   const w=wallet();if(!w||w.classicAddress!==treasury)throw Error('treasury_signer_required');
-  const filled=await client.autofill({...tx,Account:treasury});
+  const filled=ctx.polluxXrp?tx:await client.autofill({...tx,Account:treasury});
   if(ctx.polluxXrp){
    const row=ctx.polluxXrp;
-   if(filled.TransactionType!=='Payment'||filled.Account!==treasury||filled.Destination!==row.owner||
+   if(!filled||filled.TransactionType!=='Payment'||filled.Account!==treasury||filled.Destination!==row.owner||
       filled.Amount!==String(row.amount_drops)||filled.Fee!==String(row.fee_drops)||
       filled.SendMax!==undefined||filled.Paths!==undefined||filled.DeliverMin!==undefined||
       filled.DestinationTag!==undefined||Number(filled.Flags||0)!==0||
+      !Number.isSafeInteger(filled.Sequence)||filled.Sequence<1||
       !Number.isSafeInteger(filled.LastLedgerSequence)||filled.LastLedgerSequence<1||
       [treasury,cfg.imgIssuer,V.IMG_PLX_POOL,V.IMG_XRP_POOL,cfg.poolAccount].includes(filled.Destination))
     throw Error('unsafe_pollux_xrp_payment');
@@ -92,9 +93,9 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   const lines=(await client.request({command:'account_lines',account:treasury,peer:cfg.poolAccount,ledger_index:'validated'})).result.lines||[];
   return lines.find(l=>l.currency===lpCurrency)?.balance||'0';
  }
- async function spendableDrops(){
-  const [ai,ss]=await Promise.all([client.request({command:'account_info',account:treasury,ledger_index:'validated'}),client.request({command:'server_state'})]);
-  const v=ss.result.state.validated_ledger,d=ai.result.account_data;
+ async function spendableDrops(account){
+  const [d,ss]=await Promise.all([account||client.request({command:'account_info',account:treasury,ledger_index:'validated'}).then(r=>r.result.account_data),client.request({command:'server_state'})]);
+  const v=ss.result.state.validated_ledger;
   return BigInt(d.Balance)-BigInt(v.reserve_base)-BigInt(v.reserve_inc)*BigInt(d.OwnerCount||0)-200000n; // + 0.2 XRP fee margin
  }
  const tokenDelta=(r,a)=>balanceDelta(r,treasury,a);

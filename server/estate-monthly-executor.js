@@ -8,8 +8,9 @@ const {N,value,balanceDelta}=require('./estate-liquidity-ledger');
 const P=require('./estate-monthly-plan');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=false,paused=()=>true,
- xrpRlusdAsset,xrpImgAsset,now=()=>Date.now(),pollMs=1000,pollTries=30,log=()=>{}}){
+ xrpRlusdAsset,xrpImgAsset,now=()=>Date.now(),pollMs=1000,pollTries=30,log=()=>{},drip=null}){
  const L=P.createEstateMonthlyLedger(db);
+ const D=require('./estate-hourly-drip');const HL=D.createEstateHourlyDripLedger(db);
  const IMG={currency:cfg.imgCurrency,issuer:cfg.imgIssuer},RL={currency:cfg.rlusdCurrency,issuer:cfg.rlusdIssuer};
  const XRP={currency:'XRP'};
  const ctxBase={treasury,poolAccount:cfg.poolAccount,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,rlusdIssuer:cfg.rlusdIssuer,rlusdCurrency:cfg.rlusdCurrency};
@@ -217,10 +218,87 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   }
   return {ok:true,period,state:'paid',...JSON.parse(L.harvest(period).split_json||'{}')};
  }
+ // ---- hourly holder drip (operator decision Nov 15, 2026; OFF unless drip.enabled) ----
+ // One slice per UTC hour from a fixed LP budget: withdraw (proportional) -> burn IMG -> pay holders.
+ // Same journal (estate_mp_txs), guard (assertSafeTransaction), pause and single-flight tick as the plan.
+ async function runHourlyDrip(){
+  if(!drip||!drip.enabled)return {ok:false,error:'hourly_drip_disabled'};
+  if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
+  if(paused())return {ok:false,error:'treasury_paused'};
+  let program=HL.program();
+  if(!program){
+   if(!drip.maxLp)return {ok:false,error:'hourly_drip_max_lp_required'};
+   const pl=await pool();const onLedger=await lpBalance(pl.lpCurrency);
+   const budgetLp=D.budgetFor({onLedgerLp:onLedger,budgetBps:drip.budgetBps,maxLp:drip.maxLp});
+   if(!new N(budgetLp).gt(0))return {ok:false,error:'hourly_drip_no_lp'};
+   HL.start({budgetLp,hours:drip.hours,burnBps:drip.burnBps,budgetBps:drip.budgetBps,maxLp:drip.maxLp,onLedgerLp:onLedger,
+    trackedLp:L.trackedLp(),principalK:L.principalK(),rlusdPerImg:new N(pl.poolRlusd).div(pl.poolImg).precision(20,N.ROUND_DOWN).toFixed(),startedMs:now()});
+   program=HL.program();log('drip_started',{budgetLp,hours:drip.hours,burnBps:drip.burnBps,onLedgerLp:onLedger});
+  }
+  let run=HL.open();
+  if(!run){
+   if(program.completed_ms)return {ok:true,state:'completed'};
+   const hour=D.hourKey(now());
+   if(HL.run(hour))return {ok:true,hour,state:'not_due'};
+   const lp=D.sliceLp({budgetLp:program.budget_lp,hours:program.hours,withdrawnLp:HL.withdrawnLp(),slicesDone:HL.slicesDone()});
+   if(!new N(lp).gt(0)){HL.complete(now());log('drip_completed',HL.totals());return {ok:true,state:'completed'};}
+   const pl=await pool();const onLedger=await lpBalance(pl.lpCurrency);
+   if(new N(lp).gt(onLedger))return {ok:false,hour,error:'hourly_drip_lp_short'};
+   const r=await send(`hd:${hour}:withdraw`,{TransactionType:'AMMWithdraw',Asset:IMG,Asset2:RL,
+    LPTokenIn:{currency:pl.lpCurrency,issuer:cfg.poolAccount,value:lp},Flags:P.TF.lpToken},{maxLpIn:lp});
+   const lpIn=tokenDelta(r,{currency:pl.lpCurrency,issuer:cfg.poolAccount}).negated();
+   T("INSERT INTO estate_hd_runs(hour,slice,state,lp_in,img_out,rlusd_out,split_json,created,updated) VALUES(?,?,'withdrawn',?,?,?,?,?,?)",
+    hour,HL.slicesDone()+1,lpIn.toFixed(),P.fx(tokenDelta(r,IMG)).toFixed(),P.fx(tokenDelta(r,RL)).toFixed(),
+    JSON.stringify({lp,rlusdPerImg:new N(pl.poolRlusd).div(pl.poolImg).precision(20,N.ROUND_DOWN).toFixed()}),now(),now());
+   run=HL.run(hour);
+  }
+  const hour=run.hour;
+  if(run.state==='withdrawn'){
+   const split=D.splitSlice({img:run.img_out,rlusd:run.rlusd_out,burnBps:program.burn_bps});const meta=JSON.parse(run.split_json);
+   if(new N(split.burnImg).gt(0))await send(`hd:${hour}:burn`,{TransactionType:'Payment',Destination:cfg.imgIssuer,Amount:iou(IMG,split.burnImg)});
+   const alloc=P.allocateHolders({holdersImg:split.holdersImg,holdersRlusd:split.holdersRlusd,owners:owners(),carry:HL.carry(),rlusdPerImg:meta.rlusdPerImg,dust:drip.dust});
+   db.exec('BEGIN');
+   try{
+    const ins=db.prepare("INSERT OR IGNORE INTO estate_hd_payouts(hour,acct,currency,amount,state) VALUES(?,?,?,?,'pending')");
+    for(const p of alloc.payouts){if(new N(p.img).gt(0))ins.run(hour,p.acct,'IMG',p.img);if(new N(p.rlusd).gt(0))ins.run(hour,p.acct,'RLUSD',p.rlusd);}
+    HL.setCarry(alloc.carry);
+    T("UPDATE estate_hd_runs SET state='split',burn_img=?,split_json=?,updated=? WHERE hour=?",split.burnImg,JSON.stringify({...meta,split,payouts:alloc.payouts}),now(),hour);
+    db.exec('COMMIT');
+   }catch(e){db.exec('ROLLBACK');throw e;}
+   run=HL.run(hour);
+  }
+  if(run.state==='split'){
+   const holders=new Set(db.prepare('SELECT acct FROM estate_hd_payouts WHERE hour=?').all(hour).map(r=>r.acct));
+   let sent=0;
+   for(const p of db.prepare("SELECT * FROM estate_hd_payouts WHERE hour=? AND state='pending' ORDER BY acct,currency").all(hour)){
+    if(paused())return {ok:false,hour,error:'treasury_paused'};
+    if(sent++>=drip.maxPayoutsPerRun)return {ok:true,hour,state:'paying'}; // per-run cap; the rest go next tick
+    try{
+     const r=await send(`hd:${hour}:pay:${p.acct}:${p.currency}`,{TransactionType:'Payment',Destination:p.acct,Amount:iou(p.currency==='IMG'?IMG:RL,p.amount)},{holders});
+     T("UPDATE estate_hd_payouts SET state='paid',tx_hash=? WHERE hour=? AND acct=? AND currency=?",r.hash||r.tx_json?.hash,hour,p.acct,p.currency);
+    }catch(e){
+     if(!/^tec/.test(e.result||''))throw e; // validated tec (e.g. no trust line): carry to a later hour
+     const c=HL.carry(),k=p.currency==='IMG'?'img':'rlusd';c[p.acct]=c[p.acct]||{img:'0',rlusd:'0'};c[p.acct][k]=new N(c[p.acct][k]).plus(p.amount).toFixed();
+     db.exec('BEGIN');HL.setCarry(c);T("UPDATE estate_hd_payouts SET state='carried' WHERE hour=? AND acct=? AND currency=?",hour,p.acct,p.currency);db.exec('COMMIT');
+    }
+   }
+   T("UPDATE estate_hd_runs SET state='paid',updated=? WHERE hour=?",now(),hour);
+  }
+  const done=HL.program();
+  if(new N(done.budget_lp).minus(HL.withdrawnLp()).lte(0))HL.complete(now());
+  return {ok:true,hour,state:'paid',...JSON.parse(HL.run(hour).split_json||'{}').split};
+ }
+ function dripStatus(){
+  const p=HL.program();
+  return {enabled:!!drip?.enabled,hoursConfigured:drip?.hours??null,burnBps:drip?.burnBps??null,budgetBps:drip?.budgetBps??null,dustRlusd:drip?.dust??null,
+   program:p?{budgetLp:p.budget_lp,hours:p.hours,burnBps:p.burn_bps,startedMs:p.started_ms,completedMs:p.completed_ms||null,
+    slicesDone:HL.slicesDone(),lpRemaining:new N(p.budget_lp).minus(HL.withdrawnLp()).toFixed()}:null,
+   totals:HL.totals(),lastHour:db.prepare('SELECT MAX(hour) h FROM estate_hd_runs').get().h||null};
+ }
  function status(){
-  return {policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
+  return {hourlyDrip:dripStatus(),policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
    queuedDeposits:L.queued().length,pendingXrpDrops:L.pendingXrpDrops(),lastHarvestPeriod:L.lastPeriod(),payoutCurrencies:['IMG','RLUSD'],dustRlusd:cfg.dust};
  }
- return {processDeposits,runMonthly,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
+ return {processDeposits,runMonthly,runHourlyDrip,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
 }
 module.exports={createEstateMonthlyExecutor};

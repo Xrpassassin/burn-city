@@ -9,21 +9,25 @@ const {createEstateMonthlyExecutor}=require('./estate-monthly-executor');
 const RLUSD_XRP_REF={currency:P.RLUSD_HEX,issuer:P.RLUSD_ISSUER};
 function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=null,executor=null}){
  const cfg=P.monthlyConfig(env);
+ // Hourly holder drip (OFF unless ESTATE_HOURLY_DRIP_ENABLED=1 AND the plan above is fully enabled).
+ const drip=require('./estate-hourly-drip').hdConfig(env);
  const live=config.NETWORK==='mainnet'&&config.DRY_RUN===false;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}
  const poolOk=cfg.poolAccount===P.IMG_RLUSD_POOL&&cfg.imgIssuer===P.IMG_ISSUER&&cfg.rlusdIssuer===P.RLUSD_ISSUER;
  const blockers=[!cfg.enabled&&'monthly_plan_switch_off',!live&&'not_mainnet_live',!poolOk&&'pool_account_not_set',!signerMatches&&'treasury_signer_mismatch'].filter(Boolean);
  const enabled=blockers.length===0;
+ const dripBlockers=drip.enabled?[...blockers,!drip.maxLp&&'hourly_drip_max_lp_not_set'].filter(Boolean):['hourly_drip_switch_off'];
+ const dripOn=drip.enabled&&dripBlockers.length===0;
  const client={request:async q=>(await pay.ledger()).request(q),autofill:async q=>(await pay.ledger()).autofill(q)};
  const ex=executor||createEstateMonthlyExecutor({db,client,treasury:config.ESTATE_TREASURY,cfg,enabled,paused:()=>guard.paused(),
   xrpRlusdAsset:RLUSD_XRP_REF,xrpImgAsset:{currency:cfg.imgCurrency,issuer:cfg.imgIssuer},
   wallet:()=>{try{return require('xrpl').Wallet.fromSeed(config.TREASURY_SEED);}catch{return null;}},
-  log:(k,o)=>guard.log('estate-monthly-'+k,o)});
+  log:(k,o)=>guard.log('estate-monthly-'+k,o),drip:{...drip,enabled:dripOn}});
  // Scheduler: deposit chunks every depositChunkIntervalMs while deposits are queued, hourly when
  // the queue is empty. The harvest is checked at most hourly (timing unchanged). A settled
  // purchase calls kick() to queue and start its deposit immediately. Single-flight: never two passes.
  const T={setTimeout:(f,ms)=>setTimeout(f,ms),clearTimeout:t=>clearTimeout(t),now:()=>Date.now(),...(timers||{})};
- const FAST=cfg.depositChunkIntervalMs,IDLE=cfg.idleIntervalMs||3600e3;
+ const FAST=cfg.depositChunkIntervalMs,IDLE=cfg.idleIntervalMs||3600e3,DRIP_WAKE=15*60e3;
  let timer=null,busy=false,again=false,started=false,lastError=null,last=null,lastMonthlyAt=0,rateLimitStreak=0,nextRunAt=null,mode='idle';
  const isRateLimit=e=>/quota|rate.?limit|slowDown|tooBusy|too many|429|ECONNRESET|NotConnected|DisconnectedError|timeout/i.test(String(e?.message||'')+' '+String(e?.data?.error||''));
  function schedule(ms){if(timer)T.clearTimeout(timer);nextRunAt=T.now()+ms;timer=T.setTimeout(()=>{timer=null;void tick();},ms);timer?.unref?.();}
@@ -31,7 +35,9 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
   if(rateLimitStreak>0)return Math.min(IDLE,FAST*2**Math.min(rateLimitStreak,4)); // 10,20,40,60 min backoff
   if(/^step_(failed|rejected|expired)/.test(lastError||''))return IDLE; // ledger step failure: no fast retries
   let queued=0;try{queued=ex.queuedCount();}catch{}
-  mode=queued>0?'fast':'idle';return queued>0?FAST:IDLE;
+  mode=queued>0?'fast':'idle';
+  // Drip on: wake at least every 15 min so each UTC hour gets its one slice (the hour key de-dupes).
+  return queued>0?FAST:(dripOn?Math.min(IDLE,DRIP_WAKE):IDLE);
  }
  async function tick({monthly}={}){
   if(busy){again=true;return {ok:false,error:'tick_in_progress'};}
@@ -40,6 +46,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
    const deposits=await ex.processDeposits();
    const dueMonthly=monthly===true||T.now()-lastMonthlyAt>=IDLE-1000;
    last={deposits,...(dueMonthly?{monthly:await ex.runMonthly()}:{}),at:T.now()};
+   if(dripOn&&ex.runHourlyDrip)last.hourlyDrip=await ex.runHourlyDrip();
    if(dueMonthly)lastMonthlyAt=T.now();
    lastError=null;rateLimitStreak=0;
   }catch(e){lastError=e.message;rateLimitStreak=isRateLimit(e)?rateLimitStreak+1:0;console.error('[estate-monthly]',e.message);}
@@ -58,7 +65,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
  }
  function start(){if(!enabled||started)return false;started=true;schedule(30e3);return true;}
  function stop(){started=false;if(timer)T.clearTimeout(timer);timer=null;}
- const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,lastError,rewardsGuaranteed:false});
+ const status=()=>({...ex.status(),enabled:enabled&&!guard.paused(),depositCadence:{mode,chunkIntervalMs:FAST,idleIntervalMs:IDLE,nextRunAt,rateLimitBackoff:rateLimitStreak>0},blockers:guard.paused()?[...blockers,'treasury_paused']:blockers,hourlyDripBlockers:dripBlockers,lastError,rewardsGuaranteed:false});
  return {start,stop,tick,kick,status,executor:ex};
 }
 module.exports={createEstateMonthlyService};

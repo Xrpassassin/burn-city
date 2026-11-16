@@ -41,3 +41,6 @@ Pollux (`r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V`) pays IMG/PLX LPs IMG rewards about
 ## Tests
 
 `node server/estate-v4-plan.test.js` (in `npm test`).
+
+## Existing IMG/RLUSD funds
+The one-shot move of 90% of the IMG/RLUSD position into IMG/PLX is in [estates-plx-migration.md](estates-plx-migration.md).

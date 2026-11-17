@@ -74,7 +74,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
      field('IMG carried forward',formatRewardUnits(pollux.imgCreditUnits)+' IMG'),
      field(pollux.xrp.payoutAsset==='img'?'XRP rewards awaiting conversion to IMG':'XRP awaiting payment',formatRewardUnits(pollux.xrp.pendingDrops)+' XRP'),
      make('p',pollux.xrp.payoutAsset==='img'
-      ?'XRP rewards are converted to IMG in a daily batch and paid in IMG once your share reaches '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP.'
+      ?'XRP rewards are converted to IMG every hour and paid in IMG once your share reaches '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP; smaller amounts carry forward.'
       :'XRP payouts start at '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP per wallet, before the network fee.','muted'));
    }
    const recent=[

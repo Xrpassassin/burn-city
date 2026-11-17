@@ -18,7 +18,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  const polluxXrp=polluxXrpModule.createPolluxXrpRewards({
   db,client,treasury,pool:V.IMG_PLX_POOL,source:V.POLLUX_SOURCE,send,lookup,paused,now,
   availableDrops:async account=>await spendableDrops(account)-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db),
-  options:{payoutAsset:v4?.polluxPayoutAsset,includeBase:v4?.polluxIncludeHolderBase,minPayoutDrops:v4?.polluxMinPayoutDrops,
+  options:{payoutAsset:v4?.polluxPayoutAsset,includeBase:v4?.polluxIncludeHolderBase,minPayoutDrops:v4?.polluxMinPayoutDrops,minSwapDrops:v4?.polluxMinSwapDrops,
    batchMs:v4?Number(v4.polluxBatchHours)*3600000:undefined},
   img:{quote:(...a)=>pxImgQuote(...a),convert:(...a)=>pxImgConvert(...a),pay:(...a)=>pxImgPay(...a)}
  });
@@ -26,7 +26,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  // One-shot XRP->IMG self-swap at the IMG/XRP AMM (rippled's default path, no Paths, no partial
  // payment): exact minimum IMG out, SendMax = the batch's XRP, price impact <= cfg.maxPriceImpactBps.
  async function pxImgQuote(totalDrops){
-  if(!Number.isSafeInteger(totalDrops)||totalDrops<1000)return null;
+  if(!Number.isSafeInteger(totalDrops)||totalDrops<100)return null;
   const ref=await xrpPool(IMG);
   const q=P.quoteSwap({amountIn:String(totalDrops),poolIn:ref.drops,poolOut:ref.tokens,tradingFee:ref.tradingFee});
   if(q.impactBps>cfg.maxPriceImpactBps)return null;
@@ -473,6 +473,15 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  }
  // Reserve IMG as hours settle. XRP fallback receipts reserve the same percentage in drops.
  // Convert only the XRP earmarked for the burn, then retire the IMG actually delivered.
+ // IMG reserved for burning (3.22% of every payout: IMG-native hours + IMG-mode XRP batches) not yet
+ // committed to a burn batch. It stays in the treasury, ledgered, until it crosses the burn threshold.
+ function imgBurnHeldUnits(){
+  if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_pollux_burn_batches'").get())return 0n;
+  const due=db.prepare(`SELECT h.burn_units FROM estate_px_hours h WHERE NOT EXISTS (
+   SELECT 1 FROM estate_mp_txs t WHERE t.step='px:'||h.epoch_start_ms||':burn')`).all().reduce((n,r)=>n+BigInt(r.burn_units),0n);
+  const committed=db.prepare("SELECT budget FROM estate_pollux_burn_batches WHERE asset='IMG'").all().reduce((n,r)=>n+BigInt(r.budget),0n);
+  return due+polluxXrpModule.imgModeBurnUnits(db)-committed;
+ }
  async function runPolluxBurns(){
   if(!enabled||!v4On||!v4.polluxPayoutsEnabled||paused())return;
   const reserved=()=>BigInt(require('./estate-liquidity-runtime').estateCashReserve(db));
@@ -493,18 +502,16 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
     const completed=db.prepare("SELECT budget,xrp_spent FROM estate_pollux_burn_batches WHERE asset=? AND state!='pending'").all(asset);
     let budget;
     if(asset==='IMG'){
-     const due=db.prepare(`SELECT h.burn_units FROM estate_px_hours h WHERE NOT EXISTS (
-      SELECT 1 FROM estate_mp_txs t WHERE t.step='px:'||h.epoch_start_ms||':burn')`).all();
-     budget=due.reduce((n,r)=>n+BigInt(r.burn_units),0n)-completed.reduce((n,r)=>n+BigInt(r.budget),0n);
-     if(budget<1000000n)continue;
+     budget=imgBurnHeldUnits();
+     if(budget<BigInt(v4.polluxBurnMinImgUnits??1000000))continue; // held until the accrued burn is worth a burn tx
      const ref=await xrpPool(IMG);
      const proceeds=P.quoteSwap({amountIn:V.micro(budget),poolIn:ref.tokens,poolOut:ref.drops,tradingFee:ref.tradingFee});
      if(proceeds.out.lt(1000))continue; // at least ten times the maximum signed fee
      const id=T("INSERT INTO estate_pollux_burn_batches(asset,budget,img_units,state) VALUES(?,?,?,'pending')",asset,String(budget),String(budget)).lastInsertRowid;
      batch=db.prepare('SELECT * FROM estate_pollux_burn_batches WHERE id=?').get(id);
     }else{
-     const credit=db.prepare('SELECT fractional_bps FROM estate_pollux_xrp_burn_credit WHERE id=1').get()?.fractional_bps||'0';
-     budget=BigInt(credit)/10000n-completed.reduce((n,r)=>n+BigInt(r.xrp_spent),0n);
+     if(v4.polluxPayoutAsset==='img')continue; // img mode: the burn share rides in the hourly IMG swap
+     budget=polluxXrpModule.xrpBurnAvailable(db);
      if(budget<10000n)continue;
      const ref=await xrpPool(IMG);
      let cap=budget-200n,quote;
@@ -654,10 +661,13 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   return {ok:true,state:f.state,lpIn:f.lp_in,imgOut:f.img_out,rlusdOut:f.rlusd_out,plxBought:f.plx_bought,imgDeposited:f.img_dep,plxDeposited:f.plx_dep,lpOut:f.lp_out,
    residual:{img:f.img_held,plx:f.plx_held,rlusd:f.rlusd_left,xrpDrops:f.xrp_held_drops}};
  }
- function migrationStatus(){const f=ML.get();return f?{state:f.state,lpIn:f.lp_in,imgPlxLp:f.lp_out,completedMs:f.completed||null,
+ function migrationStatus(){const f=ML.get();const LA=require('./estate-lp-adjustments');return f?{state:f.state,lpIn:f.lp_in,imgPlxLp:f.lp_out,completedMs:f.completed||null,
+  imgPlxLpTracked:LA.trackedImgPlxLp(db).toFixed(),lpAdjustments:LA.adjustments(db).map(r=>({tx:r.tx_hash,lpDelta:r.lp_delta,destination:r.destination,reason:r.reason})),
   residual:{img:f.img_held,plx:f.plx_held,rlusd:f.rlusd_left}}:null;}
  function v4Status(){const p=VL.program();return {enabled:v4On,polluxPayoutsEnabled:!!(v4On&&v4.polluxPayoutsEnabled),
   polluxXrp:polluxXrp.status(),
+  polluxBurnHeld:{imgUnits:imgBurnHeldUnits().toString(),img:V.micro(imgBurnHeldUnits()),xrpDropsAwaitingConversion:polluxXrpModule.xrpBurnAvailable(db).toString(),
+   thresholdImg:V.micro(v4?.polluxBurnMinImgUnits??1000000),burnBps:v4?.burnBps??322},
   splitBps:v4?{imgPlx:v4.plxBps,imgXrp:v4.xrpBps,imgRlusd:v4.rlusdBps}:null,burnBps:v4?.burnBps??null,autoCompound:true,startedMs:p?.started_ms||null,totals:VL.totals()};}
  function status(){
   return {policyV4:v4Status(),plxMigration:migrationStatus(),policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),

@@ -20,6 +20,8 @@ const PLX_ISSUER='rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q';
 const POLLUX_SOURCE='r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V';
 const TF_TWO_ASSET=0x00100000,TF_PARTIAL=0x00020000;
 const DP=6;const fx=n=>new N(n).decimalPlaces(DP,N.ROUND_DOWN);
+const imgUnits=(v,d)=>{const x=v===undefined||v===''?d:String(v);const m=/^(\d{1,12})(?:\.(\d{1,6}))?$/.exec(x);if(!m)throw Error('invalid_v4_setting');
+ const u=BigInt(m[1])*1000000n+BigInt((m[2]||'').padEnd(6,'0'));if(u<=0n)throw Error('invalid_v4_setting');return u.toString();};
 const int=(v,d,min,max)=>{if(v===undefined||v==='')return d;const n=Number(v);if(!Number.isSafeInteger(n)||n<min||n>max)throw Error('invalid_v4_setting');return n;};
 function v4Config(env=process.env){
  const plxBps=int(env.ESTATE_V4_PLX_BPS,9000,0,10000),xrpBps=int(env.ESTATE_V4_XRP_BPS,500,0,10000),rlusdBps=int(env.ESTATE_V4_RLUSD_BPS,500,0,10000);
@@ -39,8 +41,11 @@ function v4Config(env=process.env){
   // 'img' converts the batch to IMG and pays IMG. Holder 'base' rewards on the LP's PLX are opt-in.
   polluxPayoutAsset:payoutAsset,
   polluxIncludeHolderBase:env.ESTATE_POLLUX_INCLUDE_HOLDER_BASE==='1',
-  polluxBatchHours:int(env.ESTATE_POLLUX_BATCH_HOURS,payoutAsset==='img'?24:0,0,24*31),
-  polluxMinPayoutDrops:int(env.ESTATE_POLLUX_MIN_PAYOUT_DROPS,1000,100,100000000),
+  polluxBatchHours:int(env.ESTATE_POLLUX_BATCH_HOURS,payoutAsset==='img'?1:0,0,24*31),
+  polluxMinPayoutDrops:int(env.ESTATE_POLLUX_MIN_PAYOUT_DROPS,payoutAsset==='img'?250:1000,100,100000000),
+  polluxMinSwapDrops:int(env.ESTATE_POLLUX_MIN_SWAP_DROPS,250,100,100000000),
+  // Burn reserve (burnBps of every payout's IMG) is held and only sent to the issuer once it reaches this.
+  polluxBurnMinImgUnits:imgUnits(env.ESTATE_POLLUX_BURN_MIN_IMG,'1'),
  });
 }
 // Principal (XRP drops after the operating reserve) -> three legs. Integer drops, exact sum.

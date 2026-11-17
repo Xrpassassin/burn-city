@@ -225,6 +225,95 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  assert.equal(s.db.prepare('SELECT state FROM estate_px_payouts WHERE acct=?').get(A).state,'carried');
  assert.equal(s.db.prepare('SELECT units FROM estate_px_carry WHERE acct=?').get(A).units,'967800');
 
+ // IMG mode (ESTATE_POLLUX_PAYOUT_ASSET=img) + PLX holder 'base' rewards: every hour the closed XRP credits
+ // are converted in one capped swap and paid in IMG; small holders carry; 3.22% of the IMG is held until the burn threshold.
+ const X=require('./estate-pollux-xrp');
+ {
+  const c=V.v4Config({});assert.equal(c.polluxPayoutAsset,'native');assert.equal(c.polluxIncludeHolderBase,false);assert.equal(c.polluxBatchHours,0);assert.equal(c.polluxMinPayoutDrops,1000);
+  const ci=V.v4Config({ESTATE_POLLUX_PAYOUT_ASSET:'img'});assert.equal(ci.polluxBatchHours,1);assert.equal(ci.polluxMinPayoutDrops,250);assert.equal(ci.polluxMinSwapDrops,250);assert.equal(ci.polluxBurnMinImgUnits,'1000000');
+  assert.equal(V.v4Config({ESTATE_POLLUX_BURN_MIN_IMG:'2.5'}).polluxBurnMinImgUnits,'2500000');
+  assert.throws(()=>V.v4Config({ESTATE_POLLUX_BURN_MIN_IMG:'0'}),/invalid_v4_setting/);
+  assert.throws(()=>V.v4Config({ESTATE_POLLUX_PAYOUT_ASSET:'plx'}),/invalid_v4_setting/);
+  assert.throws(()=>V.v4Config({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'5'}),/invalid_v4_setting/);
+  const enc=m=>({Memos:[{Memo:{MemoData:Buffer.from(JSON.stringify(m)).toString('hex')}}]});
+  const base={payoutType:'base',token:'XRP',roundId:'PLX-HOLDER-2026-11-16T04:00Z',rate:'1.94%'};
+  assert.equal(X.polluxRewardKind(enc(base),V.IMG_PLX_POOL,'XRP'),null,'base ignored unless opted in');
+  assert.equal(X.polluxRewardKind(enc(base),V.IMG_PLX_POOL,'XRP',{includeBase:true}),'base');
+  assert.equal(X.polluxRewardKind(enc({...base,roundId:'x'}),V.IMG_PLX_POOL,'XRP',{includeBase:true}),null);
+  assert.equal(X.polluxRewardKind(enc({...base,poolAccount:'rX'}),V.IMG_PLX_POOL,'XRP',{includeBase:true}),null);
+ }
+ const HR=3600000,floorMemo=h=>({payoutType:'lp_floor',rewardAsset:'XRP',floorToken:'IMG',floorKey:'IMG:'+P.IMG_ISSUER,pools:['PLX/IMG'],roundId:'PLX-FLOOR-'+new Date(h).toISOString().slice(0,13)+':00Z',fallback:'thin_inventory'});
+ const baseMemo=h=>({payoutType:'base',token:'XRP',roundId:'PLX-HOLDER-'+new Date(h).toISOString().slice(0,13)+':00Z'});
+ function imgSetup(env,noTrust=new Set()){
+  const s=setup({env:{...ON,ESTATE_POLLUX_PAYOUT_ASSET:'img',...env},ledger:{noTrust}});s.ex.syncPurchases();
+  const t0=Date.UTC(2026,10,16,4,0);s.setNow(t0);
+  s.sell('1'.repeat(64),'trailer-01',B,3000000,t0-60000);s.sell('2'.repeat(64),'starter-04',A,75000000,t0-60000);
+  s.db.exec('CREATE TABLE estate_ownership_history(id INTEGER PRIMARY KEY,property_id TEXT,from_acct TEXT,to_acct TEXT,kind TEXT,at INTEGER)');
+  // Pollux pays at :07; the estate service wakes at least every 15 minutes.
+  const hour=async(h,{lp='600',base='2400'}={})=>{
+   const at=t0+h*HR;if(lp)s.L.incoming({date:at+7*60000,drops:lp,memo:floorMemo(at)});if(base)s.L.incoming({date:at+7*60000+30000,drops:base,memo:baseMemo(at)});
+   s.setNow(at+HR+10*60000);s.L.setClose(at+HR+10*60000);await s.ex.runPolluxXrp();await s.ex.runPolluxBurns();
+  };
+  return {...s,t0,hour,noTrust};
+ }
+ {
+  const s=imgSetup({ESTATE_POLLUX_INCLUDE_HOLDER_BASE:'1'});
+  const imgPaid=acct=>s.L.submits.filter(x=>x.tx.Destination===acct&&typeof x.tx.Amount==='object'&&x.result==='tesSUCCESS').length;
+  const burns=()=>s.L.submits.filter(x=>x.tx.Destination===P.IMG_ISSUER);
+  await s.hour(0);
+  let st=s.ex.polluxRewards();
+  assert.deepEqual(st.receivedByKind,{lp:'600',base:'2400'});assert.equal(st.payoutAsset,'img');assert.equal(st.batchHours,1);
+  const swap=s.L.submits.filter(x=>x.tx.Destination===treasury);
+  assert.equal(swap.length,1,'one XRP->IMG swap for the hour');assert.equal(swap[0].tx.Flags&0x00020000,0);assert.equal(swap[0].tx.Paths,undefined);
+  // 3000 drops: 96 reserved for the burn (3.22%); A (25 units) ~2785, B (1 unit) ~111 < 250 -> B carries.
+  assert.equal(Number(swap[0].tx.SendMax),3000-96-111-15+96);
+  assert.equal(imgPaid(A),1);assert.equal(imgPaid(B),0,'trailer below the minimum carries forward');
+  assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'111');
+  assert.equal(burns().length,0,'burn share is held, not sent');
+  const held1=BigInt(s.ex.status().policyV4.polluxBurnHeld.imgUnits);assert(held1>0n);
+  assert.equal(s.ex.status().policyV4.polluxBurnHeld.thresholdImg,'1.000000');
+  assert.equal(s.ex.status().policyV4.polluxBurnHeld.xrpDropsAwaitingConversion,'0');
+  // Same hour again: nothing new (idempotent, one batch per hour).
+  let n=s.L.submits.length;await s.ex.runPolluxXrp();await s.ex.runPolluxBurns();assert.equal(s.L.submits.length,n);
+  // Hours 1..2: A is paid every hour; B reaches the minimum on hour 2 (3 x ~111 >= 250).
+  await s.hour(1);assert.equal(imgPaid(A),2);assert.equal(imgPaid(B),0);
+  await s.hour(2);assert.equal(imgPaid(A),3);assert.equal(imgPaid(B),1,'trailer paid once its carry is worth a payment');
+  assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
+  assert.equal(s.L.submits.filter(x=>typeof x.tx.Amount==='string'&&x.tx.Destination!==treasury).length,0,'no native XRP payouts in IMG mode');
+  // The held burn grows every hour and is sent to the issuer once (only) after it crosses 1 IMG.
+  let h=3;while(!burns().length&&h<40){const before=BigInt(s.ex.status().policyV4.polluxBurnHeld.imgUnits);await s.hour(h++);
+   if(!burns().length)assert(BigInt(s.ex.status().policyV4.polluxBurnHeld.imgUnits)>before,'burn accrues hourly while held');}
+  assert.equal(burns().length,1);assert(Number(burns()[0].tx.Amount.value)>=1,'burned only at/after the threshold');
+  assert(BigInt(s.ex.status().policyV4.polluxBurnHeld.imgUnits)<1000000n);
+  assert.equal(s.ex.status().policyV4.totals.polluxImgBurned,burns()[0].tx.Amount.value.padEnd(8,'0'));
+  assert.equal(imgPaid(A),h,'A paid every hour');
+  assert.equal(X.xrpRewardReserve(s.db),BigInt(s.ex.polluxRewards(B).xrp.pendingDrops)+BigInt(s.ex.polluxRewards(A).xrp.pendingDrops),'reserve = unconverted owner credit');
+  // Hours with no rewards: nothing happens.
+  n=s.L.submits.length;await s.hour(h,{lp:null,base:null});assert.equal(s.L.submits.length,n);
+ }
+ // tec (owner without an IMG line): held, then rolled into the owner's next hourly batch.
+ {
+  const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
+  s.noTrust.add(B);await s.hour(0,{lp:'6000',base:null});
+  const held=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(held.state,'held');assert(held.img_units>0);
+  assert.equal(s.ex.polluxRewards(A).xrp.imgPayments[0].state,'paid');
+  s.noTrust.delete(B);await s.hour(1,{lp:'6000',base:null});
+  const again=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(again.state,'paid');assert(again.img_units>held.img_units,'held IMG rolled into the next batch');
+  assert.equal(s.ex.polluxRewards(B).xrp.imgPayments.filter(p=>p.state==='held').length,0);
+ }
+ // tec on the conversion (pool moved): batch failed, credit and burn share released, retried next hour. Base ignored by default.
+ {
+  const s=imgSetup({});
+  const sub=s.L.client.request.bind(s.L.client);let moved=false;
+  s.L.client.request=async q=>{if(q.command==='submit'&&!moved){moved=true;s.L.pool(IMG,{currency:'XRP'}).r['IMG.'+P.IMG_ISSUER]*=0.9;}return sub(q);};
+  await s.hour(0,{lp:'50000',base:'150000'});
+  assert.deepEqual(s.ex.polluxRewards().receivedByKind,{lp:'50000'},'base ignored by default');
+  assert.equal(s.ex.polluxRewards().imgBatches.failed.count,1);
+  assert.equal(s.ex.status().policyV4.polluxBurnHeld.xrpDropsAwaitingConversion,'1610','failed batch releases the burn share');
+  await s.hour(1,{lp:null,base:null});
+  assert.equal(s.ex.polluxRewards().imgBatches.paid.count,1);assert.equal(s.ex.polluxRewards(A).xrp.pendingDrops,'0');
+  assert.equal(s.ex.status().policyV4.polluxBurnHeld.xrpDropsAwaitingConversion,'0');
+ }
  // Service: off by default; when on, the fee harvest is skipped and v4 steps run.
  const pay={ledger:async()=>({request:async()=>({}),autofill:async q=>q})};
  const live={NETWORK:'mainnet',DRY_RUN:false,ESTATE_TREASURY:treasury,TREASURY_SEED:wallet.seed};

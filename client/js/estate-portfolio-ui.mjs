@@ -72,12 +72,15 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    if(credits){
     credits.replaceChildren(
      field('IMG carried forward',formatRewardUnits(pollux.imgCreditUnits)+' IMG'),
-     field('XRP awaiting payment',formatRewardUnits(pollux.xrp.pendingDrops)+' XRP'),
-     make('p','XRP payouts start at '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP per wallet, before the network fee.','muted'));
+     field(pollux.xrp.payoutAsset==='img'?'XRP rewards awaiting conversion to IMG':'XRP awaiting payment',formatRewardUnits(pollux.xrp.pendingDrops)+' XRP'),
+     make('p',pollux.xrp.payoutAsset==='img'
+      ?'XRP rewards are converted to IMG every hour and paid in IMG once your share reaches '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP; smaller amounts carry forward.'
+      :'XRP payouts start at '+formatRewardUnits(pollux.xrp.minPayoutDrops)+' XRP per wallet, before the network fee.','muted'));
    }
    const recent=[
     ...pollux.imgPayments.map(r=>({at:r.epoch_start_ms,asset:'IMG',amount:r.amount_units,state:r.state,hash:r.tx_hash})),
-    ...pollux.xrp.payments.map(r=>({at:r.created_ms,asset:'XRP',amount:r.amount_drops,state:r.state,hash:r.tx_hash}))
+    ...pollux.xrp.payments.map(r=>({at:r.created_ms,asset:'XRP',amount:r.amount_drops,state:r.state,hash:r.tx_hash})),
+    ...(pollux.xrp.imgPayments||[]).map(r=>({at:r.created_ms,asset:'IMG',amount:r.img_units,state:r.state,hash:r.tx_hash}))
    ].sort((a,b)=>b.at-a.at).slice(0,20);
    const states={paid:'Payment confirmed',pending:'Awaiting payment',carried:'Carried forward',held:'Held for review'};
    for(const r of recent)add('PLX/IMG pool · '+new Date(r.at).toLocaleString()+' · '+formatRewardUnits(r.amount)+' '+r.asset+' · '+states[r.state],r.hash);

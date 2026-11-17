@@ -42,3 +42,42 @@ The XRP scanner backfills from the earlier of v4 activation or the completed LP 
 
 ## Existing IMG/RLUSD funds
 The one-shot move of 90% of the IMG/RLUSD position into IMG/PLX is in [estates-plx-migration.md](estates-plx-migration.md).
+
+## Pollux rewards in IMG or XRP (both work)
+Pollux pays the IMG/PLX LP minimum (0.5%/yr on LP value; IMG/PLX is a Base-tier pool, so the minimum is
+all it earns) in IMG when its engine holds IMG, and in XRP otherwise (`fallback: thin_inventory`). It also
+pays a PLX-holder reward in XRP on the PLX inside the estate LP. As of Nov 17, 2026 Pollux has no IMG trust
+line, so every payment is XRP (about 420 drops/hour in total).
+
+- IMG receipts: the hourly scanner reserves 3.22% for the burn, and the rest is paid pro rata (unchanged).
+- XRP receipts: allocated by ownership units at receipt time, with 3.22% reserved for the burn (#646).
+  - `ESTATE_POLLUX_PAYOUT_ASSET=native` (default): owners are paid in XRP (minimum 1000 drops).
+  - `ESTATE_POLLUX_PAYOUT_ASSET=img`: **every hour** (`ESTATE_POLLUX_BATCH_HOURS`, default 1, aligned to the hour):
+    - Every owner credit of at least `ESTATE_POLLUX_MIN_PAYOUT_DROPS` (img default **250 drops**) and the hour's XRP burn
+      share are converted in **one** XRP→IMG self-swap (exact minimum out, 1% slippage, ≤1% impact, no partial
+      payment, no Paths). The swap is skipped if the total is under `ESTATE_POLLUX_MIN_SWAP_DROPS` (default 250).
+    - Each owner's credit funds 15 drops for their own IMG payment fee, and the delivered IMG is split pro rata and paid.
+    - Smaller credits carry forward.
+    - If a payment fails with tec (for example, no IMG trust line), it is held and rolled into the next hour. If a conversion fails with tec, its XRP is released.
+- **Burn (held until warranted):** 3.22% of every payout's IMG (IMG-native hours, and the burn share converted
+  inside each hourly swap) is ledgered and held in the treasury.
+  - It is sent to the IMG issuer only once the accrued amount reaches `ESTATE_POLLUX_BURN_MIN_IMG` (default **1 IMG**).
+  - At ~13.5 drops/hour of burn share (≈0.008 IMG/h) that is roughly one burn every 5–6 days.
+  - The 12-drop burn fee is <1% of the value burned.
+  - Status shows it under `monthlyPlan.policyV4.polluxBurnHeld`.
+- Fee economics (img mode, ~420 drops/h total income):
+  - One swap per hour costs 12 drops (~3%).
+  - Each IMG payment costs 12 drops, and 15 are reserved from the owner's credit, so at the 250-drop minimum that is ≤6%.
+  - starter-04 (25/27 units, ~390 drops/h) is paid every hour.
+  - The trailers (~15 drops/h each) carry for ~17 hours and are then paid. That is about once a day, at ~6% fee instead of ~80% if paid hourly.
+- `ESTATE_POLLUX_INCLUDE_HOLDER_BASE=1` also counts Pollux "PLX holder reward" (`payoutType: base`, roundId
+  `PLX-HOLDER-…`) as estate income. Off by default. Only receipts after it is turned on are counted.
+
+Status: `/api/estates/status` → `monthlyPlan.policyV4.polluxXrp` (`receivedByKind`, `payoutAsset`, `imgBatches`,
+`imgPaidUnits`) and `polluxBurnHeld`. Per owner: `/api/estates/payouts` → `polluxRewards.xrp.imgPayments`.
+
+## LP bookkeeping adjustments
+`scripts/estate-lp-adjustment.cjs` books an operator-initiated IMG/PLX LP send. It defaults to a read-only dry run, signs nothing,
+is keyed by tx hash, and the tx is proven on the validated ledger. Tracked IMG/PLX LP = migration LP + v4 IMG/PLX deposits + adjustments,
+shown as `plxMigration.imgPlxLpTracked`. The Nov 17, 2026 operator "pool unlock" send of 1,000 LP to Pollux
+(`EDF5C1A5…2144`) is booked with `--apply --confirm=ADJUST-EDF5C1A5`.

@@ -42,3 +42,25 @@ The XRP scanner backfills from the earlier of v4 activation or the completed LP 
 
 ## Existing IMG/RLUSD funds
 The one-shot move of 90% of the IMG/RLUSD position into IMG/PLX is in [estates-plx-migration.md](estates-plx-migration.md).
+
+## Pollux rewards in IMG or XRP (both work)
+Pollux pays the IMG/PLX LP minimum (0.5%/yr on LP value; IMG/PLX is a Base-tier pool, so the minimum is
+all it earns) in IMG when its engine holds IMG, and in XRP otherwise (`fallback: thin_inventory`). It also
+pays a PLX-holder reward in XRP on the PLX inside the estate LP. As of Nov 17, 2026 Pollux has no IMG trust
+line, so every payment is XRP.
+
+- IMG receipts: the hourly scanner → 3.22% burn → IMG paid pro rata (unchanged).
+- XRP receipts: allocated by ownership units at receipt time, with 3.22% reserved and burned as IMG in batches (#646).
+  - `ESTATE_POLLUX_PAYOUT_ASSET=native` (default): owners are paid in XRP once their credit reaches the minimum.
+  - `ESTATE_POLLUX_PAYOUT_ASSET=img`: once per `ESTATE_POLLUX_BATCH_HOURS` (default 24), every owner credit
+    ≥ `ESTATE_POLLUX_MIN_PAYOUT_DROPS` (default 1000 = 0.001 XRP) is converted in **one** XRP→IMG self-swap
+    (exact minimum out, 1% slippage, ≤1% impact, no partial payment, no Paths). Each owner's credit funds
+    15 drops for their own IMG payment fee. The delivered IMG is split pro rata and paid. Smaller credits carry forward.
+    If a payment fails with tec (for example, no IMG trust line), it is held and rolled into that owner's next batch. If a conversion fails with tec, its XRP is released.
+- `ESTATE_POLLUX_INCLUDE_HOLDER_BASE=1` also counts Pollux "PLX holder reward" (`payoutType: base`, roundId
+  `PLX-HOLDER-…`) as estate income. Off by default. Only receipts after it is turned on are counted. The checkpoint
+  does not rescan earlier hours.
+- In native mode, `ESTATE_POLLUX_BATCH_HOURS` (default 0) limits each owner to one XRP payment per window.
+
+Status: `/api/estates/status` → `monthlyPlan.policyV4.polluxXrp` (`receivedByKind`, `payoutAsset`, `imgBatches`,
+`imgPaidUnits`). Per owner: `/api/estates/payouts` → `polluxRewards.xrp.imgPayments`.

@@ -17,8 +17,54 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  const polluxXrpModule=require('./estate-pollux-xrp');
  const polluxXrp=polluxXrpModule.createPolluxXrpRewards({
   db,client,treasury,pool:V.IMG_PLX_POOL,source:V.POLLUX_SOURCE,send,lookup,paused,now,
-  availableDrops:async account=>await spendableDrops(account)-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db)
+  availableDrops:async account=>await spendableDrops(account)-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db),
+  options:{payoutAsset:v4?.polluxPayoutAsset,includeBase:v4?.polluxIncludeHolderBase,minPayoutDrops:v4?.polluxMinPayoutDrops,
+   batchMs:v4?Number(v4.polluxBatchHours)*3600000:undefined},
+  img:{quote:(...a)=>pxImgQuote(...a),convert:(...a)=>pxImgConvert(...a),pay:(...a)=>pxImgPay(...a)}
  });
+ // ---- IMG-mode helpers for Pollux XRP rewards (ESTATE_POLLUX_PAYOUT_ASSET=img) ----
+ // One-shot XRP->IMG self-swap at the IMG/XRP AMM (rippled's default path, no Paths, no partial
+ // payment): exact minimum IMG out, SendMax = the batch's XRP, price impact <= cfg.maxPriceImpactBps.
+ async function pxImgQuote(totalDrops){
+  if(!Number.isSafeInteger(totalDrops)||totalDrops<1000)return null;
+  const ref=await xrpPool(IMG);
+  const q=P.quoteSwap({amountIn:String(totalDrops),poolIn:ref.drops,poolOut:ref.tokens,tradingFee:ref.tradingFee});
+  if(q.impactBps>cfg.maxPriceImpactBps)return null;
+  const min=V.fx(P.minOut(q.out,cfg));
+  const units=BigInt(min.times(1e6).toFixed(0));
+  return units>0n?{minImgUnits:units}:null;
+ }
+ // Returns null = try again later (never applied / reserve short), {failed} = tec (fee only), else proof.
+ async function pxSend(step,tx,ctx){
+  try{return {r:await send(step,tx,ctx)};}
+  catch(e){
+   const job=db.prepare('SELECT state,result,hash FROM estate_mp_txs WHERE step=?').get(step);
+   if(job?.state==='failed'&&/^(expired|tefPAST_SEQ|tefMAX_LEDGER)$/.test(job.result||'')){
+    db.prepare("DELETE FROM estate_mp_txs WHERE step=? AND state='failed'").run(step);return null;}
+   if(job?.state==='failed'&&/^tec/.test(job.result||'')){
+    const proof=await lookup(job.hash),fee=BigInt((proof?.tx_json||proof)?.Fee||0);
+    if(proof?.validated&&proof.meta?.TransactionResult===job.result&&fee>=1n&&fee<=100n)return {failed:true,hash:job.hash,feeDrops:fee};
+   }
+   throw e;
+  }
+ }
+ async function pxImgConvert(step,spendMax,minUnits){
+  if(!db.prepare('SELECT 1 FROM estate_mp_txs WHERE step=?').get(step)&&
+     await spendableDrops()<BigInt(require('./estate-liquidity-runtime').estateCashReserve(db)))return null;
+  const o=await pxSend(step,{TransactionType:'Payment',Destination:treasury,Amount:iou(IMG,V.micro(minUnits)),SendMax:String(spendMax)},{v4:true,polluxBurn:true});
+  if(!o||o.failed)return o;
+  const r=o.r,fee=BigInt((r.tx_json||r).Fee),spend=BigInt(xrpMovement(r,treasury).negated().toFixed(0)),d=r.meta?.delivered_amount;
+  if(spend<=0n||spend>spendMax+fee||!d||d.currency!==IMG.currency||d.issuer!==IMG.issuer||value(d.value).lt(V.micro(minUnits))||fee<1n||fee>100n)
+   throw Error('pollux_img_swap_proof');
+  return {hash:r.hash||(r.tx_json||r).hash,imgUnits:BigInt(V.fx(d.value).times(1e6).toFixed(0)).toString(),spentDrops:spend.toString()};
+ }
+ async function pxImgPay(step,owner,units){
+  const o=await pxSend(step,{TransactionType:'Payment',Destination:owner,Amount:iou(IMG,V.micro(units))},{v4:true,polluxBurn:true,holders:new Set([owner])});
+  if(!o||o.failed)return o;
+  const r=o.r,d=r.meta?.delivered_amount;
+  if(d?.currency!==IMG.currency||d.issuer!==IMG.issuer||!value(d.value).eq(V.micro(units)))throw Error('pollux_img_payment_proof');
+  return {hash:r.hash||(r.tx_json||r).hash};
+ }
  const XRP={currency:'XRP'};
  const ctxBase={treasury,poolAccount:cfg.poolAccount,imgIssuer:cfg.imgIssuer,imgCurrency:cfg.imgCurrency,rlusdIssuer:cfg.rlusdIssuer,rlusdCurrency:cfg.rlusdCurrency};
  const iou=(a,v)=>({currency:a.currency,issuer:a.issuer,value:String(v)});

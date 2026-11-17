@@ -26,6 +26,7 @@ function v4Config(env=process.env){
  if(plxBps+xrpBps+rlusdBps!==10000)throw Error('invalid_v4_setting');
  const dust=env.ESTATE_POLLUX_DUST_IMG||'0.05';if(!/^\d+(\.\d{1,6})?$/.test(dust))throw Error('invalid_v4_setting');
  const pool=env.ESTATE_IMG_PLX_POOL_ACCOUNT||'';
+ const payoutAsset=env.ESTATE_POLLUX_PAYOUT_ASSET||'native';if(!['native','img'].includes(payoutAsset))throw Error('invalid_v4_setting');
  return Object.freeze({
   enabled:env.ESTATE_POLICY_V4_ENABLED==='1',
   plxBps,xrpBps,rlusdBps,
@@ -34,6 +35,12 @@ function v4Config(env=process.env){
   burnBps:int(env.ESTATE_POLLUX_BURN_BPS,322,0,2000),
   dustImg:dust,
   maxPayoutsPerRun:int(env.ESTATE_POLLUX_MAX_PAYOUTS_PER_RUN,60,1,500),
+  // Pollux XRP rewards (LP minimum / thin-inventory fallback): 'native' pays owners in XRP (#646),
+  // 'img' converts the batch to IMG and pays IMG. Holder 'base' rewards on the LP's PLX are opt-in.
+  polluxPayoutAsset:payoutAsset,
+  polluxIncludeHolderBase:env.ESTATE_POLLUX_INCLUDE_HOLDER_BASE==='1',
+  polluxBatchHours:int(env.ESTATE_POLLUX_BATCH_HOURS,payoutAsset==='img'?24:0,0,24*31),
+  polluxMinPayoutDrops:int(env.ESTATE_POLLUX_MIN_PAYOUT_DROPS,1000,100,100000000),
  });
 }
 // Principal (XRP drops after the operating reserve) -> three legs. Integer drops, exact sum.

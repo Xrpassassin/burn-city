@@ -225,6 +225,86 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  assert.equal(s.db.prepare('SELECT state FROM estate_px_payouts WHERE acct=?').get(A).state,'carried');
  assert.equal(s.db.prepare('SELECT units FROM estate_px_carry WHERE acct=?').get(A).units,'967800');
 
+ const X=require('./estate-pollux-xrp');
+ // IMG mode (ESTATE_POLLUX_PAYOUT_ASSET=img) + PLX holder 'base' rewards: XRP credits batch daily,
+ // convert once to IMG (capped self-swap), pay IMG pro rata; small credits carry; tec holds and rolls.
+ {
+  const c=V.v4Config({});assert.equal(c.polluxPayoutAsset,'native');assert.equal(c.polluxIncludeHolderBase,false);assert.equal(c.polluxBatchHours,0);assert.equal(c.polluxMinPayoutDrops,1000);
+  assert.equal(V.v4Config({ESTATE_POLLUX_PAYOUT_ASSET:'img'}).polluxBatchHours,24);
+  assert.throws(()=>V.v4Config({ESTATE_POLLUX_PAYOUT_ASSET:'plx'}),/invalid_v4_setting/);
+  assert.throws(()=>V.v4Config({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'5'}),/invalid_v4_setting/);
+  const enc=m=>({Memos:[{Memo:{MemoData:Buffer.from(JSON.stringify(m)).toString('hex')}}]});
+  const base={payoutType:'base',token:'XRP',roundId:'PLX-HOLDER-2026-11-16T04:00Z',rate:'1.94%'};
+  assert.equal(X.polluxRewardKind(enc(base),V.IMG_PLX_POOL,'XRP'),null,'base ignored unless opted in');
+  assert.equal(X.polluxRewardKind(enc(base),V.IMG_PLX_POOL,'XRP',{includeBase:true}),'base');
+  assert.equal(X.polluxRewardKind(enc({...base,roundId:'x'}),V.IMG_PLX_POOL,'XRP',{includeBase:true}),null);
+  assert.equal(X.polluxRewardKind(enc({...base,poolAccount:'rX'}),V.IMG_PLX_POOL,'XRP',{includeBase:true}),null);
+ }
+ {
+  const IMGON={...ON,ESTATE_POLLUX_PAYOUT_ASSET:'img',ESTATE_POLLUX_INCLUDE_HOLDER_BASE:'1'};
+  const noTrust=new Set();const s=setup({env:IMGON,ledger:{noTrust}});s.ex.syncPurchases();
+  const t0=Date.UTC(2026,10,16,4,7);s.setNow(t0);
+  s.sell('1'.repeat(64),'trailer-01',B,3000000,t0-60000);s.sell('2'.repeat(64),'starter-04',A,75000000,t0-60000);
+  s.db.exec('CREATE TABLE estate_ownership_history(id INTEGER PRIMARY KEY,property_id TEXT,from_acct TEXT,to_acct TEXT,kind TEXT,at INTEGER)');
+  const floor={payoutType:'lp_floor',rewardAsset:'XRP',floorToken:'IMG',floorKey:'IMG:'+P.IMG_ISSUER,pools:['PLX/IMG'],roundId:'PLX-FLOOR-2026-11-16T04:00Z',fallback:'thin_inventory'};
+  s.L.incoming({date:t0,drops:'50000',memo:floor});
+  s.L.incoming({date:t0+1000,drops:'150000',memo:{payoutType:'base',token:'XRP',roundId:'PLX-HOLDER-2026-11-16T04:00Z'}});
+  s.L.incoming({date:t0+2000,drops:'99999',memo:{payoutType:'base',token:'XRP',roundId:'not-a-round'}});
+  s.L.setClose(t0+2*3600000);s.setNow(t0+2*3600000);
+  await s.ex.runPolluxXrp();
+  const st=s.ex.polluxRewards();
+  assert.deepEqual(st.receivedByKind,{lp:'50000',base:'150000'});assert.equal(st.payoutAsset,'img');assert.equal(st.batchHours,24);
+  const swaps=s.L.submits.filter(x=>x.tx.Destination===treasury),imgPays=s.L.submits.filter(x=>x.tx.Destination===A||x.tx.Destination===B);
+  assert.equal(swaps.length,1,'one batched XRP->IMG conversion');assert.equal(swaps[0].tx.Flags&0x00020000,0);assert.equal(swaps[0].tx.Paths,undefined);
+  assert.equal(imgPays.length,2);assert(imgPays.every(x=>typeof x.tx.Amount==='object'&&x.tx.Amount.currency==='IMG'),'owners are paid in IMG, never XRP');
+  const spend=Number(swaps[0].tx.SendMax);
+  // 200000 drops in, 3.22% reserved for the burn, 15 drops per owner kept for their IMG payment fee.
+  assert.equal(spend,200000-6440-30);
+  assert(s.L.paid[A]/s.L.paid[B]>24&&s.L.paid[A]/s.L.paid[B]<26,'pro rata by ownership units at receipt time');
+  assert.equal(s.ex.polluxRewards(A).xrp.pendingDrops,'0');assert.equal(s.ex.polluxRewards(A).xrp.imgPayments[0].state,'paid');
+  assert.equal(st.imgBatches.paid.count,1);
+  assert.equal(X.xrpRewardReserve(s.db),BigInt(st.burnPendingDrops),'only the burn reserve stays earmarked once the batch is paid');
+  // Within the batch window nothing new is sent; small credits carry forward.
+  const n=s.L.submits.length;
+  s.L.incoming({date:t0+3*3600000,drops:'600',memo:{...floor,roundId:'PLX-FLOOR-2026-11-16T07:00Z'}});
+  s.L.setClose(t0+5*3600000);s.setNow(t0+5*3600000);await s.ex.runPolluxXrp();assert.equal(s.L.submits.length,n);
+  s.setNow(t0+30*3600000);s.L.setClose(t0+30*3600000);await s.ex.runPolluxXrp();
+  assert.equal(s.L.submits.length,n,'below the per-owner minimum: carried, no batch');
+  assert(Number(s.ex.polluxRewards(A).xrp.pendingDrops)>0);
+  // tec (owner without an IMG line): held, then rolled into the owner's next batch.
+  noTrust.add(B);
+  s.L.incoming({date:t0+31*3600000,drops:'400000',memo:{...floor,roundId:'PLX-FLOOR-2026-11-17T11:00Z'}});
+  s.setNow(t0+33*3600000);s.L.setClose(t0+33*3600000);await s.ex.runPolluxXrp();
+  const held=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(held.state,'held');assert(held.img_units>0);
+  assert.equal(s.ex.polluxRewards(A).xrp.imgPayments[0].state,'paid');
+  noTrust.delete(B);
+  s.L.incoming({date:t0+40*3600000,drops:'400000',memo:{...floor,roundId:'PLX-FLOOR-2026-11-17T20:00Z'}});
+  s.setNow(t0+58*3600000);s.L.setClose(t0+58*3600000);await s.ex.runPolluxXrp();
+  const again=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(again.state,'paid');assert(again.img_units>held.img_units,'held IMG rolled into the next batch');
+  assert.equal(s.ex.polluxRewards(B).xrp.imgPayments.filter(p=>p.state==='held').length,0);
+  // Restart idempotency: rerunning sends nothing; all batches paid.
+  const m=s.L.submits.length;await s.ex.runPolluxXrp();assert.equal(s.L.submits.length,m);
+  assert.equal(s.ex.polluxRewards().imgBatches.paid.count,3);
+  assert.equal(s.L.submits.filter(x=>typeof x.tx.Amount==='string'&&x.tx.Destination!==treasury).length,0,'no native XRP payouts in IMG mode');
+ }
+ // tef on the conversion: never applied -> re-signed next pass; tec on the conversion -> batch failed, credit released.
+ {
+  const s=setup({env:{...ON,ESTATE_POLLUX_PAYOUT_ASSET:'img'}});s.ex.syncPurchases();
+  const t0=Date.UTC(2026,10,16,4,7);s.setNow(t0);s.sell('3'.repeat(64),'trailer-01',B,3000000,t0-60000);
+  s.db.exec('CREATE TABLE estate_ownership_history(id INTEGER PRIMARY KEY,property_id TEXT,from_acct TEXT,to_acct TEXT,kind TEXT,at INTEGER)');
+  s.L.incoming({date:t0,drops:'50000',memo:{payoutType:'lp_floor',rewardAsset:'XRP',floorToken:'IMG',floorKey:'IMG:'+P.IMG_ISSUER,pools:['PLX/IMG'],roundId:'PLX-FLOOR-2026-11-16T04:00Z'}});
+  s.L.incoming({date:t0+1000,drops:'150000',memo:{payoutType:'base',token:'XRP',roundId:'PLX-HOLDER-2026-11-16T04:00Z'}});
+  s.L.setClose(t0+2*3600000);s.setNow(t0+2*3600000);
+  // Pool moved between quote and submit: the exact-minimum swap fails with tec (fee only).
+  const sub=s.L.client.request.bind(s.L.client);let moved=false;
+  s.L.client.request=async q=>{if(q.command==='submit'&&!moved){moved=true;s.L.pool(IMG,{currency:'XRP'}).r['IMG.'+P.IMG_ISSUER]*=0.9;}return sub(q);};
+  await s.ex.runPolluxXrp();
+  assert.deepEqual(s.ex.polluxRewards().receivedByKind,{lp:'50000'},'base ignored by default');
+  assert.equal(s.ex.polluxRewards().imgBatches.failed.count,1);
+  assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,String(50000-1610),'failed batch releases the XRP credit');
+  s.setNow(t0+27*3600000);s.L.setClose(t0+27*3600000);await s.ex.runPolluxXrp();
+  assert.equal(s.ex.polluxRewards().imgBatches.paid.count,1);assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
+ }
  // Service: off by default; when on, the fee harvest is skipped and v4 steps run.
  const pay={ledger:async()=>({request:async()=>({}),autofill:async q=>q})};
  const live={NETWORK:'mainnet',DRY_RUN:false,ESTATE_TREASURY:treasury,TREASURY_SEED:wallet.seed};

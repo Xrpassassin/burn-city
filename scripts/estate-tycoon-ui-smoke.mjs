@@ -6,7 +6,7 @@ const base=(process.argv[2]||'http://127.0.0.1:8080').replace(/\/$/,'');
 const browser=await chromium.launch();
 try {
  const page=await browser.newPage({viewport:{width:390,height:844},serviceWorkers:'block'});
- await page.goto(base+'/manifest.webmanifest',{waitUntil:'domcontentloaded'});
+ await page.goto(base+'/estate-properties.html',{waitUntil:'domcontentloaded'});
  await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body><main id="test-root"></main></body></html>');
  const result=await page.evaluate(async()=>{
   const {mountEstateTycoon}=await import('/js/estate-tycoon-ui.mjs');

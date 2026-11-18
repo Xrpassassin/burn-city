@@ -53,8 +53,10 @@ try {
   hasButton('Check payment').click();await settle();
   assert(confirmed===0,'unvalidated payment credited property');
   assert(section.textContent.includes('No upgrade was credited'),'pending state not explained');
+  assert(hasButton('Check payment again'),'pending status removed the retry button');
+  assert(section.querySelector('a[href="https://xumm.app/sign/test"]'),'pending status removed the Xaman link');
   validate=true;
-  hasButton('Check payment').click();await settle();
+  hasButton('Check payment again').click();await settle();
   assert(confirmed===1,'verified payment not surfaced to owner');
   state.pending={orderId:'tycoon_test',itemId:'porch-lights',expiresAt:Date.now()+600000};
   await section.refresh();

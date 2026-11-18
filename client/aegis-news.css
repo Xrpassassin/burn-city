@@ -71,6 +71,16 @@ body:has(#toasts .toast.in) #aegisNews,
 body:has(#cityToast div.on) #aegisNews{
   visibility:hidden;pointer-events:none;
 }
+/* Roomier layouts retain the left HUD; allocate only the remaining upper lane
+   to the AEGIS rail instead of centering it across the entire game window. */
+@media(min-width:701px) and (min-height:501px){
+  #aegisNews{
+    left:calc(max(var(--left,12px),var(--hud-right,310px)) + 12px);
+    right:var(--right,12px);
+    width:min(720px,calc(100vw - max(var(--left,12px),var(--hud-right,310px)) - var(--right,12px) - 12px));
+    margin-inline:auto;
+  }
+}
 @media(max-width:700px) and (min-height:501px){
   #aegisNews{top:calc(var(--row2) + 49px);height:40px;gap:7px;padding-left:8px}
   #aegisNews .an-brand-extra,#aegisNews .an-level{display:none}

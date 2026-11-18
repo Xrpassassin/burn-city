@@ -88,7 +88,17 @@ try{
    });
    if(gearYield===false)fail(screen.name,'AEGIS rail does not yield to touch gear controls');
   }
-  await page.locator('#aegisNews .an-dismiss').click();
+  if(!screen.mobile){
+   const hit=await page.locator('#aegisNews .an-dismiss').evaluate(el=>{
+    const r=el.getBoundingClientRect();
+    const top=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+    return top===el||el.contains(top);
+   });
+   if(!hit)fail(screen.name,'AEGIS dismiss is obscured or not a hit target');
+   // The 3D desktop renderer can make locator.click wait on an unrelated action;
+   // the hit-test above verifies reachability and this checks the actual handler.
+   await page.locator('#aegisNews .an-dismiss').evaluate(el=>el.click());
+  }else await page.locator('#aegisNews .an-dismiss').click();
   if(!await page.locator('#aegisNews').evaluate(el=>el.hidden))
    fail(screen.name,'AEGIS snooze did not hide news');
   await page.evaluate(async()=>{

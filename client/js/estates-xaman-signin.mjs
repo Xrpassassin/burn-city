@@ -25,8 +25,11 @@ export function openEstateXamanSignIn({
   // generate additional Xaman sessions or leak multiple background pollers.
   if (active && active.root.isConnected) { active.root.querySelector('.bc-xaman-close')?.focus(); return active.promise; }
   const host = new URL(api, doc.defaultView?.location?.href || location.href);
-  if (host.protocol !== 'https:' && !(host.protocol === 'http:' && ['localhost','127.0.0.1','[::1]'].includes(host.hostname)))
-    return Promise.reject(new Error('Secure Xaman sign-in endpoint required.'));
+  const pageOrigin = doc.defaultView?.location?.origin || location.origin;
+  // An untrusted ?citysrv= override must never mint/replace the wallet session.
+  if (![pageOrigin,'https://burn-city-game.fly.dev'].includes(host.origin) ||
+      (host.protocol !== 'https:' && !(host.protocol === 'http:' && ['localhost','127.0.0.1','[::1]'].includes(host.hostname))))
+    return Promise.reject(new Error('Trusted BURN City Xaman sign-in endpoint required.'));
   const root = element(doc, 'div', 'bc-xaman-backdrop');
   root.id = 'bcEstatesXaman';
   root.setAttribute('role', 'dialog');

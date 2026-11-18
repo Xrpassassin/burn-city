@@ -32,6 +32,18 @@ Production purchase flow is **OFF by default**. The independent switch is ESTATE
 
 Quotes, amounts, dependencies, current owner, purchase status and share increments are server-owned; session auth supplies the wallet identity. The server creates owner-approved Xaman requests with distinct burncity/estates/tycoon memo and immutable 10-minute reservation. A receipt settles only when XRPL reports validated tesSUCCESS with exact payer, recipient, amount, delivered XRP, unique order memo and time window. Ledger hashes are unique; original property-purchase and cosmetic receipts cannot be reused; browser-provided prices/hashes are ignored. A crash or uncertain remote payload creation remains on hold rather than creating a duplicate payment. Expired but timely paid requests can be reconciled while paused. Ownership change blocks settlement. No implicit refunds, transfers or liquidity deposits are made.
 
+## Diagnosing a disabled or stuck upgrade purchase
+
+The live read-only catalog at `GET /api/estates/tycoon/world` now includes `purchaseStatus` and `purchasesEnabled`. These are operational readiness indicators, **not** proof of a real XRP transaction.
+
+- `not_activated`: the full opt-in configuration is not satisfied. Check `ESTATE_TYCOON_UPGRADES_ENABLED=1`, `DRY_RUN=false`, mainnet, Xaman credentials, and the configured treasury address *privately on the server*. Never expose keys, seeds, bearer tokens, or private configuration in the public API.
+- `treasury_paused`: the existing treasury/payout safety pause is active. New upgrade payment requests are blocked by design.
+- `available`: the server permits new upgrade requests; the wallet must still be the verified property owner, all item prerequisites must be met, and any pending order must be resolved first.
+
+In the property UI, the Buy button is deliberately hidden if server payment activation is off. After starting a Xaman request, **Check payment** can return pending without losing the deeplink or retry control. A returning owner may **Continue existing Xaman request** only while the original order remains unexpired. If an order expires or needs manual review, do not repeat the purchase or send XRP directly; use the original order/transaction details for reconciliation. Existing order settlement requires a validated XRPL receipt and does not imply any guaranteed reward or activation of upgrade-recorded units as distribution weight.
+
+Production acceptance requires a fully dry-run QA flow, server readiness verification, real-device preview and interaction QA, validated XRPL/Xaman receipt review, wallet/treasury/legal checks, and then an explicit operator decision to activate payments. Changing the front-end alone cannot turn on the server's financial gate.
+
 ## Share policy — important boundary
 
 The new estate_tycoon_orders table records settled upgrades and derives the owner's **recorded share balance** at 1 unit per 3 XRP. Authenticated Estates tycoon portfolio and existing Estates portfolio APIs expose this recorded balance and documented value.

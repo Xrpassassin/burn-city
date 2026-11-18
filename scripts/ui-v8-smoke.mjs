@@ -212,6 +212,7 @@ try{
    await signin.click();
    await page.locator('#bcEstatesXaman .bc-xaman-open').waitFor({state:'visible'});
    await page.waitForFunction(token=>localStorage.getItem('bcToken')===token,testToken,{timeout:20000});
+   await page.waitForFunction(()=>document.querySelector('#estate-signin-browser-fixture')?.textContent.includes('Purchases are currently disabled'),null,{timeout:15000});
    const auth=await page.evaluate(()=>({
     account:localStorage.getItem('bcAcct'),loginCount:[...document.querySelectorAll('#estate-signin-browser-fixture button')].filter(x=>/Sign in to purchase property/.test(x.textContent)).length,
     modal:!!document.querySelector('#bcEstatesXaman'),

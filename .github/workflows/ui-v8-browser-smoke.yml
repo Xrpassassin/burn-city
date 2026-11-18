@@ -6,6 +6,10 @@ on:
       - 'client/ui-v8.css'
       - 'client/burn-ui-tokens.css'
       - 'client/js/ui.js'
+      - 'client/js/aegis.js'
+      - 'client/js/aegis-news.mjs'
+      - 'client/js/app.js'
+      - 'client/aegis-news.css'
       - 'client/estate-properties.html'
       - 'client/estate-theme.css'
       - 'client/js/movement-games-menu.js'
@@ -21,6 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check AEGIS and game modules parse
+        run: |
+          node --check client/js/aegis-news.mjs
+          node --check client/js/aegis.js
+          node --check client/js/app.js
       - name: Install Chromium and browser harness
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1

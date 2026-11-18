@@ -31,6 +31,10 @@ The system's **single source of visual truth** is `client/burn-ui-tokens.css`. L
 - Gameplay input must not leak through an active navigation overlay. Menu controls must not steal input while closed.
 - Mobile landscape and narrow portrait are first-class: no off-screen menu, horizontal overflow or overlap with primary navigation.
 
+## AEGIS signal policy
+
+AEGIS news belongs in a **compact top rail**, below navigation/status and outside gameplay controls. The latest validated feed headline rotates without a moving marquee; urgent Response Ops and threat escalations temporarily take priority. No duplicate gameplay event banner or floating toast. Players can snooze the news rail for fifteen minutes without disabling AEGIS beacons, cameras or the city feed. Clicking a headline opens AEGIS Command; tapping Close snoozes. The rail yields to active menus, the AEGIS console, Estate interiors and high-priority gameplay banners. AEGIS remains optional and cannot change weather, wallets or rewards.
+
 ## Implementation sequence
 
 **Stage 1 — shell (merged #650):** Ember Glass responsive navigation, Estates consistency, five-viewport browser QA.

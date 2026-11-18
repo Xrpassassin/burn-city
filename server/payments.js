@@ -24,7 +24,7 @@ function gc() { for (const [k, v] of sessions) if (Date.now() - v.created > (v.k
 async function startSignIn() {
   gc(); const sid = 'SI' + crypto.randomBytes(12).toString('hex'); sessions.set(sid, { created: Date.now(), kind: 'signin' });
   if (!C.XUMM_KEY) return { sid, xaman: null };
-  const p = await sdk().payload.create({ txjson: { TransactionType: 'SignIn' }, custom_meta: { identifier: sid, instruction: 'Sign in to Burn City Arena' } });
+  const p = await sdk().payload.create({ txjson: { TransactionType: 'SignIn' }, custom_meta: { identifier: sid, instruction: 'Sign in to BURN City' } });
   sessions.get(sid).uuid = p.uuid; return { sid, xaman: { uuid: p.uuid, qr: p.refs.qr_png, deeplink: p.next.always } };
 }
 async function finishSignIn(sid) {

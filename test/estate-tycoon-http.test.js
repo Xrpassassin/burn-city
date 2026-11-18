@@ -20,7 +20,9 @@ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run
   ...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
  const publicWorld=await call('/tycoon/world',null,null);
  assert.equal(publicWorld.code,200);
- assert(publicWorld.data.catalog.length>=15);
+assert(publicWorld.data.catalog.length>=15);
+   assert.equal(publicWorld.data.purchaseStatus,'available');
+   assert.equal(publicWorld.data.purchasesEnabled,true);
  assert(!JSON.stringify(publicWorld.data).includes(buyer));
  for(const p of ['/tycoon/state?propertyId=trailer-01','/tycoon/quote?propertyId=trailer-01&itemId=porch-lights','/tycoon/portfolio'])
   assert.equal((await call(p,null,null)).code,401);
@@ -37,13 +39,16 @@ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run
  assert(!JSON.stringify(options.data).includes(buyer));
  assert.equal((await call('/tycoon/interior-access?propertyId=trailer-01&roomId=bunker')).code,403,'Hatch/bunker cannot be entered without entitlement');
  const state=(await call('/tycoon/state?propertyId=trailer-01')).data;
- assert.equal(state.ownerAuthorized,true);
+assert.equal(state.ownerAuthorized,true);
+   assert.equal(state.purchaseStatus,'available');
+   assert.equal(state.purchasesEnabled,true);
  assert.equal(state.recordedValueDrops,3000000);
  assert.equal(state.recordedShareUnits,1);
  const unauthorized=await call('/tycoon/state?propertyId=trailer-01',null,other);
  assert.equal(unauthorized.data.ownerAuthorized,false);
  const quote=await call('/tycoon/quote?propertyId=trailer-01&itemId=porch-lights');
- assert.equal(quote.code,200);assert.equal(quote.data.item.priceDrops,3000000);
+assert.equal(quote.code,200);assert.equal(quote.data.item.priceDrops,3000000);
+   assert.equal(quote.data.purchaseStatus,'available');
  const forged=await call('/tycoon/start',{propertyId:'trailer-01',itemId:'porch-lights',priceDrops:1,buyer},other);
  assert.equal(forged.code,409);assert(!tx);
  const started=await call('/tycoon/start',{propertyId:'trailer-01',itemId:'porch-lights',priceDrops:1,shareUnitsDelta:50000},buyer);

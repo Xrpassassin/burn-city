@@ -143,8 +143,14 @@ const open=()=>{
  selectTab('movement');
  const fh=panel.querySelector('.bc-mg-flyhint');if(fh)fh.textContent=touch()?'Free-fly above the city · left stick, drag to look, ▲ / ▼':'Free-fly above the city · WASD, Space up, C down';
  const bh=panel.querySelector('.bc-mg-boathint');if(bh)bh.textContent=touch()?'Takes you to the boat dock · tap 🚤 Board boat':'Takes you to the boat dock · board with E';
- panel.classList.add('on');document.body.classList.add('bcMenuOpen');opener.setAttribute('aria-expanded','true');closeButton.focus()};
+ panel.classList.add('on');document.body.classList.add('bcMenuOpen');opener.setAttribute('aria-expanded','true');
+ dispatchEvent(new CustomEvent('bc:navigation-open',{detail:{id:'movement-games'}}));
+ closeButton.focus()};
 opener.addEventListener('click',()=>panel.classList.contains('on')?close():open());
+// Top-level navigation overlays are mutually exclusive (also applies to the More menu).
+addEventListener('bc:navigation-open',event=>{
+ if(event.detail?.id!=='movement-games'&&panel.classList.contains('on'))close(false);
+});
 closeButton.addEventListener('click',()=>close());
 // A modal must keep Tab focus inside its visible controls; hidden tabs and game
 // entries are not part of the sequence. Escape is handled by the capture listener.

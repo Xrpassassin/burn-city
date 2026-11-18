@@ -6,6 +6,11 @@ on:
       - 'client/ui-v8.css'
       - 'client/burn-ui-tokens.css'
       - 'client/js/ui.js'
+      - 'client/js/estates-xaman-signin.mjs'
+      - 'client/js/estate-purchase-ui.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'client/estate-buyer-preview.js'
+      - 'client/estates-xaman-signin.css'
       - 'client/js/aegis.js'
       - 'client/js/aegis-news.mjs'
       - 'client/js/app.js'
@@ -30,6 +35,10 @@ jobs:
           node --check client/js/aegis-news.mjs
           node --check client/js/aegis.js
           node --check client/js/app.js
+          node --check client/js/estates-xaman-signin.mjs
+          node --check client/js/estate-purchase-ui.mjs
+          node --check client/js/estates-island-live.mjs
+          node --check client/estate-buyer-preview.js
       - name: Install Chromium and browser harness
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1

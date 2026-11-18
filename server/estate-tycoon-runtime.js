@@ -4,6 +4,7 @@ const crypto=require('node:crypto');
 const {createEstateTycoonStore}=require('./estate-tycoon');
 const {verifyEstateSalePayment}=require('./estate-sale-payment-verifier');
 const MEMO='burncity/estates/tycoon';
+const ABANDON_GRACE_MS=5*60000;
 const hex=s=>Buffer.from(s,'utf8').toString('hex').toUpperCase();
 function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>true,clock=Date.now}={}){
  const store=createEstateTycoonStore(db);
@@ -16,8 +17,26 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
   try{return {ok:true,...store.quote({propertyId,buyer,itemId}),purchasesEnabled:enabled(),purchaseStatus:purchaseStatus()};}
   catch(e){if(['unknown_property','unknown_upgrade_item'].includes(e.message))return {ok:false,error:e.message};throw e;}
  }
+ // An expired request that was never paid would otherwise hold the property's single pending
+ // slot forever. Release it only with positive evidence that nothing can still be paid:
+ // either no Xaman payload was ever created, or Xaman reports it expired/cancelled unsigned.
+ // 'creating' (ambiguous remote create) and anything signed stay held for manual review.
+ async function releaseAbandoned(r){
+  if(!r||r.status!=='reserved'||clock()<=r.expires_at+ABANDON_GRACE_MS||r.payload_state==='creating')return false;
+  let reason='payload_never_created';
+  if(r.payload_state==='bound'){
+   let p;try{p=await pay.sdk().payload.get(r.payload_uuid);}catch{return false;}
+   const m=p?.meta||{};
+   if(m.signed===true||p?.response?.txid)return false;
+   if(!(m.expired===true||m.cancelled===true||(m.resolved===true&&m.signed===false)))return false;
+   reason='payload_unsigned_expired';
+  }else if(r.payload_state!=='none')return false;
+  return store.voidAbandoned({orderId:r.order_id,now:clock(),graceMs:ABANDON_GRACE_MS,reason});
+ }
  async function start({propertyId,buyer,itemId}){
   const blocked=gate();if(blocked)return blocked;
+  const held=store.pendingRow(propertyId);
+  if(held&&held.buyer===buyer)await releaseAbandoned(held);
   let r;try{r=store.reserve({propertyId,buyer,itemId,orderId:'tycoon_'+crypto.randomBytes(20).toString('hex'),now:clock()});}
   catch(e){if(['property_owner_required','unknown_property','unknown_upgrade_item','upgrade_already_owned','upgrade_prerequisites_missing','upgrade_tier_restricted','another_upgrade_pending'].includes(e.message))return {ok:false,error:e.message};throw e;}
   if(clock()>r.expires_at-60000)return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};
@@ -50,10 +69,15 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
   if(!r||r.buyer!==buyer)return {ok:false,error:'tycoon_order_not_found'};
   if(r.status==='settled')return {ok:true,property:store.state(r.property_id),alreadySettled:true};
   if(!store.quote({propertyId:r.property_id,buyer,itemId:r.item_id}).ownerAuthorized)return {ok:false,error:'property_owner_changed'};
-  if(!r.payload_uuid)return {ok:false,pending:true,error:'tycoon_payload_pending'};
+  if(!r.payload_uuid){
+   if(await releaseAbandoned(r))return {ok:false,error:'tycoon_order_expired',released:true};
+   return {ok:false,pending:true,error:'tycoon_payload_pending'};
+  }
   const payload=await pay.sdk().payload.get(r.payload_uuid),hash=payload?.response?.txid;
-  if(payload?.meta?.signed!==true||payload?.response?.account!==buyer||typeof hash!=='string'||!/^[a-fA-F0-9]{64}$/.test(hash))
+  if(payload?.meta?.signed!==true||payload?.response?.account!==buyer||typeof hash!=='string'||!/^[a-fA-F0-9]{64}$/.test(hash)){
+   if(await releaseAbandoned(r))return {ok:false,error:'tycoon_order_expired',released:true};
    return {ok:false,pending:true,error:'tycoon_payment_pending'};
+  }
   let proof;try{
    proof=await verifyEstateSalePayment(await pay.ledger(),{...r,reservation_id:r.order_id,property_id:r.property_id},
     {txHash:hash,treasury:config.ESTATE_TREASURY,now:clock(),reviewExpired:clock()>r.expires_at,memoType:MEMO});

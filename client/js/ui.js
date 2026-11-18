@@ -38,11 +38,58 @@ if (btns) {
   }
   const sweep = () => [...btns.children].filter(x => x.tagName === 'BUTTON').forEach(adopt);
   sweep(); new MutationObserver(sweep).observe(btns, { childList: true });
-  const setOpen = o => { more.classList.toggle('open', o); document.body.classList.toggle('moreOpen', o); moreBtn.classList.toggle('on', o); moreBtn.setAttribute('aria-expanded', String(o)); };
-  moreBtn.onclick = e => { e.stopPropagation(); setOpen(!more.classList.contains('open')); };
+  // The secondary menu follows the WAI-ARIA menu-button keyboard contract.
+  // No UI framework is needed for these five native button controls.
+  moreBtn.setAttribute('aria-controls', 'more');
+  const menuEntries = () => [...more.querySelectorAll('button[role="menuitem"]')]
+    .filter(b => !b.disabled && !b.hidden && getComputedStyle(b).display !== 'none' && getComputedStyle(b).visibility !== 'hidden');
+  const focusEntry = (last = false) => {
+    const entries = menuEntries(); if (entries.length) entries[last ? entries.length - 1 : 0].focus();
+  };
+  const setOpen = (open, { focus = false, last = false, restore = false } = {}) => {
+    const wasOpen = more.classList.contains('open');
+    more.classList.toggle('open', open);
+    document.body.classList.toggle('moreOpen', open);
+    moreBtn.classList.toggle('on', open);
+    moreBtn.setAttribute('aria-expanded', String(open));
+    // Other top-level navigation closes when this one opens, never stacks beneath it.
+    if (open && !wasOpen) dispatchEvent(new CustomEvent('bc:navigation-open', { detail: { id: 'more' } }));
+    if (open && focus) focusEntry(last);
+    if (!open && restore && wasOpen) moreBtn.focus();
+  };
+  moreBtn.onclick = e => {
+    e.stopPropagation();
+    setOpen(!more.classList.contains('open'), { focus: e.detail === 0 });
+  };
+  moreBtn.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault(); e.stopPropagation();
+    setOpen(true, { focus: true, last: e.key === 'ArrowUp' });
+  });
+  more.addEventListener('keydown', e => {
+    const entries = menuEntries();
+    const current = entries.indexOf(document.activeElement);
+    const n = entries.length;
+    if (!n) return;
+    let next = -1;
+    if (e.key === 'ArrowDown') next = (current + 1) % n;
+    else if (e.key === 'ArrowUp') next = (current < 0 ? 0 : current + n - 1) % n;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = n - 1;
+    if (next !== -1) { e.preventDefault(); entries[next].focus(); }
+  });
   more.addEventListener('click', e => { if (e.target.closest('button')) setTimeout(() => setOpen(false), 120); });
-  document.addEventListener('pointerdown', e => { if (!more.contains(e.target) && e.target !== moreBtn) setOpen(false); });
-  addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+  document.addEventListener('pointerdown', e => {
+    if (!more.contains(e.target) && e.target !== moreBtn) setOpen(false);
+  });
+  addEventListener('bc:navigation-open', e => {
+    if (e.detail?.id !== 'more' && more.classList.contains('open')) setOpen(false);
+  });
+  // Capture Escape before game pause/exit handlers; return focus to the opener.
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !more.classList.contains('open')) return;
+    e.preventDefault(); e.stopImmediatePropagation(); setOpen(false, { restore: true });
+  }, true);
   compact.addEventListener('change', () => { const t = $('tour'); if (!t) return; if (compact.matches) adopt(t); else { delete t.dataset.l; delete t.dataset.k; t.removeAttribute('role'); t.textContent = '▶ Tour'; if (!TOUCH) t.dataset.kbd = '3'; seg.after(t); } });
 
   // 3) Body classes for the current mode (CSS moves the dock, minimap and prompts out of the controls' way)

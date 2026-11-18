@@ -22,7 +22,7 @@ jobs:
       - name: Install Chromium and browser harness
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
       - name: Start read-only local static preview
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 --directory client > /tmp/bc-ui-v8-server.log 2>&1 &

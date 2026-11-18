@@ -2,12 +2,12 @@
    Visual only: all sales, resale, wallet, rewards and calculator IDs stay intact. */
 :root{
   color-scheme:dark;
-  --e-bg:#080c12;--e-panel:#141a22;--e-panel-hi:#1b232c;
-  --e-edge:rgba(255,173,108,.19);--e-edge-hi:rgba(255,173,108,.43);
-  --e-text:#f7f4f0;--e-muted:#c4cbd0;--e-ember:#ff8b39;--e-ok:#7dffd2;
-  --e-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
-  --e-body:"Avenir Next","Segoe UI",system-ui,sans-serif;
-  --e-data:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,monospace;
+  --e-bg:var(--bc-bg);--e-panel:var(--bc-surface);--e-panel-hi:var(--bc-surface-elevated);
+  --e-edge:var(--bc-border);--e-edge-hi:var(--bc-border-strong);
+  --e-text:var(--bc-text);--e-muted:var(--bc-text-muted);--e-ember:var(--bc-ember);--e-ok:var(--bc-success);
+  --e-display:var(--bc-font-display);
+  --e-body:var(--bc-font-ui);
+  --e-data:var(--bc-font-data);
   font-family:var(--e-body);background:var(--e-bg);color:var(--e-text)
 }
 html{scroll-behavior:smooth;scroll-padding-top:105px}

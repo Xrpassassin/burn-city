@@ -9,6 +9,8 @@ on:
       - 'client/js/aegis.js'
       - 'client/js/aegis-news.mjs'
       - 'client/js/app.js'
+      - 'client/js/estate-tycoon-ui.mjs'
+      - 'scripts/estate-tycoon-ui-smoke.mjs'
       - 'client/aegis-news.css'
       - 'client/estate-properties.html'
       - 'client/estate-theme.css'
@@ -45,3 +47,5 @@ jobs:
           exit 1
       - name: Exercise City and Estates across five viewports
         run: node scripts/ui-v8-smoke.mjs http://127.0.0.1:8080
+      - name: Exercise Tycoon upgrade payment UI with mocked server (no XRP)
+        run: node scripts/estate-tycoon-ui-smoke.mjs http://127.0.0.1:8080

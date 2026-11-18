@@ -1,0 +1,198 @@
+/* Ember Glass v8 — presentation-only responsive shell.
+   Keep engine, wallet and game-mode controls in their existing DOM nodes.
+   This stylesheet follows ui.css, so the legacy UI remains a fallback. */
+:root{
+  --f-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  --f-ui:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,Consolas,monospace;
+  --glass:rgba(11,15,21,.77);
+  --glass-2:rgba(11,15,21,.94);
+  --glass-3:rgba(7,10,15,.98);
+  --edge:rgba(255,179,110,.19);
+  --edge-2:rgba(255,184,116,.43);
+  --hair:rgba(245,239,230,.1);
+  --fill:rgba(255,255,255,.065);
+  --fill-2:rgba(255,255,255,.12);
+  --txt:#f7f5f1;
+  --txt-2:#d6d0ca;
+  --txt-3:#a99f98;
+  --r:16px;
+  --r-lg:22px;
+  --shadow:0 18px 52px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);
+  --ease:cubic-bezier(.22,.8,.25,1);
+}
+html,body{font-family:var(--f-ui);text-rendering:optimizeLegibility}
+#hud .hdr .brand,#bcMoveGamesPanel h2,#vMenu>div>b{
+  font-family:var(--f-display)!important;font-weight:800!important;letter-spacing:.07em
+}
+#hud,#more,#info,#music,#recap,#bcMoveGamesPanel .bc-mg-card{
+  -webkit-backdrop-filter:blur(12px) saturate(122%);backdrop-filter:blur(12px) saturate(122%)
+}
+#hud{
+  border-color:var(--edge)!important;
+  box-shadow:var(--shadow)!important;
+}
+#hud .hdr{font-size:13px;letter-spacing:.11em}
+#hud .legend{line-height:1.55}
+#hud .row{gap:8px}
+#hud .row input[type=range]{min-width:0}
+#hud .row select{max-width:100%}
+#hud details.sec>summary{font-weight:700;color:var(--txt-2)}
+#hud details.sec[open]>summary{color:var(--txt)}
+#btns{gap:7px}
+#btns>button,#btns .barLink,#btns #bcMoveGamesOpen{
+  min-height:var(--ctl);
+  border-radius:12px!important;
+  border-color:var(--edge)!important;
+  color:var(--txt)!important;
+  background:var(--glass)!important;
+  box-shadow:0 8px 25px rgba(0,0,0,.17);
+  font-family:var(--f-ui)!important;
+  font-weight:700!important;
+  letter-spacing:0!important;
+}
+#btns>button:focus-visible,#btns .barLink:focus-visible,
+#btns #bcMoveGamesOpen:focus-visible{outline:2px solid var(--cool)!important;outline-offset:3px}
+#btns .barLink{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+#btns .barLink:hover,#btns>button:hover,#btns #bcMoveGamesOpen:hover{
+  background:rgba(46,33,25,.92)!important;border-color:var(--edge-2)!important
+}
+#btns #bcMoveGamesOpen{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:0 14px!important;min-width:var(--tap)
+}
+#bcMoveGamesOpen .bc-mg-mark{color:var(--ember-hi)!important;font-size:18px}
+#btns #moreBtn{font-size:22px!important}
+#more{
+  max-width:calc(100vw - var(--left) - var(--right));
+  max-height:calc(100dvh - var(--top) - var(--ctl) - 18px);
+  overflow:auto;overscroll-behavior:contain
+}
+#more.open{animation:bcV8Pop .2s var(--ease) both}
+#more button{font-family:var(--f-ui)!important}
+#more button[data-l]::after{font-size:12.5px;line-height:1.4}
+#status{gap:7px;max-width:calc(100vw - var(--left) - var(--right))}
+#wchip,#live{
+  box-sizing:border-box;color:var(--txt-2)!important;
+  border-color:var(--edge)!important;
+  box-shadow:0 6px 22px rgba(0,0,0,.16)
+}
+#info,#music,#recap{box-sizing:border-box;max-width:calc(100vw - var(--left) - var(--right))}
+#info,#music{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+#info{border-radius:var(--r-lg)!important}
+#info h2{font-family:var(--f-display)!important}
+#info td{overflow-wrap:anywhere}
+#bcMoveGamesPanel{
+  background:rgba(2,5,9,.55)!important;
+  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)
+}
+#bcMoveGamesPanel .bc-mg-card{
+  width:min(500px,100%);
+  padding:22px!important;
+  background:linear-gradient(160deg,rgba(28,28,31,.97),rgba(9,14,21,.98))!important;
+  border:1px solid var(--edge-2)!important;
+  border-radius:var(--r-lg)!important;
+  box-shadow:0 25px 80px rgba(0,0,0,.58)!important;
+  animation:bcV8Pop .24s var(--ease) both
+}
+#bcMoveGamesPanel .bc-mg-head{align-items:center}
+#bcMoveGamesPanel h2{
+  color:#fff!important;letter-spacing:.05em;font-size:20px!important
+}
+#bcMoveGamesPanel .bc-mg-sub{font-size:12.5px;color:var(--txt-2)}
+#bcMoveGamesPanel .bc-mg-tab{
+  font-family:var(--f-ui)!important;font-size:13px;
+  background:var(--fill)!important;border-color:var(--edge)!important
+}
+#bcMoveGamesPanel .bc-mg-tab[aria-selected=true]{
+  background:var(--ember-soft)!important;border-color:var(--ember-line)!important;
+  color:#ffd4b5!important
+}
+#bcMoveGamesPanel .bc-mg-section-title{
+  color:var(--txt-2)!important;font-family:var(--f-mono)!important;
+  letter-spacing:.12em
+}
+#bcMoveGamesPanel .bc-mg-list{gap:10px}
+#bcMoveGamesPanel .bc-mg-entry{
+  min-width:0;padding:14px!important;min-height:82px;
+  background:rgba(255,255,255,.045)!important;
+  border-color:var(--edge)!important;
+  border-radius:14px!important;
+  transition:background .16s var(--ease),border-color .16s var(--ease),transform .16s var(--ease)
+}
+#bcMoveGamesPanel .bc-mg-entry:active{transform:scale(.985)}
+#bcMoveGamesPanel .bc-mg-entry:hover{
+  background:rgba(255,130,55,.11)!important;border-color:var(--edge-2)!important
+}
+#bcMoveGamesPanel .bc-mg-entry strong{font:750 14px/1.3 var(--f-ui);color:#fff}
+#bcMoveGamesPanel .bc-mg-entry small{font:12px/1.5 var(--f-ui);color:var(--txt-2)}
+#bcMoveGamesPanel .bc-mg-foot{color:var(--txt-3)}
+body.bcMenuOpen #status,body.bcMenuOpen #toasts,body.bcMenuOpen #gearBar{
+  visibility:hidden
+}
+@keyframes bcV8Pop{
+  from{opacity:0;transform:translateY(10px) scale(.985)}
+  to{opacity:1;transform:none}
+}
+/* A phone in portrait gets one brand row, one action row and one status row.
+   Existing fixed-screen controls then anchor below --row2, never on top of navigation. */
+@media (max-width:700px) and (min-height:501px){
+  :root{--row2:calc(var(--top) + var(--ctl) + var(--ctl) + 18px)}
+  #hud:not(.open){max-width:calc(100vw - var(--left) - var(--right))!important}
+  #btns{
+    top:calc(var(--top) + var(--ctl) + 8px)!important;
+    left:var(--left)!important;right:var(--right)!important;
+    width:auto!important;max-width:none!important;
+    min-height:var(--ctl);justify-content:flex-start;gap:6px
+  }
+  #btns #bcMoveGamesOpen{min-height:var(--tap);padding:0 12px!important}
+  #btns #vExit{padding:0 12px!important;max-width:38vw;overflow:hidden;text-overflow:ellipsis}
+  #btns .barLink{min-height:var(--tap);padding:0 12px}
+  #btns .barLink .bl-txt{display:none!important}
+  #btns #moreBtn{margin-left:auto;flex-shrink:0}
+  #btns #playBtn{display:none!important}
+  #status{top:var(--row2)!important;left:var(--left)!important;right:var(--right)!important;width:auto;max-width:none!important}
+  #more{
+    top:calc(var(--row2) + var(--tap) + 8px)!important;
+    right:var(--right)!important;
+    max-height:calc(100dvh - var(--row2) - var(--tap) - var(--bottom) - 18px)
+  }
+  #bcMoveGamesPanel{
+    padding:0 var(--sa-r) var(--sa-b) var(--sa-l)!important;
+    align-items:flex-end!important;justify-content:center!important
+  }
+  #bcMoveGamesPanel .bc-mg-card{
+    border-radius:22px 22px 0 0!important;
+    width:100%!important;
+    max-height:min(80dvh,calc(100dvh - var(--sa-t) - var(--sa-b) - 28px))!important;
+    padding:18px 16px 22px!important
+  }
+  #bcMoveGamesPanel .bc-mg-list{grid-template-columns:1fr}
+  #bcMoveGamesPanel .bc-mg-entry{min-height:66px;padding:12px!important}
+  #bcMoveGamesPanel .bc-mg-head{margin-bottom:10px}
+  #info{max-height:calc(100dvh - var(--row2) - 110px)!important}
+  #hud.open{box-shadow:0 16px 60px rgba(0,0,0,.8)!important}
+}
+@media (max-width:380px) and (min-height:501px){
+  #btns #bcMoveGamesOpen{padding:0 9px!important}
+  #btns #vExit{padding:0 9px!important}
+  #btns .barLink{padding:0 9px!important}
+  #btns #moreBtn{padding:0!important}
+  #status{gap:5px}
+}
+/* Short landscape: preserve a single compact row and prioritize the game canvas. */
+@media (max-height:500px) and (orientation:landscape){
+  #btns #vExit{padding:0 9px!important}
+  #btns .barLink{padding:0 10px}
+  #btns .barLink .bl-txt{display:none}
+  #btns #bcMoveGamesOpen{padding:0 10px!important}
+  #more{overflow:auto;overscroll-behavior:contain}
+  #bcMoveGamesPanel{padding-top:calc(var(--sa-t) + 10px)!important}
+  #bcMoveGamesPanel .bc-mg-card{
+    max-height:calc(100dvh - var(--sa-t) - var(--sa-b) - 20px)!important
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  #more.open,#bcMoveGamesPanel .bc-mg-card{animation:none!important}
+  #bcMoveGamesPanel .bc-mg-entry{transition:none!important}
+}

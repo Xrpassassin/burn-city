@@ -2147,42 +2147,8 @@ function boot(host) {
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
-  // Exploration remains third-person; overhead views are reserved for base construction.
-  let cameraYawOffset = 0;
-  let cameraPitchOffset = 0;
-  let cameraDistance = 6.2;
-  let cameraOrbiting = false;
-  let cameraPointerId = null;
-  renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
-  renderer.domElement.addEventListener('pointerdown', event => {
-    if (event.button !== 2 || masterView !== 'third-person') return;
-    if (wantsContinuous) return; // Preview uses the shared mouse/touch look direction.
-    cameraOrbiting = true; cameraPointerId = event.pointerId;
-    try { renderer.domElement.setPointerCapture(event.pointerId); } catch {}
-    event.preventDefault();
-  });
-  renderer.domElement.addEventListener('pointermove', event => {
-    if (!cameraOrbiting || event.pointerId !== cameraPointerId) return;
-    cameraYawOffset += event.movementX * 0.006;
-    cameraPitchOffset = Math.max(-0.25, Math.min(0.45, cameraPitchOffset - event.movementY * 0.004));
-  });
-  const stopCameraOrbit = event => {
-    if (!cameraOrbiting || (event && event.pointerId !== cameraPointerId)) return;
-    cameraOrbiting = false; cameraPointerId = null;
-  };
-  for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) renderer.domElement.addEventListener(eventName, stopCameraOrbit);
-  window.addEventListener('blur', () => stopCameraOrbit());
-  renderer.domElement.addEventListener('wheel', event => {
-    if (masterView !== 'third-person') return;
-    cameraDistance = Math.max(3.5, Math.min(10.5, cameraDistance + Math.sign(event.deltaY) * 0.65));
-    event.preventDefault();
-  }, { passive: false });
-  // Exploration stays third-person. Overhead views belong to base construction UI,
-  // not a hotkey that can pull the player out of the world during combat.
-  const masterView = 'third-person';
-  // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
   const view = attachViewControls(host, {
-    onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,
+    onTap: onWorldTap, rightDrag: true,
     canCrouch: wantsContinuous ? () => !!worldData?.self && continuousInput.enabled &&
       !(worldData.party && !worldData.party.leader) : null
   });
@@ -2807,7 +2773,7 @@ function boot(host) {
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       if(localActor)localActor.visible=!worldData.selfVehicle; // occupied seats do not leave an avatar standing behind
-      const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
+      const heading = walkingCameraHeading(localActor?.rotation.y || 0, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading, 0);
       const crouched = view.crouching?.() === true;
       const sprint = !crouched && directSprintRequested(sprintTravel, view.running(), aiming);
@@ -2825,7 +2791,7 @@ function boot(host) {
       }
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: (cameraDistance+(worldData.selfVehicle?2.1:0)) * view.distance / 6.2 });
+      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : view.pitch * 0.5, distance: view.distance * (worldData.selfVehicle ? 8.3 / 6.2 : 1) });
       if (crouched || self.crouched) { pose.py -= 0.47; pose.ly -= 0.47; }
       if (continuousInput.enabled && view.mode === 'third') {
         // Place the reticle beside the player's shoulder so their body does not obscure aim.
@@ -2833,7 +2799,7 @@ function boot(host) {
         const shoulderZ = Math.sin(heading) * 0.9;
         pose.px += shoulderX; pose.lx += shoulderX;
         pose.pz += shoulderZ; pose.lz += shoulderZ;
-        const aimPitch = cameraPitchOffset + view.pitch * 0.5;
+        const aimPitch = view.pitch * 0.5;
         const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
         pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
       }

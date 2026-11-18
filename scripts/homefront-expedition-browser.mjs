@@ -763,7 +763,7 @@ try {
       });
       await rightDrag(x, y, x + 90, y - 60);
       await page.waitForFunction(() =>
-        window.fieldLookDirection?.x > 0.2 && window.fieldLookDirection.y > 0.07,
+        window.fieldLookDirection?.x < -0.2 && window.fieldLookDirection.y > 0.07,
       );
       await rightDrag(x + 90, y - 60, x, y);
     }

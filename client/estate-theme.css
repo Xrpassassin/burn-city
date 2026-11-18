@@ -1,0 +1,144 @@
+/* BURN City Estates — Ember Glass dashboard.
+   Visual only: all sales, resale, wallet, rewards and calculator IDs stay intact. */
+:root{
+  color-scheme:dark;
+  --e-bg:#080c12;--e-panel:#141a22;--e-panel-hi:#1b232c;
+  --e-edge:rgba(255,173,108,.19);--e-edge-hi:rgba(255,173,108,.43);
+  --e-text:#f7f4f0;--e-muted:#c4cbd0;--e-ember:#ff8b39;--e-ok:#7dffd2;
+  --e-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  --e-body:"Avenir Next","Segoe UI",system-ui,sans-serif;
+  --e-data:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,monospace;
+  font-family:var(--e-body);background:var(--e-bg);color:var(--e-text)
+}
+html{scroll-behavior:smooth;scroll-padding-top:105px}
+body{
+  max-width:1240px;
+  padding:max(20px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right))
+    max(48px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+  background:radial-gradient(ellipse at 75% -12%,rgba(255,117,42,.11),transparent 48%);
+  font-family:var(--e-body);line-height:1.5;text-rendering:optimizeLegibility
+}
+header{
+  gap:20px;align-items:flex-start;
+  padding:18px 0 20px;
+  border-bottom:1px solid var(--e-edge)
+}
+header h1{
+  font:800 clamp(1.85rem,4vw,3.2rem)/1.1 var(--e-display);
+  letter-spacing:-.025em;color:#fff;margin:0
+}
+header p{font-size:1rem;margin:11px 0 0;max-width:54ch}
+header>a{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;padding:0 16px;border-radius:12px;
+  background:rgba(255,255,255,.045);border:1px solid var(--e-edge);
+  font-weight:700;white-space:nowrap;text-decoration:none;color:#ffe3cf
+}
+header>a:hover{background:rgba(255,139,57,.15);border-color:var(--e-edge-hi)}
+h2,h3{font-family:var(--e-display);color:#fff;letter-spacing:-.01em}
+h2{font-size:clamp(1.25rem,2.8vw,1.6rem);margin:0 0 13px}
+h3{font-size:1.1rem}
+a{color:#ffd0ae;text-underline-offset:3px}
+p,.muted{color:var(--e-muted)}
+p{line-height:1.65}
+strong{color:var(--e-text)}
+button,input,select{
+  font-family:var(--e-body);font-size:15px;
+  border:1px solid var(--e-edge-hi);border-radius:11px;
+  min-height:44px;max-width:100%;background:#1a222c;color:#fff
+}
+button{font-weight:700;transition:background .16s,border-color .16s,transform .14s}
+button:hover{background:#2a3035;border-color:#ffb17c}
+button:active{transform:scale(.985)}
+button:disabled,fieldset:disabled{opacity:.6}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible{
+  outline:2px solid #7ce2ff;outline-offset:3px
+}
+input,select{background:#101720;border-color:rgba(210,223,235,.25)}
+input[type=checkbox]{width:21px;min-width:21px;height:21px;min-height:21px;accent-color:var(--e-ember)}
+label{font-size:14px;font-weight:650;color:var(--e-muted);gap:8px}
+label select,label input:not([type=checkbox]){font-weight:500;color:#fff}
+#estate-views{
+  position:sticky;top:env(safe-area-inset-top);
+  z-index:10;gap:6px;
+  background:rgba(11,15,21,.95);
+  border:1px solid var(--e-edge);border-radius:15px;
+  margin:14px 0 26px;padding:8px;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  scrollbar-width:thin;scrollbar-color:#ffffff33 transparent
+}
+#estate-views button{
+  flex:0 0 auto;min-height:44px;
+  background:transparent;border-color:transparent;
+  padding:0 16px;color:var(--e-muted);
+  border-radius:10px;font-size:14px
+}
+#estate-views button:hover{background:#ffffff10;color:#fff}
+#estate-views button[aria-selected=true]{
+  color:#201006;background:linear-gradient(135deg,#ff7b27,#ffc078);
+  border-color:transparent;box-shadow:0 3px 14px #ff8a2426
+}
+#estate-views a{padding:10px 16px;white-space:nowrap;border-left:1px solid var(--e-edge)}
+section{scroll-margin-top:120px}
+.notice,article{
+  background:linear-gradient(155deg,rgba(29,35,42,.97),rgba(14,19,26,.97));
+  border:1px solid var(--e-edge);border-radius:18px;
+  box-shadow:0 12px 35px #0003
+}
+.notice{padding:clamp(16px,2.4vw,24px);margin:18px 0 26px}
+article{padding:19px}
+.notice p:last-child{margin-bottom:0}
+section:not(.notice){margin:30px 0}
+#owned-properties,#resale-listings,#properties{gap:16px;align-items:stretch}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.grid article{display:flex;flex-direction:column;gap:7px;min-width:0;margin:0}
+.grid article h3{margin:0}
+.grid article p{margin:4px 0}
+.grid article button{width:100%}
+.grid article .controls{margin-top:auto}
+.controls{gap:12px;align-items:flex-end}
+.controls a{min-height:44px;display:inline-flex;align-items:center}
+.fields{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+#live-status{display:inline-flex;align-items:center;gap:9px;font-size:1.05rem}
+#reward-status,#allocation-status,#pool-status{overflow-wrap:anywhere}
+#session-status,#preference-status,#resale-status{overflow-wrap:anywhere}
+.notice[aria-label="Live Estates status"]{
+  border-color:rgba(255,154,79,.36);
+  background:linear-gradient(120deg,rgba(54,37,28,.8),rgba(14,20,26,.95))
+}
+.owner-line{color:#a8e4ff;font:12px/1.5 var(--e-data);overflow-wrap:anywhere}
+.history-list{line-height:1.6}
+.badge{color:var(--e-ok)}
+output{
+  background:rgba(255,140,57,.08);border-color:var(--e-edge-hi);
+  color:#fff;font:700 1.1rem/1.5 var(--e-data)
+}
+#calculator .fields{margin:14px 0}
+#calculator .muted{font-size:.88rem}
+.resale-form{background:rgba(5,10,16,.38);border-color:var(--e-edge-hi)}
+article[data-for-sale=true]{border-color:var(--e-ok)}
+details{padding:3px 0;border-top:1px solid var(--e-edge)}
+summary{min-height:44px;display:flex;align-items:center;color:#fff}
+@media(max-width:700px){
+  body{padding:calc(12px + env(safe-area-inset-top)) 12px calc(32px + env(safe-area-inset-bottom))}
+  header{flex-direction:column;gap:12px}
+  header>a{width:100%}
+  #estate-views{
+    margin:14px -4px 20px;
+    border-radius:12px;
+    padding:6px;
+    scroll-snap-type:x proximity;
+  }
+  #estate-views button,#estate-views a{scroll-snap-align:start}
+  #estate-views button{padding:0 13px;font-size:13px}
+  #estate-views a{padding:10px 12px}
+  .notice{padding:17px;margin:12px 0 22px}
+  .controls{align-items:stretch}
+  .controls button{width:100%}
+  section:not(.notice){margin:22px 0}
+  .grid{grid-template-columns:minmax(0,1fr)}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  button{transition:none}
+}

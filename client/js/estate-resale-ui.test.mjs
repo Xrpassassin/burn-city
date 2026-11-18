@@ -21,4 +21,14 @@ assert.doesNotMatch(css,/#vExit\{left:auto!important;right:calc\(var\(--right\) 
 assert.match(app,/getElementById\('btns'\)\|\|document\.body\)\.prepend\(ex\)/);
 assert.match(ui,/'vExit'\]\)/);assert.match(ui,/--hud-right/);assert.match(css,/max-width:calc\(100vw - var\(--hud-right/);
 assert.doesNotMatch(idx,/id="estatesPreviewLink"[^>]*style=/,'Estates link styled by CSS, not inline');
+// v8 presentation files must remain linked and keep portrait and safe-area fallbacks.
+const estateTheme=readFileSync(new URL('../estate-theme.css',import.meta.url),'utf8');
+const cityTheme=readFileSync(new URL('../ui-v8.css',import.meta.url),'utf8');
+assert.match(html,/href="estate-theme\.css"/);
+assert.match(idx,/href="ui-v8\.css"/);
+assert.match(estateTheme,/--e-display/);
+assert.match(estateTheme,/env\(safe-area-inset-top\)/);
+assert.match(cityTheme,/--f-display/);
+assert.match(cityTheme,/@media \(max-width:700px\) and \(min-height:501px\)/);
+assert.match(cityTheme,/--row2:calc/);
 console.log('estate resale ui + layout tests passed');

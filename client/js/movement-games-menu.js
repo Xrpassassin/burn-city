@@ -137,15 +137,26 @@ async function travel(k){
  if(!ok)go('explore');
  say(ok?MSG[k][0]():MSG[k][1]);
 }
-const close=(focus=true)=>{panel.classList.remove('on');opener.setAttribute('aria-expanded','false');if(focus)opener.focus()};
+const close=(focus=true)=>{panel.classList.remove('on');document.body.classList.remove('bcMenuOpen');opener.setAttribute('aria-expanded','false');if(focus)opener.focus()};
 const open=()=>{
  if(window.__estatesIslandLive?.active)return;
  selectTab('movement');
  const fh=panel.querySelector('.bc-mg-flyhint');if(fh)fh.textContent=touch()?'Free-fly above the city · left stick, drag to look, ▲ / ▼':'Free-fly above the city · WASD, Space up, C down';
  const bh=panel.querySelector('.bc-mg-boathint');if(bh)bh.textContent=touch()?'Takes you to the boat dock · tap 🚤 Board boat':'Takes you to the boat dock · board with E';
- panel.classList.add('on');opener.setAttribute('aria-expanded','true');closeButton.focus()};
+ panel.classList.add('on');document.body.classList.add('bcMenuOpen');opener.setAttribute('aria-expanded','true');closeButton.focus()};
 opener.addEventListener('click',()=>panel.classList.contains('on')?close():open());
 closeButton.addEventListener('click',()=>close());
+// A modal must keep Tab focus inside its visible controls; hidden tabs and game
+// entries are not part of the sequence. Escape is handled by the capture listener.
+panel.addEventListener('keydown',event=>{
+ if(event.key!=='Tab'||!panel.classList.contains('on'))return;
+ const focusable=[...panel.querySelectorAll('button,a[href]')].filter(el=>
+  !el.disabled&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden'&&el.tabIndex!==-1);
+ if(!focusable.length){event.preventDefault();closeButton.focus();return}
+ const first=focusable[0],last=focusable[focusable.length-1];
+ if(event.shiftKey&&(document.activeElement===first||!panel.contains(document.activeElement))){event.preventDefault();last.focus()}
+ else if(!event.shiftKey&&(document.activeElement===last||!panel.contains(document.activeElement))){event.preventDefault();first.focus()}
+});
 panel.addEventListener('click',e=>{
  if(e.target===panel){close();return}
  const move=e.target.closest('[data-move]');

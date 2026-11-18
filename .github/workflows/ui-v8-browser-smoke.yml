@@ -1,0 +1,36 @@
+name: BURN City UI v8 browser smoke
+on:
+  pull_request:
+    paths:
+      - 'client/index.html'
+      - 'client/ui-v8.css'
+      - 'client/estate-properties.html'
+      - 'client/estate-theme.css'
+      - 'client/js/movement-games-menu.js'
+      - 'scripts/ui-v8-smoke.mjs'
+      - '.github/workflows/ui-v8-browser-smoke.yml'
+  workflow_dispatch:
+jobs:
+  responsive-layout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and browser harness
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install chromium
+      - name: Start read-only local static preview
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory client > /tmp/bc-ui-v8-server.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/bc-ui-v8-server.log
+          exit 1
+      - name: Exercise City and Estates across five viewports
+        run: node scripts/ui-v8-smoke.mjs http://127.0.0.1:8080

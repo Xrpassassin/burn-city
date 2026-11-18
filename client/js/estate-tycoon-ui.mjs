@@ -6,9 +6,10 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
  const section=document.createElement('details');section.dataset.estateTycoon=propertyId;
  section.style.cssText='margin-top:12px;border-top:1px solid #7ca9bf;padding:10px 0;color:#d7e8ed';
  const summary=document.createElement('summary');summary.textContent='BUILD & UPGRADE · Estates Tycoon';summary.style.cssText='cursor:pointer;font-weight:800;color:#6bd4ff';
- const meta=document.createElement('p'),message=document.createElement('p'),catalogue=document.createElement('div');
+ const meta=document.createElement('p'),availability=document.createElement('p'),message=document.createElement('p'),catalogue=document.createElement('div');
+ availability.dataset.tycoonAvailability='';availability.style.cssText='font-size:12px;color:#ffd19c';
  message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#ffca9e';
- section.append(summary,meta,message,catalogue);container.append(section);
+ section.append(summary,meta,availability,message,catalogue);container.append(section);
  let current=null,busy=false,orderId='',previewItemId=null;
  function token(){return storage?.getItem('bcToken')||'';}
  async function request(path,data){
@@ -21,7 +22,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
  }
  function button(label,run,disabled=false){
   const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=disabled;
-  b.style.cssText='font:600 12px system-ui;background:#20394c;color:#e5f7ff;border:1px solid #5f8ba7;border-radius:8px;padding:8px;min-height:36px;cursor:pointer';
+  b.style.cssText='font:600 12px system-ui;background:#20394c;color:#e5f7ff;border:1px solid #5f8ba7;border-radius:8px;padding:8px;min-height:44px;cursor:pointer';
   b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;try{await run();}catch(e){message.textContent=e.message;}finally{busy=false;b.disabled=disabled;}};
   return b;
  }
@@ -31,32 +32,66 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   }catch{message.textContent='Unable to open a secure Xaman link. Contact support before paying.';}
  }
  async function confirm(){
+  if(!orderId){message.textContent='No pending upgrade payment was found. Refresh the property before trying again.';return;}
   const r=await request('confirm',{orderId});
-  if(!r.ok){message.textContent='Payment not validated yet; nothing has been credited.';return;}
+  if(!r.ok){
+   message.textContent=(humanError[r.error]||'Payment has not yet been validated.')+' No upgrade was credited; do not send another payment.';
+   return;
+  }
+  orderId='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);
+  await load();
   message.textContent='Validated purchase credited to your property development value and recorded share balance.';
-  orderId='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);await load();
+ }
+ function showPendingLink(result){
+  if(!result?.ok||!result?.orderId||!result?.deeplink){
+   message.textContent='The existing payment request needs review. Do not send a second payment.';
+   return;
+  }
+  orderId=result.orderId;
+  message.replaceChildren('Review this upgrade request in Xaman. Only the server-verified XRP amount is payable. ');
+  paymentLink(result.deeplink);
+  message.append(' ',button('Check payment',confirm));
+ }
+ async function resumePending(){
+  const pending=current?.state?.pending;
+  if(!pending||!current.state.purchasesEnabled||Date.now()>=pending.expiresAt){
+   message.textContent='This request cannot be reopened. Check the existing payment before contacting support; do not pay again.';
+   return;
+  }
+  showPendingLink(await request('start',{propertyId,itemId:pending.itemId}));
  }
  async function buy(item){
   const q=await request('quote?propertyId='+encodeURIComponent(propertyId)+'&itemId='+encodeURIComponent(item.id));
-  if(!q.canPurchase||!q.purchasesEnabled){message.textContent='This upgrade is not currently available for purchase.';return;}
-  const r=await request('start',{propertyId,itemId:item.id});
-  orderId=r.orderId;message.replaceChildren('Awaiting a validated '+item.priceXrp+' XRP upgrade payment. ');
-  paymentLink(r.deeplink);
-  message.append(' ',button('Check payment',confirm));
+  if(!q.canPurchase||!q.purchasesEnabled){
+   message.textContent=q.pending?'An existing upgrade order is blocking another purchase. Check that payment first.':'This upgrade is not payable. Check the owner, prerequisites, and payment availability above.';
+   await load();return;
+  }
+  showPendingLink(await request('start',{propertyId,itemId:item.id}));
  }
  function render(){
   if(!section.isConnected||!current)return;
   catalogue.replaceChildren();
   const s=current.state,items=current.catalog;
   meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?'Recorded upgrade units are not active payout weight yet. ':'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
-  if(!s.ownerAuthorized&&s.owned)message.textContent='Only the property owner can buy upgrades. You can browse the upgrade tree.';
-  else if(!s.purchasesEnabled)message.textContent=(typeof onPreview==='function'?'View in-world previews; ':'Browse upgrade options; ')+'XRP upgrade purchases remain disabled until treasury and distribution policy review.';
-  else message.textContent='';
+  const isOwner=!!s.ownerAuthorized;
+  availability.textContent=!s.owned?'This property must be purchased before upgrades can be bought.'
+   :!isOwner?'Only the wallet that owns this property can purchase upgrades. Sign in with that wallet.'
+   :!s.purchasesEnabled?(s.purchaseStatus==='treasury_paused'
+     ?'XRP upgrade purchases are temporarily paused by the server. No new payments can be started.'
+     :'XRP upgrade purchases have not been activated on this server. Preview only; do not send XRP.')
+   :'XRP upgrade payments are available. Review each exact price in Xaman; an upgrade appears only after validated settlement.';
   if(previewItemId)message.textContent='CYAN 3D PREVIEW ONLY · '+(items.find(i=>i.id===previewItemId)?.name||'Selected upgrade')+
    ' · not purchased, not installed, and no recorded shares or financial rights have changed.';
   if(s.ownerAuthorized&&s.pending?.orderId){
    orderId=s.pending.orderId;
-   catalogue.append(button('Check pending payment',confirm));
+   const expired=Date.now()>=Number(s.pending.expiresAt);
+   const existing=document.createElement('p');existing.dataset.tycoonPending='';
+   existing.textContent='Pending '+(items.find(i=>i.id===s.pending.itemId)?.name||'upgrade')
+    +(expired?' · the original signing window has expired.':' · finish or review this order before buying another.')
+    +' Do not send a duplicate payment.';
+   catalogue.append(existing);
+   catalogue.append(button('Check existing payment',confirm));
+   if(s.purchasesEnabled&&!expired)catalogue.append(button('Continue existing Xaman request',resumePending));
   }
   const unlocked=new Set(s.unlockedItemIds);
   const groups=[['decor','Decorations'],['exterior','Exterior'],['interior','Interior'],['underground','Secrets & Bunkers'],['utility','Security & Utility'],['aviation','Private Aviation']];
@@ -95,7 +130,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    const v=await r.json(),s=v.properties?.find(p=>p.propertyId===propertyId);
    if(!s)throw Error('Property could not be found.');
    state={...s,upgradeShareUnits:Math.max(0,s.recordedShareUnits-(s.recordedValueDrops-s.upgradeValueDrops)/3000000),
-    ownerAuthorized:false,purchasesEnabled:false};catalog=v.catalog;
+    ownerAuthorized:false,purchasesEnabled:!!v.purchasesEnabled,purchaseStatus:v.purchaseStatus||'not_activated'};catalog=v.catalog;
   }
   // The unauthenticated public state intentionally exposes only aggregate
   // development value; base shares are calculated using the authoritative catalog.

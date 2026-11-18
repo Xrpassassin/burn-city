@@ -85,6 +85,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    :'XRP upgrade payments are available. Review each exact price in Xaman; an upgrade appears only after validated settlement.';
   if(previewItemId)message.textContent='CYAN 3D PREVIEW ONLY · '+(items.find(i=>i.id===previewItemId)?.name||'Selected upgrade')+
    ' · not purchased, not installed, and no recorded shares or financial rights have changed.';
+  else if(message.textContent.startsWith('CYAN 3D PREVIEW ONLY'))message.textContent='';
   if(s.ownerAuthorized&&s.pending?.orderId){
    orderId=s.pending.orderId;
    const expired=Date.now()>=Number(s.pending.expiresAt);

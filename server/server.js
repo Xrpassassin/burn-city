@@ -227,7 +227,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/estates/tycoon/world' && req.method === 'GET') {
       if(gate('estates-tycoon-world-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
-      return json(res,200,{...estateTycoon.publicState(),helicopterStyles:estateHangar.publicStyles()});
+      return json(res,200,{...estateTycoon.publicState(),purchasesEnabled:estateTycoon.enabled(),purchaseStatus:estateTycoon.purchaseStatus(),helicopterStyles:estateHangar.publicStyles()});
     }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
@@ -254,7 +254,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/tycoon/state' && req.method === 'GET') {
         const propertyId=String(url.searchParams.get('propertyId')||'');
         try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});
-          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled()});}
+          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled(),purchaseStatus:estateTycoon.purchaseStatus()});}
         catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
       }
       // Free owner-editable home interiors. The only premium themes here

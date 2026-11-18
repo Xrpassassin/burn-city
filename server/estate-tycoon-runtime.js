@@ -9,10 +9,11 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  const store=createEstateTycoonStore(db);
  const configured=env.ESTATE_TYCOON_UPGRADES_ENABLED==='1'&&config?.DRY_RUN===false&&config?.NETWORK==='mainnet'&&
   !!config?.XUMM_KEY&&!!config?.XUMM_SECRET&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config?.ESTATE_TREASURY||'');
- const enabled=()=>configured&&!paused();
+ const purchaseStatus=()=>!configured?'not_activated':paused()?'treasury_paused':'available';
+ const enabled=()=>purchaseStatus()==='available';
  const gate=()=>!configured?{ok:false,error:'tycoon_purchases_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
  function quote({propertyId,buyer,itemId}){
-  try{return {ok:true,...store.quote({propertyId,buyer,itemId}),purchasesEnabled:enabled()};}
+  try{return {ok:true,...store.quote({propertyId,buyer,itemId}),purchasesEnabled:enabled(),purchaseStatus:purchaseStatus()};}
   catch(e){if(['unknown_property','unknown_upgrade_item'].includes(e.message))return {ok:false,error:e.message};throw e;}
  }
  async function start({propertyId,buyer,itemId}){
@@ -63,6 +64,6 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
   }
   return {ok:true,property:store.settle({orderId,buyer,txHash:proof.txHash,ledgerIndex:proof.ledgerIndex,now:clock()})};
  }
- return {publicState:store.publicState,portfolio:store.ownerPortfolio,quote,start,confirm,enabled,store};
+ return {publicState:store.publicState,portfolio:store.ownerPortfolio,quote,start,confirm,enabled,purchaseStatus,store};
 }
 module.exports={createEstateTycoonRuntime};

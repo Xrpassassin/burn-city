@@ -22,6 +22,8 @@ assert.deepEqual(ITEMS.filter(i=>i.priceXrp<=9).map(i=>i.priceXrp).slice(0,3),[3
  const fakePay={sdk:()=>({payload:{create:async()=>{fakeCreates++;throw Error('must_not_sign');}}})};
  const no=createEstateTycoonRuntime({db:disabled,pay:fakePay,config,env:{},paused:()=>false});
  assert.equal(no.quote({propertyId:'trailer-01',itemId:'porch-lights',buyer}).purchasesEnabled,false);
+ assert.equal(no.purchaseStatus(),'not_activated');
+ assert.equal(no.quote({propertyId:'trailer-01',itemId:'porch-lights',buyer}).purchaseStatus,'not_activated');
  assert.equal((await no.start({propertyId:'trailer-01',itemId:'porch-lights',buyer})).error,'tycoon_purchases_disabled');
  assert.equal(fakeCreates,0);
  assert.equal(no.portfolio(buyer).recordedShareUnits,1);
@@ -37,6 +39,8 @@ assert.deepEqual(ITEMS.filter(i=>i.priceXrp<=9).map(i=>i.priceXrp).slice(0,3),[3
   meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx.Amount}};mutate(result);return {result};}})};
  const build=()=>createEstateTycoonRuntime({db,pay,config,env,paused:()=>paused,clock:()=>now});
  let runtime=build();
+ assert.equal(runtime.purchaseStatus(),'available');
+ assert.equal(runtime.quote({propertyId:'trailer-01',itemId:'porch-lights',buyer}).purchaseStatus,'available');
  const state=runtime.store.state('trailer-01');
  assert.equal(state.recordedValueDrops,3000000);
  assert.equal(state.recordedShareUnits,1);
@@ -85,7 +89,10 @@ assert.deepEqual(ITEMS.filter(i=>i.priceXrp<=9).map(i=>i.priceXrp).slice(0,3),[3
  assert.equal(settle3.property.recordedValueDrops,24000000);
  assert.deepEqual(settle3.property.unlockedItemIds.sort(),['grow-lounge','porch-lights','reinforced-floor'].sort());
  assert.equal((await runtime.start({propertyId:'trailer-01',itemId:'flower-garden',buyer})).error,'estate_treasury_paused');
+ assert.equal(runtime.purchaseStatus(),'treasury_paused');
+ assert.equal(runtime.quote({propertyId:'trailer-01',itemId:'flower-garden',buyer}).purchaseStatus,'treasury_paused');
  paused=false;
+ assert.equal(runtime.purchaseStatus(),'available');
  const next=await runtime.start({propertyId:'trailer-01',itemId:'flower-garden',buyer});
  db.prepare('UPDATE estate_property_ownership SET acct=? WHERE property_id=?').run(other,'trailer-01');
  assert.equal((await runtime.confirm({orderId:next.orderId,buyer})).error,'property_owner_changed');

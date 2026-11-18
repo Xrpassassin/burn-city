@@ -39,6 +39,9 @@ function createEstateTycoonStore(db){
   "payload_state TEXT NOT NULL DEFAULT 'none',payload_uuid TEXT UNIQUE,payment_tx TEXT UNIQUE,"+
   'ledger_index INTEGER,settled_at INTEGER,FOREIGN KEY(property_id) REFERENCES estate_property_ownership(property_id))');
  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS estate_tycoon_one_pending ON estate_tycoon_orders(property_id) WHERE status='reserved'");
+ db.exec('CREATE TABLE IF NOT EXISTS estate_tycoon_voided_orders (order_id TEXT PRIMARY KEY,property_id TEXT NOT NULL,buyer TEXT NOT NULL,'+
+  'item_id TEXT NOT NULL,price_drops INTEGER NOT NULL,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,payload_state TEXT NOT NULL,'+
+  'payload_uuid TEXT,reason TEXT NOT NULL,voided_at INTEGER NOT NULL)');
  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS estate_tycoon_one_owned_item ON estate_tycoon_orders(property_id,item_id) WHERE status='settled'");
  const owner=db.prepare('SELECT property_id,acct,purchase_amount_drops,purchase_tx,share_units FROM estate_property_ownership WHERE property_id=?');
  const upgraded=db.prepare("SELECT item_id,price_drops,share_delta,settled_at FROM estate_tycoon_orders WHERE property_id=? AND status='settled' ORDER BY settled_at,order_id");
@@ -103,6 +106,21 @@ function createEstateTycoonStore(db){
    db.exec('COMMIT');return get(orderId);
   }catch(e){db.exec('ROLLBACK');throw e;}
  }
+ // Release an unpaid reservation only after its window plus grace has passed. The caller must
+ // already have proof that no payment can exist (no payload created, or Xaman reports the
+ // payload expired/cancelled unsigned). The row is archived, never silently dropped.
+ function pendingRow(propertyId){return db.prepare("SELECT * FROM estate_tycoon_orders WHERE property_id=? AND status='reserved'").get(propertyId);}
+ function voidAbandoned({orderId,now,graceMs,reason}){
+  if(!Number.isSafeInteger(now)||!Number.isSafeInteger(graceMs)||graceMs<60000||!/^[a-z_]{3,40}$/.test(reason||''))throw new Error('invalid_void_request');
+  db.exec('BEGIN IMMEDIATE');
+  try{
+   const r=get(orderId);
+   if(!r||r.status!=='reserved'||r.payment_tx||now<=r.expires_at+graceMs||r.payload_state==='creating'){db.exec('COMMIT');return false;}
+   db.prepare('INSERT INTO estate_tycoon_voided_orders VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(r.order_id,r.property_id,r.buyer,r.item_id,r.price_drops,r.created_at,r.expires_at,r.payload_state,r.payload_uuid,reason,now);
+   db.prepare("DELETE FROM estate_tycoon_orders WHERE order_id=? AND status='reserved'").run(orderId);
+   db.exec('COMMIT');return true;
+  }catch(e){db.exec('ROLLBACK');throw e;}
+ }
  function settle({orderId,buyer,txHash,ledgerIndex,now}){
   if(!HASH.test(txHash||'')||!Number.isSafeInteger(ledgerIndex)||ledgerIndex<1||!Number.isSafeInteger(now)||now<1)throw new Error('verified_upgrade_proof_required');
   db.exec('BEGIN IMMEDIATE');
@@ -133,6 +151,6 @@ function createEstateTycoonStore(db){
    recordedValueDrops:list.reduce((n,p)=>n+p.recordedValueDrops,0),
    sharePolicy:'recorded_only_not_active_for_distributions',rewardsGuaranteed:false};
  }
- return {state,publicState,quote,reserve,settle,get,ownerPortfolio};
+ return {state,publicState,quote,reserve,settle,get,ownerPortfolio,pendingRow,voidAbandoned};
 }
 module.exports={ITEMS,ITEM_BY_ID,itemCatalog,createEstateTycoonStore};

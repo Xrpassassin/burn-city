@@ -54,13 +54,13 @@ try{
    };
    return {hasCss:[...document.styleSheets].some(s=>s.href?.includes('aegis-news.css')),
     hidden:el?.hidden,headline:el?.querySelector('.an-headline')?.textContent,level:el?.dataset.level,
-    bar:rect('#aegisNews'),hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status')};
+    bar:rect('#aegisNews'),hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status'),recap:rect('#recap')};
   });
   if(!news.hasCss||news.hidden||news.headline!=='Signal anomaly in BURN district'||news.level!=='2')
    fail(screen.name,'AEGIS news bar did not show high-priority headline');
   if(!news.bar||news.bar.left<-2||news.bar.right>screen.width+2||news.bar.top<-2||news.bar.bottom>screen.height+2)
    fail(screen.name,'AEGIS news is offscreen: '+JSON.stringify(news.bar));
-  for(const key of ['hud','toolbar','status'])
+  for(const key of ['hud','toolbar','status','recap'])
    if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS news overlaps '+key);
   if(screen.mobile&&screen.width<700&&screen.height>500){
    const placement=await page.evaluate(()=>{

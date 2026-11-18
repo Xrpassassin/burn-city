@@ -19,7 +19,7 @@ try{
   const context=await browser.newContext({viewport:{width:screen.width,height:screen.height},isMobile:screen.mobile,hasTouch:screen.mobile,serviceWorkers:'block'});
   const page=await context.newPage();
   page.on('pageerror',e=>console.warn('page error:',e.message.slice(0,150)));
-  await page.goto(BASE+'/?noguide=1&hubtest=1',{waitUntil:'domcontentloaded',timeout:90000});
+  await page.goto(BASE+'/?noguide=1&hubtest=1&live=0&noaegis=1',{waitUntil:'domcontentloaded',timeout:90000});
   await page.locator('#bcMoveGamesOpen').waitFor({timeout:30000});
   await page.waitForTimeout(1200);
   const shell=await page.evaluate(()=>{
@@ -54,12 +54,15 @@ try{
    };
    return {hasCss:[...document.styleSheets].some(s=>s.href?.includes('aegis-news.css')),
     hidden:el?.hidden,headline:el?.querySelector('.an-headline')?.textContent,level:el?.dataset.level,
-    bar:rect('#aegisNews'),hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status'),recap:rect('#recap')};
+    bar:rect('#aegisNews'),hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status'),recap:rect('#recap'),
+    bodyClass:document.body.className,
+    blockers:{gameBanner:!!document.querySelector('#evbanner.show'),toast:!!document.querySelector('#toasts .toast.in'),cityToast:!!document.querySelector('#cityToast div.on')},
+    visibleStyle:getComputedStyle(el).visibility};
   });
   if(!news.hasCss||news.hidden||news.headline!=='Signal anomaly in BURN district'||news.level!=='2')
    fail(screen.name,'AEGIS news bar did not show high-priority headline');
   if(!news.bar||news.bar.left<-2||news.bar.right>screen.width+2||news.bar.top<-2||news.bar.bottom>screen.height+2)
-   fail(screen.name,'AEGIS news is offscreen: '+JSON.stringify(news.bar));
+   fail(screen.name,'AEGIS news is offscreen: '+JSON.stringify(news));
   for(const key of ['hud','toolbar','status','recap'])
    if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS news overlaps '+key);
   if(screen.mobile&&screen.width<700&&screen.height>500){

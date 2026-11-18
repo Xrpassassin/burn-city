@@ -87,6 +87,7 @@ html,body{font-family:var(--f-ui);text-rendering:optimizeLegibility}
   -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)
 }
 #bcMoveGamesPanel .bc-mg-card{
+  box-sizing:border-box;
   width:min(500px,100%);
   padding:22px!important;
   background:linear-gradient(160deg,rgba(28,28,31,.97),rgba(9,14,21,.98))!important;
@@ -189,7 +190,8 @@ body.bcMenuOpen #status,body.bcMenuOpen #toasts,body.bcMenuOpen #gearBar{
   #more{overflow:auto;overscroll-behavior:contain}
   #bcMoveGamesPanel{padding-top:calc(var(--sa-t) + 10px)!important}
   #bcMoveGamesPanel .bc-mg-card{
-    max-height:calc(100dvh - var(--sa-t) - var(--sa-b) - 20px)!important
+    max-height:calc(100dvh - var(--sa-t) - var(--sa-b) - 20px)!important;
+    min-height:0!important
   }
 }
 @media (prefers-reduced-motion:reduce){

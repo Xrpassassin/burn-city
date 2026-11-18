@@ -77,6 +77,17 @@ try{
    if(overlap(placement.ticker,placement.minimap))
     fail(screen.name,'AEGIS news overlaps Explore minimap');
   }
+  if(screen.mobile){
+   const gearYield=await page.evaluate(()=>{
+    const gear=document.querySelector('#gearBar'),rail=document.querySelector('#aegisNews');
+    if(!gear||!rail)return null;
+    gear.classList.add('on');
+    const hidden=getComputedStyle(rail).visibility==='hidden';
+    gear.classList.remove('on');
+    return hidden;
+   });
+   if(gearYield===false)fail(screen.name,'AEGIS rail does not yield to touch gear controls');
+  }
   await page.locator('#aegisNews .an-dismiss').click();
   if(!await page.locator('#aegisNews').evaluate(el=>el.hidden))
    fail(screen.name,'AEGIS snooze did not hide news');

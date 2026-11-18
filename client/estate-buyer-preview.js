@@ -10,7 +10,7 @@ import('./js/estate-portfolio-ui.mjs').then(({mountEstatePortfolio})=>{
    signInButton.disabled=true;
    try{
     const {openEstateXamanSignIn}=await import('./js/estates-xaman-signin.mjs');
-    const api=/localhost|127\\.0\\.0\\.1|fly\\.dev$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev';
+    const api=/localhost|127[.]0[.]0[.]1|fly[.]dev$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev';
     await openEstateXamanSignIn({api,opener:signInButton,onAuthenticated:()=>{
      update();
      return window.__estatePortfolio?.refresh();

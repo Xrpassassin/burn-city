@@ -35,7 +35,10 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   if(!orderId){message.textContent='No pending upgrade payment was found. Refresh the property before trying again.';return;}
   const r=await request('confirm',{orderId});
   if(!r.ok){
-   message.textContent=(humanError[r.error]||'Payment has not yet been validated.')+' No upgrade was credited; do not send another payment.';
+   const originalLink=message.querySelector('a[href]')?.href;
+   message.replaceChildren((humanError[r.error]||'Payment has not yet been validated.')+' No upgrade was credited; do not send another payment.');
+   if(originalLink){message.append(' ');paymentLink(originalLink);}
+   message.append(' ',button('Check payment again',confirm));
    return;
   }
   orderId='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);

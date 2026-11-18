@@ -62,6 +62,15 @@ body.uiHudOpen #aegisNews,
 body:has(#aegisModal) #aegisNews,
 body:has(#evbanner.show) #aegisNews,
 body:has(#estateInteriorHud) #aegisNews{visibility:hidden;pointer-events:none}
+/* The daily recap occupies the same upper zone in Orbit. Reserve space for
+   the news rail instead of layering a non-clickable alert over the recap. */
+body:has(#aegisNews:not([hidden])) #recap{
+  top:calc(var(--row2) + 96px)!important;
+}
+body:has(#toasts .toast.in) #aegisNews,
+body:has(#cityToast div.on) #aegisNews{
+  visibility:hidden;pointer-events:none;
+}
 @media(max-width:700px) and (min-height:501px){
   #aegisNews{top:calc(var(--row2) + 49px);height:40px;gap:7px;padding-left:8px}
   #aegisNews .an-brand-extra,#aegisNews .an-level{display:none}
@@ -73,6 +82,11 @@ body:has(#estateInteriorHud) #aegisNews{visibility:hidden;pointer-events:none}
   }
 }
 @media(max-height:500px) and (orientation:landscape){
+  body:has(#aegisNews:not([hidden])) #recap{
+    top:calc(var(--top) + var(--ctl) + 56px)!important;
+    max-height:calc(100dvh - var(--top) - var(--ctl) - 64px)!important;
+  }
+
   #aegisNews{
     top:calc(var(--top) + var(--ctl) + 10px);
     height:38px;width:min(550px,calc(100vw - 2*var(--left)));

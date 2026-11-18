@@ -3,6 +3,7 @@ import {estateFreeStyle} from './estate-free-style-options.mjs';
 import { renderEstateHouses } from './estates-house-design.mjs';
 import {createEstateNeighborhoodDecor} from './estates-neighborhood-renderer.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
+import { loadEstateUpgradeModels } from './estates-upgrade-models.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
 // Pass the same THREE namespace already used by the host experience; no new CDN or bundle dependency.
 const PALETTE = {
@@ -135,6 +136,11 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
   const tycoonDecor=createEstateTycoonDecor({THREE,parent:root,lots});
+  // CC BY authored models are progressive enhancement: primitives render
+  // immediately and are swapped once (and only if) every file loads.
+  const upgradeModels=typeof window!=='undefined'&&typeof fetch==='function'
+    ?loadEstateUpgradeModels(THREE).then(m=>{if(!disposed)tycoonDecor.setModels?.(m);return m;},()=>new Map())
+    :Promise.resolve(new Map());
   let disposed=false,appearanceKey=null;
   function setOwnership(properties=[]){
     if(disposed)return false;
@@ -173,6 +179,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     previewUpgrade:tycoonDecor.previewUpgrade,
     clearUpgradePreview:tycoonDecor.clearUpgradePreview,
     tickUpgrades:dt=>tycoonDecor.tick?.(dt),
+    upgradeModels,
     getObject(id){return objects.get(id)??null;},
     get objectCount(){return objects.size;},
     dispose(){

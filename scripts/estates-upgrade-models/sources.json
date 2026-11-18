@@ -1,0 +1,57 @@
+{
+ "helicopter": {
+  "uid": "5bbed2de9baa4a13a7faa72653b78b64",
+  "title": "Low Poly Helicopter",
+  "creator": "antonmoek",
+  "username": "antonmoek",
+  "profile": "https://sketchfab.com/antonmoek",
+  "url": "https://sketchfab.com/3d-models/5bbed2de9baa4a13a7faa72653b78b64",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "fire-pit": {
+  "uid": "eff207417d074afba7227d3c97232cd5",
+  "title": "Low poly Fire Pit",
+  "creator": "Kelly Liang",
+  "username": "kellythekraken",
+  "profile": "https://sketchfab.com/kellythekraken",
+  "url": "https://sketchfab.com/3d-models/eff207417d074afba7227d3c97232cd5",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "camera": {
+  "uid": "e0657ce75f374f1e911e00f710046572",
+  "title": "Security camera",
+  "creator": "Danylo Tyupa",
+  "username": "danzl0",
+  "profile": "https://sketchfab.com/danzl0",
+  "url": "https://sketchfab.com/3d-models/e0657ce75f374f1e911e00f710046572",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "gnome": {
+  "uid": "51597381f06e4a2ca353b478e5ca9fcb",
+  "title": "Gartenzwerg - gardengnome",
+  "creator": "lauramakesgames",
+  "username": "lauramakesgames",
+  "profile": "https://sketchfab.com/lauramakesgames",
+  "url": "https://sketchfab.com/3d-models/51597381f06e4a2ca353b478e5ca9fcb",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "rocks": {
+  "uid": "9823ec262054408dbe26f6ddb9c0406e",
+  "title": "Low Poly Rocks",
+  "creator": "Michael Hooper",
+  "username": "michaelhooper",
+  "profile": "https://sketchfab.com/michaelhooper",
+  "url": "https://sketchfab.com/3d-models/9823ec262054408dbe26f6ddb9c0406e",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ }
+}

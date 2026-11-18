@@ -301,3 +301,36 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
  }
  return Object.freeze(parts);
 }
+// Optional authored-model slots. Each slot names the CC BY model part that may
+// replace a group of primitives (listed in `replaces`) and the box it must fit
+// inside; the box is derived from the primitives above, so the tier placement
+// and anti-clipping guarantees carry over. Renderers fall back to primitives
+// when a model is unavailable. Pure data: no unlock authority.
+export function estateUpgradeModelSlots(lot,unlockedIds=[]){
+ const parts=estateUpgradeExteriorParts(lot,unlockedIds),by=new Map(parts.map(p=>[p.name,p]));
+ const slots=[],f=lot.buildingFootprint,plot=lot?.dimensions??{width:20,depth:18};
+ const sideX=clamp(f.width/2+(plot.width/2-f.width/2)/2,5,plot.width/2-1.2);
+ const has=id=>parts.some(p=>p.id===id);
+ const slot=s=>slots.push(Object.freeze({ry:0,stretch:false,replaces:[],...s}));
+ if(has('fire-pit')){
+  const h=by.get('fire-pit-hearth');
+  slot({id:'fire-pit',model:'fire-pit',part:'body',x:h.x,y:.13,z:h.z,w:1.45,h:.8,d:1.4,
+   replaces:['hearth','ash-grate','embers','flame','flame-core','log--1','log-1'].map(n=>'fire-pit-'+n)});
+ }
+ if(has('security-upgrade'))for(const side of [-1,1]){
+  const b=by.get('security-upgrade-camera-body-'+side);
+  slot({id:'security-upgrade',model:'camera',part:'body',x:b.x,y:b.y-.17,z:b.z+.04,w:.22,h:.34,d:.44,
+   replaces:['camera-body-','camera-lens-','camera-led-'].map(n=>'security-upgrade-'+n+side)});
+ }
+ if(has('flower-garden'))
+  slot({id:'flower-garden',model:'gnome',part:'body',x:-sideX,y:0,z:1.15,w:.26,h:.46,d:.22,ry:.5});
+ if(has('garden-pond'))for(const k of [0,1]){
+  const b=by.get('garden-pond-boulder-'+k);
+  slot({id:'garden-pond',model:'rocks',part:k?'rock-b':'rock-a',x:b.x,y:b.y-b.h/2,z:b.z,w:b.w*1.15,h:b.h*1.3,d:b.d*1.15,
+   stretch:true,ry:k?2.1:.6,replaces:['garden-pond-boulder-'+k]});
+ }
+ for(const s of slots){
+  if(Math.abs(s.x)+s.w/2>plot.width/2+.001||Math.abs(s.z)+s.d/2>plot.depth/2+.001)throw Error('upgrade_model_slot_outside_lot:'+s.model);
+ }
+ return Object.freeze(slots);
+}

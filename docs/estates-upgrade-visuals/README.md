@@ -19,3 +19,16 @@ third-party models, textures or animations are used.
 
 Install animation (mid-frame, ~0.4 s after a verified purchase lands):
 ![](after-install-animation.jpg)
+
+## Round 2: CC BY Sketchfab models (progressive enhancement)
+
+Primitives render first; models swap in once loaded (code-built fallback if any file fails).
+Credits: `client/assets/estates-upgrades/CREDITS.md` and `client/city-credits.html`.
+
+| Item | Primitives | Model |
+|---|---|---|
+| Helicopter | ![](primitive-close-heli.jpg) | ![](models-close-heli.jpg) |
+| Fire pit | ![](primitive-close-firepit.jpg) | ![](models-close-firepit.jpg) |
+| Security camera | ![](primitive-close-camera.jpg) | ![](models-close-camera.jpg) |
+| Gnome + pond rocks | ![](primitive-close-gnome-pond.jpg) | ![](models-close-gnome-pond.jpg) |
+| Starter, all upgrades | ![](after-starter-front.jpg) | ![](models-starter-front.jpg) |

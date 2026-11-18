@@ -28,24 +28,25 @@ export function mountEstatePurchase(container,propertyId,{api='https://burn-city
  function schedule(){if(settled||!section.isConnected&&pollAttempt>0)return stopPolling();if(Date.now()-pollStarted>POLL_LIMIT_MS){note.textContent='Still waiting for your signed payment. Use “Check signed payment” after approving in Xaman.';return stopPolling();}const delay=POLL_DELAYS[Math.min(pollAttempt,POLL_DELAYS.length-1)];pollAttempt++;pollTimer=setTimeout(poll,delay);}
  async function poll(){pollTimer=null;if(settled)return;if(busy)return schedule();busy=true;try{await check();}catch(e){if(!RETRYABLE.has(e.code)){note.textContent=e.message;stopPolling();return;}}finally{busy=false;}if(!settled)schedule();}
  async function start(){const p=await request('/purchase/payment/start',{reservationId});actions.replaceChildren();note.textContent='Review the XRP amount and treasury destination in Xaman. Ownership is assigned only after ledger verification. This page checks automatically after you sign.';if(p.deeplink)link('Open Xaman to review payment',p.deeplink);button('Check signed payment',check);startPolling();}
+ async function signInToBuy(){
+  try{
+   await openEstateXamanSignIn({api,storage,opener:document.activeElement,onAuthenticated:()=>{
+    // Re-create this section with the newly verified session token. Existing
+    // purchase/reservation request guards stay bound to one wallet identity.
+    if(section.isConnected){
+     const next=section.nextSibling;
+     section.remove();
+     const fresh=mountEstatePurchase(container,propertyId,{api,fetcher,storage,onSettled,onAuthenticated});
+     if(next?.parentNode===container)container.insertBefore(fresh,next);
+    }
+    onAuthenticated();
+   }});
+  }catch(error){if(error?.code!=='sign_in_cancelled')throw error;}
+ }
  async function load(){
   if(!storage.getItem('bcToken')){
    note.textContent='Connect your Xaman wallet to view the server-verified price and purchase availability. Signing in does not reserve a home or authorize a payment.';
-   button('Sign in to purchase property',async()=>{
-    try{
-     await openEstateXamanSignIn({api,storage,opener:document.activeElement,onAuthenticated:()=>{
-      // Re-create this section with the newly verified session token. Existing
-      // purchase/reservation request guards stay bound to one wallet identity.
-      if(section.isConnected){
-       const next=section.nextSibling;
-       section.remove();
-       const fresh=mountEstatePurchase(container,propertyId,{api,fetcher,storage,onSettled,onAuthenticated});
-       if(next?.parentNode===container)container.insertBefore(fresh,next);
-      }
-      onAuthenticated();
-     }});
-    }catch(error){if(error?.code!=='sign_in_cancelled')throw error;}
-   });
+   button('Sign in to purchase property',signInToBuy);
    return;
   }
   const state=await request('');distributionsActive=state.distributionsEnabled===true;xrpProfitActive=state.imgXrpProfitDistributionsEnabled===true;extraIncome.textContent='Virtual property is for gameplay access only; there is no financial claim on treasury funds or AMM liquidity. Any separate bonus processing is discretionary and never guaranteed.';
@@ -76,7 +77,13 @@ export function mountEstatePurchase(container,propertyId,{api='https://burn-city
   });
   reserveButton.disabled=true;confirm.addEventListener('change',()=>{reserveButton.disabled=!confirm.checked;});
  }
- void load().catch(e=>{note.textContent=e.message;});return section;
+ void load().catch(e=>{
+  note.textContent=e.message;
+  if(e.code==='sign_in_with_xaman'){
+   actions.replaceChildren();
+   button('Reconnect Xaman wallet',signInToBuy);
+  }
+ });return section;
 }
 
 export function mountEstateImgTrustline(container,select,{request,doc=document,alwaysVisible=false}={}){

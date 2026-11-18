@@ -31,9 +31,12 @@ try{
    };
    return {hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status'),
     v8:!![...document.styleSheets].some(s=>s.href?.includes('ui-v8.css')),
+    shared:!![...document.styleSheets].some(s=>s.href?.includes('burn-ui-tokens.css')),
+    ember:getComputedStyle(document.documentElement).getPropertyValue('--bc-ember').trim(),
     cssWidth:document.documentElement.scrollWidth,innerWidth:innerWidth};
   });
   if(!shell.v8)fail(screen.name,'new visual shell was not loaded');
+  if(!shell.shared||shell.ember!=='#ff8b39')fail(screen.name,'canonical design tokens missing');
   if(shell.cssWidth>shell.innerWidth+2)fail(screen.name,'horizontal page overflow');
   if(shell.hud&&shell.toolbar&&overlap(shell.hud,shell.toolbar))fail(screen.name,'HUD overlaps navigation');
   if(shell.status&&shell.toolbar&&overlap(shell.status,shell.toolbar))fail(screen.name,'status overlaps navigation');
@@ -51,15 +54,44 @@ try{
   if(await page.locator('#bcMoveGamesPanel').evaluate(el=>el.classList.contains('on'))){
    fail(screen.name,'Escape did not close the drawer');
   }
+  // WAI-ARIA menu button: keyboard entry, roving focus, Escape and focus restoration.
+  const moreButton=page.locator('#moreBtn');
+  await moreButton.focus();
+  await page.keyboard.press('ArrowDown');
+  const menuOpen=await page.evaluate(()=>{
+    const menu=document.querySelector('#more');
+    const entries=[...menu.querySelectorAll('button[role="menuitem"]')]
+      .filter(b=>!b.hidden&&getComputedStyle(b).display!=='none'&&getComputedStyle(b).visibility!=='hidden');
+    return {open:menu.classList.contains('open'),count:entries.length,first:entries[0]===document.activeElement};
+  });
+  if(!menuOpen.open||!menuOpen.count||!menuOpen.first)fail(screen.name,'overflow menu keyboard opening or focus failed');
+  await page.keyboard.press('End');
+  const onLast=await page.evaluate(()=>{
+    const xs=[...document.querySelectorAll('#more button[role="menuitem"]')]
+      .filter(b=>!b.hidden&&getComputedStyle(b).display!=='none'&&getComputedStyle(b).visibility!=='hidden');
+    return xs.at(-1)===document.activeElement;
+  });
+  if(!onLast)fail(screen.name,'End did not move focus to final action');
+  await page.keyboard.press('Escape');
+  if(await page.locator('#more').evaluate(el=>el.classList.contains('open')))fail(screen.name,'overflow Escape did not close');
+  if(!await moreButton.evaluate(el=>el===document.activeElement))fail(screen.name,'overflow Escape did not restore focus');
+  await moreButton.click();
+  await page.locator('#bcMoveGamesOpen').click();
+  if(await page.locator('#more').evaluate(el=>el.classList.contains('open')))fail(screen.name,'two top-level menus were open');
+  if(!await page.locator('#bcMoveGamesPanel').evaluate(el=>el.classList.contains('on')))fail(screen.name,'games drawer did not replace secondary menu');
+  await page.keyboard.press('Escape');
   await page.goto(BASE+'/estate-properties.html',{waitUntil:'domcontentloaded',timeout:90000});
   await page.locator('#estate-views').waitFor();
   const estate=await page.evaluate(()=>({
    v8:!![...document.styleSheets].some(s=>s.href?.includes('estate-theme.css')),
+   shared:!![...document.styleSheets].some(s=>s.href?.includes('burn-ui-tokens.css')),
+   ember:getComputedStyle(document.documentElement).getPropertyValue('--bc-ember').trim(),
    width:document.documentElement.scrollWidth,viewport:innerWidth,
    navHeight:document.querySelector('#estate-views')?.getBoundingClientRect().height||0,
    tabs:[...document.querySelectorAll('#estate-views [role=tab]')].length
   }));
   if(!estate.v8)fail(screen.name,'Estates theme was not loaded');
+  if(!estate.shared||estate.ember!=='#ff8b39')fail(screen.name,'Estates missing shared design tokens');
   if(estate.width>estate.viewport+2)fail(screen.name,'Estates horizontal overflow');
   if(estate.navHeight>screen.height*.5)fail(screen.name,'Estates sticky navigation consumes half the screen');
   if(estate.tabs!==4)fail(screen.name,'Estates tabs are missing');

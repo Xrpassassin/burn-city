@@ -1,0 +1,23 @@
+/* BURN City experience system — one palette, one type and motion language.
+   Deliberately uses local system fonts to avoid network dependencies and layout shift.
+   Import before ui-v8.css and estate-theme.css; semantic aliases remain in each surface. */
+:root{
+  color-scheme:dark;
+  --bc-font-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  --bc-font-ui:"Avenir Next","Segoe UI",-apple-system,system-ui,sans-serif;
+  --bc-font-data:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,Consolas,monospace;
+  --bc-bg:#080c12;
+  --bc-surface:#141a22;
+  --bc-surface-elevated:#1b232c;
+  --bc-text:#f7f4f0;
+  --bc-text-muted:#c4cbd0;
+  --bc-ember:#ff8b39;
+  --bc-success:#7dffd2;
+  --bc-focus:#7ce2ff;
+  --bc-border:rgba(255,173,108,.19);
+  --bc-border-strong:rgba(255,173,108,.43);
+  --bc-touch-target:44px;
+  --bc-motion-fast:160ms;
+  --bc-motion-panel:240ms;
+  --bc-motion-ease:cubic-bezier(.22,.8,.25,1);
+}

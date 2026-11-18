@@ -2,24 +2,24 @@
    Keep engine, wallet and game-mode controls in their existing DOM nodes.
    This stylesheet follows ui.css, so the legacy UI remains a fallback. */
 :root{
-  --f-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
-  --f-ui:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
-  --f-mono:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,Consolas,monospace;
+  --f-display:var(--bc-font-display);
+  --f-ui:var(--bc-font-ui);
+  --f-mono:var(--bc-font-data);
   --glass:rgba(11,15,21,.77);
   --glass-2:rgba(11,15,21,.94);
   --glass-3:rgba(7,10,15,.98);
-  --edge:rgba(255,179,110,.19);
-  --edge-2:rgba(255,184,116,.43);
+  --edge:var(--bc-border);
+  --edge-2:var(--bc-border-strong);
   --hair:rgba(245,239,230,.1);
   --fill:rgba(255,255,255,.065);
   --fill-2:rgba(255,255,255,.12);
-  --txt:#f7f5f1;
-  --txt-2:#d6d0ca;
+  --txt:var(--bc-text);
+  --txt-2:var(--bc-text-muted);
   --txt-3:#a99f98;
   --r:16px;
   --r-lg:22px;
   --shadow:0 18px 52px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.05);
-  --ease:cubic-bezier(.22,.8,.25,1);
+  --ease:var(--bc-motion-ease);
 }
 html,body{font-family:var(--f-ui);text-rendering:optimizeLegibility}
 #hud .hdr .brand,#bcMoveGamesPanel h2,#vMenu>div>b{
@@ -70,6 +70,7 @@ html,body{font-family:var(--f-ui);text-rendering:optimizeLegibility}
 }
 #more.open{animation:bcV8Pop .2s var(--ease) both}
 #more button{font-family:var(--f-ui)!important}
+#more button:focus-visible{outline:2px solid var(--bc-focus)!important;outline-offset:-2px;background:var(--ember-soft)!important}
 #more button[data-l]::after{font-size:12.5px;line-height:1.4}
 #status{gap:7px;max-width:calc(100vw - var(--left) - var(--right))}
 #wchip,#live{

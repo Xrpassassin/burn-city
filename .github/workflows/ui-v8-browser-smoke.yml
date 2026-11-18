@@ -4,6 +4,8 @@ on:
     paths:
       - 'client/index.html'
       - 'client/ui-v8.css'
+      - 'client/burn-ui-tokens.css'
+      - 'client/js/ui.js'
       - 'client/estate-properties.html'
       - 'client/estate-theme.css'
       - 'client/js/movement-games-menu.js'

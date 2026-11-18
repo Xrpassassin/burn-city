@@ -1045,6 +1045,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    renderer.tickUpgrades?.(dt);
     if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
     if(flightSession)return tickHelicopterFlight(dt,moveForward,moveSide,edge);
     hideCityScene();animatePeers(dt);void refreshAppearance();void refreshFreeStyles();void refreshOwnership();void refreshTycoon();

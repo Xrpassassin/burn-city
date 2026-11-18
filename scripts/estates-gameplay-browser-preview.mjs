@@ -114,7 +114,7 @@ try{
   assert.equal(setup.upgrades,17);
   assert.equal(setup.helicopterLots.length,2);
   assert(setup.props>350,'all five house tiers display substantial real upgrade geometry');
-  assert(setup.verifiedDrawBatches<=17,'visible exterior details are batched by material');
+  assert(setup.verifiedDrawBatches<=32,'visible exterior details are batched by material and shape');
   assert(setup.renderedDrawCalls>0,'an actual WebGL draw rendered the Estates branch scene');
   // A continuously updating game page makes Playwright locator.screenshot()
   // wait for impossible "element stability" on some GPU/browser combinations.

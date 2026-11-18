@@ -4,7 +4,7 @@ import {estateHelipadPosition,estateHelipadAltitude,createEstateHelicopterFlight
 const PAINT=Object.freeze({obsidian:0x223b4b,ember:0x9f4731,arctic:0xc0d0d8,verdant:0x3d7664,royal:0x55426f});
 const TRIM=Object.freeze({brass:0xb49b67,ice:0x73d4e6,chrome:0xb4bdc7,copper:0xd1784d,ivory:0xe6ddd0});
 const C={body:0x223b4b,bodyAccent:0xb49b67,steel:0x4b5661,glass:0x25749a,pad:0x303b3b,
- white:0xf3d38a,red:0xe86243,green:0x4ecbb0,rotor:0x19262f};
+ white:0xf3d38a,red:0xe86243,green:0x4ecbb0,rotor:0x19262f,ring:0xe0b43c};
 export function createEstateHelicopterWorld({THREE,parent,lots}={}){
  if(!THREE?.Group||!THREE?.Mesh||!THREE?.BoxGeometry||!THREE?.MeshStandardMaterial||
     !THREE?.CylinderGeometry||!parent?.add||!Array.isArray(lots))throw TypeError('three_helicopter_dependencies_required');
@@ -24,31 +24,37 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
   const point=estateHelipadPosition(lot),g=new THREE.Group();g.name='estate-aircraft-'+lot.propertyId;
   g.position.set(point.x,lot.position.y+estateHelipadAltitude(lot)-1.4,point.z);root.add(g);
   cylinder(g,'private-helipad',4.3,4.3,.18,0,.07,0,C.pad,32);
+  // Skids rest on the deck (the aircraft used to hover ~0.37 m above it) and a
+  // painted safety ring + touchdown circle make the pad read at a glance.
+  cylinder(g,'helipad-safety-ring',4.3,4.3,.02,0,.172,0,C.ring,40);
+  cylinder(g,'helipad-deck-inner',4.05,4.05,.02,0,.19,0,C.pad,40);
+  cylinder(g,'helipad-touchdown-ring',2.2,2.2,.02,0,.208,0,C.white,32);
+  cylinder(g,'helipad-touchdown-inner',2.0,2.0,.02,0,.226,0,C.pad,32);
   // Raised safety deck: all geometry stays inside the 20 x 18 estate lot footprint.
   for(const x of [-3.2,3.2])for(const z of [-3.2,3.2])box(g,'roof-helipad-support',.35,2.1,.35,x,-1.05,z,C.steel,.5);
-  box(g,'helipad-h-left',.28,.05,2.55,-.74,.2,0,C.white);
-  box(g,'helipad-h-right',.28,.05,2.55,.74,.2,0,C.white);
-  box(g,'helipad-h-cross',1.72,.05,.27,0,.2,0,C.white);
+  box(g,'helipad-h-left',.28,.03,2.55,-.74,.25,0,C.white);
+  box(g,'helipad-h-right',.28,.03,2.55,.74,.25,0,C.white);
+  box(g,'helipad-h-cross',1.72,.03,.27,0,.25,0,C.white);
   for(const x of [-3.1,3.1])for(const z of [-3.1,3.1]){
     cylinder(g,'pad-light',.23,.23,.21,x,.22,z,x*z>0?C.green:C.red,8);
   }
   const craft=new THREE.Group();craft.name='luxury-utility-helicopter';g.add(craft);
-  box(craft,'fuselage',2.55,1.25,3.5,0,1.95,-.3,C.body,.28);
-  box(craft,'nose',2.12,.95,1.25,0,1.95,-2.25,C.glass,.18);
-  box(craft,'windshield',1.85,.64,.14,0,2.18,-2.93,C.glass,.08);
-  box(craft,'roof',1.86,.2,2.05,0,2.68,-.55,C.bodyAccent,.35);
-  box(craft,'tail-boom',.55,.45,4.9,0,2.0,3.55,C.body,.25);
-  box(craft,'tail-fin',.2,1.9,1.0,0,2.65,5.72,C.bodyAccent,.15);
+  box(craft,'fuselage',2.55,1.25,3.5,0,1.59,-.3,C.body,.28);
+  box(craft,'nose',2.12,.95,1.25,0,1.59,-2.25,C.glass,.18);
+  box(craft,'windshield',1.85,.64,.14,0,1.82,-2.93,C.glass,.08);
+  box(craft,'roof',1.86,.2,2.05,0,2.32,-.55,C.bodyAccent,.35);
+  box(craft,'tail-boom',.55,.45,4.9,0,1.64,3.55,C.body,.25);
+  box(craft,'tail-fin',.2,1.9,1.0,0,2.29,5.72,C.bodyAccent,.15);
   for(const x of [-1.13,1.13]){
-    box(craft,'landing-skid',.15,.17,4.7,x,.61,.1,C.steel,.6);
-    for(const z of [-.85,1.05])box(craft,'skid-strut',.12,.83,.16,x,1.06,z,C.steel,.6);
-    box(craft,'cabin-door',.09,.9,1.5,x*1.15,1.97,-.65,C.bodyAccent,.18);
+    box(craft,'landing-skid',.15,.17,4.7,x,.355,.1,C.steel,.6);
+    for(const z of [-.85,1.05])box(craft,'skid-strut',.12,.83,.16,x,.7,z,C.steel,.6);
+    box(craft,'cabin-door',.09,.9,1.5,x*1.15,1.61,-.65,C.bodyAccent,.18);
   }
-  cylinder(craft,'main-rotor-mast',.17,.18,.5,0,3.03,-.32,C.steel,8);
-  const top=new THREE.Group();top.name='main-rotor';top.position.set(0,3.35,-.32);craft.add(top);
+  cylinder(craft,'main-rotor-mast',.17,.18,.5,0,2.67,-.32,C.steel,8);
+  const top=new THREE.Group();top.name='main-rotor';top.position.set(0,2.99,-.32);craft.add(top);
   box(top,'main-blade-a',8.2,.1,.2,0,0,0,C.rotor,.35);
   box(top,'main-blade-b',.2,.1,8.2,0,0,0,C.rotor,.35);
-  const tail=new THREE.Group();tail.name='tail-rotor';tail.position.set(.33,2.66,5.77);craft.add(tail);
+  const tail=new THREE.Group();tail.name='tail-rotor';tail.position.set(.33,2.3,5.77);craft.add(tail);
   box(tail,'tail-blade-a',.12,1.55,.15,0,0,0,C.rotor,.4);
   box(tail,'tail-blade-b',.12,.15,1.55,0,0,0,C.rotor,.4);
   return {lot,g,craft,top,tail,model:createEstateHelicopterFlight(lot)};

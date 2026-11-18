@@ -11,13 +11,14 @@
 //    stabilizations are relayed over the city WebSocket ({t:'ab'}) when it is up. Reward: a local "AEGIS Responder" record
 //    (count + rank) only: no coins, no XP, nothing server-side.
 //  - Hysteresis: a new level must hold for 2 polls to escalate and 3 polls + 5 min to calm down.
-//  - "AEGIS CITY WATCH" screens on the Pyramid faces (4 desktop, 2 phones, 1 low tier); the ticker / alert banner runs in a strip on them.
-//    Response Ops notices still use the event-banner queue below gameplay events; the periodic ticker no longer does.
+//  - "AEGIS CITY WATCH" screens keep their world-space ticker; the slim top news rail now carries
+//    the validated feed and Response Ops headlines instead of large gameplay banners or duplicate toasts.
 // Direct fetch only (no third-party script in our page); every field validated; any failure = the city exactly as before, and
 // no new beacons spawn unless the last poll succeeded.
 // Off switch: HUD > Settings > "Live AEGIS feed" (localStorage bc_aegis) or ?aegis=0. Polls pause while the tab is hidden.
 // Test hook (?aegistest or ?debug=1): window.__aegis.force('CRITICAL' | 0..2 | null = back to the feed), .tOff (clock offset ms), .ops.
 import * as THREE from 'three';
+import { updateAegisNewsFeed, publishAegisHeadline, clearAegisNews } from './aegis-news.mjs';
 
 const API = 'https://api.xrpl.fun/v1/aegis/city';
 const Q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
@@ -136,6 +137,7 @@ async function pollCams() {
 // ---------------------------------------------------------------- hysteresis -> effective level
 let pend = { lv: 0, n: 0 }, changedAt = 0;
 function ingest(v) {
+  const previousLevel = A.level;
   A.data = v; A.raw = v.level;
   if (A.pinned) { }   // test hook: level forced
   else if (!A.everOk) { A.everOk = true; setLevel(v.level, true); }   // first reading: adopt as-is (crossfades in from the normal city)
@@ -146,6 +148,8 @@ function ingest(v) {
     if (up ? pend.n >= 2 : (pend.n >= 3 && Date.now() - changedAt > CALM_DWELL)) setLevel(v.level);
   }
   applyLevel(v); syncScreens(screenList()); syncTable(v);
+  updateAegisNewsFeed({ level: A.level, lines: (A.level > 0 && v.banner ? [v.banner] : []).concat(v.ticker) });
+  if (A.level > previousLevel) publishAegisHeadline('AEGIS ' + LNAME[A.level] + ': ' + (v.banner || v.reason || 'Threat level increased'), A.level);
 }
 function setLevel(lv, first) { A.level = lv; changedAt = Date.now(); pend = { lv, n: 0 }; A.changes = (A.changes || 0) + (first ? 0 : 1); }
 let lastSirenKey = '';
@@ -159,7 +163,7 @@ function applyLevel(v) {
 }
 function clearAll() {
   A.data = null; A.level = 0; A.everOk = false; pend = { lv: 0, n: 0 }; lastSirenKey = '';
-  applyLevel(null); syncScreens(LC.top.length && enabled() ? LC.top : []); syncTable(null); opsClear(); close(); status();
+  applyLevel(null); syncScreens(LC.top.length && enabled() ? LC.top : []); syncTable(null); opsClear(); clearAegisNews(); close(); status();
 }
 
 // ---------------------------------------------------------------- screens: diegetic mounts
@@ -526,9 +530,8 @@ function openLive(cam) {
 }
 A.openLive = openLive;
 
-// ---------------------------------------------------------------- ticker -> the city's event queue (ranked below gameplay)
+// ---------------------------------------------------------------- world-space ticker still appears on the AEGIS Pyramid faces
 let tickI = 0, tickNext = 0;
-const LEVEL_COL = ['#2fe3ff', '#ffb000', '#ff3b2a'];
 function tickerTick() {   // rotates the line shown in the strip on the Pyramid screens (no longer queued as city banners)
   const v = A.data; if (!v || !enabled()) { A.tickLine = ''; return; }
   const now = performance.now(); if (now < tickNext) return; tickNext = now + (FAST ? 4e3 : 8e3);
@@ -559,11 +562,7 @@ const RANKS = [[0, 'Unranked'], [1, 'Recruit'], [3, 'Responder'], [10, 'Sentinel
 const rankOf = n => RANKS.filter(r => n >= r[0]).pop()[1];
 function hash(n) { let h = (n | 0) ^ 0x9e3779b9; h = Math.imul(h ^ h >>> 16, 0x85ebca6b); h = Math.imul(h ^ h >>> 13, 0xc2b2ae35); return (h ^ h >>> 16) >>> 0; }
 function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function toastCity(txt) {   // the city's own toast stack (events.js), so it looks like every other city notice
-  const t = $('cityToast'); if (!t) return; const d = document.createElement('div'); d.textContent = txt; t.appendChild(d);
-  requestAnimationFrame(() => d.classList.add('on')); setTimeout(() => d.classList.remove('on'), 4800); setTimeout(() => d.remove(), 5400); while (t.children.length > 3) t.firstChild.remove();
-}
-function tick(text, lv = A.level) { const q = window.__evq; if (q) q.push({ type: 'aegis', text, level: LNAME[lv], col: LEVEL_COL[lv], when: new Date() }); }
+function tick(text, lv = A.level) { publishAegisHeadline(text, lv); }
 function districtAt(x, z) { const c = window.__city; let best = null, bd = 1e9; for (const n of (c && c.E && c.E.nodes) || []) { const d = Math.hypot(x - n.pos.x, z - n.pos.z); if (d < (n.distR || 60) && d < bd) { bd = d; best = n; } } return best ? best.name : 'outer'; }
 const isWalk = () => { const c = window.__city; return !!(c && c.getMode && c.getMode() === 'explore' && !window.__burnTowerOpen); };
 
@@ -722,7 +721,7 @@ function opsClear() { for (const b of OPS.beacons) killBeacon(b); OPS.beacons = 
 function opsSpawn() {
   const now = clock(), w = Math.floor(now / WAVE), exp = w * WAVE + LIFE, lv = enabled() ? A.level : 0;
   const ok = lv >= 1 && (A.pinned || A.lastOk && A.fails === 0 && A.state === 'ok');
-  if (!enabled() || lv === 0) { OPS.prevLv = 0; OPS.alertPend = false; if (OPS.beacons.length) { if (lv === 0 && enabled() && OPS.beacons.some(b => !b.done)) toastCity('🛰 AEGIS stood down: anomaly beacons cleared.'); opsClear(); } return; }
+  if (!enabled() || lv === 0) { OPS.prevLv = 0; OPS.alertPend = false; if (OPS.beacons.length) { if (lv === 0 && enabled() && OPS.beacons.some(b => !b.done)) tick('🛰 AEGIS stood down: anomaly beacons cleared.', 0); opsClear(); } return; }
   for (const b of OPS.beacons) if (!b.done && now > b.exp) { b.done = true; b.expired = true; b.fade = .001; }
   // threat rose (or first read at ELEVATED/CRITICAL): beacons now, not at the next 5-of-8-min window. Off-window alert beacons get
   // their own wave-seeded key/spots ('w<N>a-i') and a full LIFE from now; pending until the feed is ok.
@@ -738,7 +737,7 @@ function opsSpawn() {
   OPS.alertPend = false; if (off) { OPS.alertW = w; OPS.alertLv = lv; }
   if (fresh) { OPS.wave = w; const ds = [...new Set(OPS.beacons.filter(b => !b.done).map(b => b.dname))].join(', ');
     tick(`🛰 AEGIS RESPONSE OPS: ${fresh > 1 ? fresh + ' signal anomalies' : 'signal anomaly'} detected (${ds}). Go there and hold USE to stabilize.`);
-    toastCity(`🛰 ${fresh > 1 ? fresh + ' signal anomalies' : 'Signal anomaly'} in ${ds} · check the minimap`); }
+  }
 }
 function nearBeacon(p, r = BEACON_R) { let best = null, bd = r; for (const b of OPS.beacons) { if (b.done) continue; const d = Math.hypot(p.x - b.x, p.z - b.z); if (d < bd) { bd = d; best = b; } } return best; }
 function helpers(b, nowP) { let n = 0; const P = window.__peers; for (const [pid, t] of b.peers) { if (nowP - t > 1800) { b.peers.delete(pid); continue; } const q = P && P.get(+pid); if (!q || !q.g || Math.hypot(q.g.position.x - b.x, q.g.position.z - b.z) < 14) n++; } return n; }
@@ -747,10 +746,9 @@ function stabilize(b, by, mine) {
   if (b.done) return; b.done = true; b.by = by; b.fade = .001; b.prog = 1; OPS.stabilized++;
   OPS.rec.done.push(b.k); OPS.rec.done = OPS.rec.done.slice(-30);
   if (mine) { OPS.rec.n++; OPS.rec.last = Date.now(); const r = rankOf(OPS.rec.n), up = rankOf(OPS.rec.n - 1) !== r;
-    toastCity(`✅ Anomaly stabilized · AEGIS Responder ×${OPS.rec.n}${up ? ' · rank up: ' + r + '!' : ''}`);
-    tick(`✅ Signal anomaly in ${b.dname} stabilized by you · AEGIS Responder ×${OPS.rec.n} (${r})`);
+    tick(`✅ Signal anomaly in ${b.dname} stabilized by you · AEGIS Responder ×${OPS.rec.n} (${r})${up ? ' · rank up!' : ''}`);
     try { window.__citySend && window.__citySend({ t: 'ab', k: b.k, s: 1 }); } catch { } chime(); }
-  else { tick(`✅ Signal anomaly in ${b.dname} stabilized by ${by || 'another responder'}`); toastCity(`✅ ${by || 'A responder'} stabilized the ${b.dname} anomaly`); }
+  else { tick(`✅ Signal anomaly in ${b.dname} stabilized by ${by || 'another responder'}`); }
   saveRec(); if (A.consoleOpen) renderOps();
 }
 addEventListener('bc-aegis', e => {   // relayed by the city WebSocket (city.js): {t:'ab', pid, name, k, h, s}

@@ -87,6 +87,8 @@ try{
   if(!await page.locator('#aegisNews').evaluate(el=>el.hidden))
    fail(screen.name,'AEGIS snooze did not respect new alerts');
   await page.locator('#bcMoveGamesOpen').click();
+  // Measure final position after the short scale/fade entry animation, not an in-flight transform.
+  await page.locator('#bcMoveGamesPanel .bc-mg-card').evaluate(el=>Promise.all(el.getAnimations().map(a=>a.finished.catch(()=>{}))));
   const bounds=await page.locator('#bcMoveGamesPanel .bc-mg-card').boundingBox();
   if(!bounds||bounds.x<-2||bounds.y<-2||bounds.x+bounds.width>screen.width+2||bounds.y+bounds.height>screen.height+2){
    fail(screen.name,'movement and games drawer is offscreen: '+JSON.stringify(bounds));

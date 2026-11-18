@@ -164,6 +164,65 @@ try{
   if(estate.width>estate.viewport+2)fail(screen.name,'Estates horizontal overflow');
   if(estate.navHeight>screen.height*.5)fail(screen.name,'Estates sticky navigation consumes half the screen');
   if(estate.tabs!==4)fail(screen.name,'Estates tabs are missing');
+  if(screen.name==='desktop'){
+   // Mock ONLY the Xaman identity endpoints in this isolated browser test.
+   // No wallet is connected and no property reservation/payment is created.
+   const testAcct='rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh',testToken='signed-session-from-mocked-server';
+   let starts=0,finishes=0,purchases=0,completeAuth=false;
+   await page.route('**/api/signin',route=>{
+    starts++;
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+     sid:'SI'+'a'.repeat(24),xaman:{qr:'https://xumm.app/sign/qa_q.png',deeplink:'https://xumm.app/sign/qa'}
+    })});
+   });
+   await page.route('**/api/signin/finish',route=>{
+    finishes++;
+    return route.fulfill({status:200,contentType:'application/json',
+     body:JSON.stringify(completeAuth?{ok:true,account:testAcct,token:testToken}:{ok:false,reason:'not_signed'})});
+   });
+   await page.route('**/api/estates**',route=>{
+    if(/purchase\/(reserve|payment\/start)/.test(route.request().url()))purchases++;
+    const url=new URL(route.request().url());
+    const data=url.pathname.endsWith('/purchase/quote')
+      ?{ok:true,priceDrops:'3000000',salesEnabled:false}
+      :{ok:true,owned:[],distributionsEnabled:false,imgXrpProfitDistributionsEnabled:false};
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+   });
+   await page.evaluate(async()=>{
+    localStorage.removeItem('bcToken');localStorage.removeItem('bcAcct');
+    const node=document.createElement('div');node.id='estate-signin-browser-fixture';
+    document.body.append(node);
+    const {mountEstatePurchase}=await import('./js/estate-purchase-ui.mjs');
+    mountEstatePurchase(node,'qa-lot',{api:location.origin});
+   });
+   const signin=page.locator('#estate-signin-browser-fixture button').filter({hasText:'Sign in to purchase property'});
+   await signin.click();
+   await page.locator('#bcEstatesXaman .bc-xaman-open').waitFor({state:'visible'});
+   const qr=await page.evaluate(()=>({
+    link:document.querySelector('#bcEstatesXaman .bc-xaman-open')?.href,
+    img:document.querySelector('#bcEstatesXaman .bc-xaman-qr img')?.src,
+    token:localStorage.getItem('bcToken')
+   }));
+   if(qr.link!=='https://xumm.app/sign/qa'||qr.img!=='https://xumm.app/sign/qa_q.png'||qr.token)
+    fail(screen.name,'Xaman SignIn modal did not show a real-format QR and deeplink without authenticating');
+   await page.locator('#bcEstatesXaman .bc-xaman-close').click();
+   if(await page.locator('#bcEstatesXaman').count()||await page.evaluate(()=>localStorage.getItem('bcToken')))
+    fail(screen.name,'Cancelling Xaman sign-in did not close safely');
+   completeAuth=true;
+   await signin.click();
+   await page.locator('#bcEstatesXaman .bc-xaman-open').waitFor({state:'visible'});
+   await page.waitForFunction(token=>localStorage.getItem('bcToken')===token,testToken,{timeout:20000});
+   const auth=await page.evaluate(()=>({
+    account:localStorage.getItem('bcAcct'),loginCount:[...document.querySelectorAll('#estate-signin-browser-fixture button')].filter(x=>/Sign in to purchase property/.test(x.textContent)).length,
+    modal:!!document.querySelector('#bcEstatesXaman'),
+    text:document.querySelector('#estate-signin-browser-fixture')?.textContent||''
+   }));
+   if(auth.account!==testAcct||auth.modal||auth.loginCount||!auth.text.includes('Purchases are currently disabled'))
+    fail(screen.name,'Xaman approval did not refresh same-property server quote: '+JSON.stringify(auth));
+   if(starts!==2||finishes<1||purchases)fail(screen.name,'Sign-in performed unexpected purchases or session calls');
+   console.log('PASS desktop Estates Xaman sign-in cancellation, QR and verified session refresh');
+  }
+
   console.log('PASS',screen.name,'city shell + drawer + Estates');
   await context.close();
  }

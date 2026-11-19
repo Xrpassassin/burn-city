@@ -39,6 +39,8 @@ assert.equal(decor.previewUpgrade('trailer-01','hidden-hatch'),true);
 assert.equal(decor.previewUpgrade('trailer-01',null),true,'closing inspection clears the ghost');
 assert.equal(decor.previewRoot.children.length,0);
 assert.equal(decor.previewUpgrade('other-property','porch-lights'),false,'preview cannot render outside known property slots');
+assert.equal(typeof decor.tick,'function','renderer can advance the install animation');
+assert.equal(decor.tick(.016),false,'no animation without a verified new install on an instanced renderer');
 assert.equal(decor.dispose(),true);
 assert.equal(parent.children.length,0);
 assert.equal(decor.dispose(),false);

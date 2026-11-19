@@ -115,6 +115,7 @@ export async function installEstatesIslandLive({
   const root = renderer.root;
   const secretInterior=createEstatesSecretInteriorRenderer({THREE,scene});
   const helicopters=createEstateHelicopterWorld({THREE,parent:root,lots:manifest.lots});
+  renderer.upgradeModels?.then(m=>{if(!disposed)helicopters.setModels?.(m);});
   root.position.x = OFFSET_X;
   root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
@@ -1045,6 +1046,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    renderer.tickUpgrades?.(dt);
     if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
     if(flightSession)return tickHelicopterFlight(dt,moveForward,moveSide,edge);
     hideCityScene();animatePeers(dt);void refreshAppearance();void refreshFreeStyles();void refreshOwnership();void refreshTycoon();

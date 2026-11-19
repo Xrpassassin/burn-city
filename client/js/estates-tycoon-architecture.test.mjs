@@ -95,3 +95,37 @@ for(const [tier,buildingFootprint]of Object.entries(footprints)){
 assert.throws(()=>estateUpgradeExteriorParts({buildingFootprint:{width:15,depth:16,height:5},dimensions:{width:20,depth:18}},all),/footprint/);
 assert.throws(()=>estateUpgradeExteriorParts({buildingFootprint:{width:6,depth:5,height:3}},'invalid'),/upgrade_ids_required/);
 console.log('Realistic Estates architecture: five tiers, 17 exterior items, door-aligned slatted fences, rounded details and roof clearance passed');
+// Visual-quality regressions (Nov 2026 upgrade polish): purchased items never
+// interpenetrate one another, wall fixtures sit flush on the recessed shell,
+// and the pond surface clears its basin so it cannot z-fight.
+{
+ const stacked=new Set(['reinforced-floor','hidden-hatch','underground-bunker']);
+ const joined=new Set(['grow-lounge','grow-lounge-deluxe']);
+ for(const [tier,buildingFootprint]of Object.entries(footprints)){
+  const lot={tier,dimensions:{width:20,depth:18},buildingFootprint};
+  const parts=estateUpgradeExteriorParts(lot,all).filter(p=>p.mat!=='glow');
+  for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){
+   const a=parts[i],b=parts[j];
+   if(a.id===b.id||(stacked.has(a.id)&&stacked.has(b.id))||(joined.has(a.id)&&joined.has(b.id)))continue;
+   const hit=Math.abs(a.x-b.x)<(a.w+b.w)/2-.001&&Math.abs(a.y-b.y)<(a.h+b.h)/2-.001&&Math.abs(a.z-b.z)<(a.d+b.d)/2-.001;
+   assert(!hit,tier+' '+a.name+' overlaps '+b.name);
+  }
+  const wallF=buildingFootprint.depth/2-.3,wallX=buildingFootprint.width/2-.3;
+  const at=n=>parts.find(p=>p.name===n);
+  for(const n of ['porch-lights-wall-base--1','porch-lights-wall-base-1','game-lounge-arcade-entrance-badge'])
+   assert(Math.abs(at(n).z-at(n).d/2-wallF)<.02,tier+' '+n+' must sit flush on the front wall');
+  const door=at('hobby-workshop-utility-door');
+  assert(Math.abs(door.z+door.d/2+wallF)<.02,tier+' workshop door sits on the rear wall');
+  const vent=at('grow-lounge-concealed-vent');
+  assert(Math.abs(vent.x+vent.w/2+wallX)<.02,tier+' vent sits on the side wall');
+  const water=at('garden-pond-pond-water'),basin=at('garden-pond-waterproof-basin');
+  assert(water.y-water.h/2>basin.y+basin.h/2+.02,tier+' pond water clears the basin top');
+  const hatch=at('hidden-hatch-hatch'),slab=at('reinforced-floor-slab'),lid=at('underground-bunker-hatch-armored-lid');
+  assert(Math.abs(hatch.y-hatch.h/2-(slab.y+slab.h/2))<.005,tier+' hatch rests on the slab');
+  assert(Math.abs(lid.y-lid.h/2-(hatch.y+hatch.h/2))<.005,tier+' bunker lid rests on the hatch collar');
+  const pavers=parts.filter(p=>p.name.startsWith('porch-lights-entry-paver-'));
+  for(const b of parts.filter(p=>p.name.startsWith('porch-lights-path-pedestal-')))
+   assert(pavers.every(pv=>Math.abs(b.x-pv.x)>=(b.w+pv.w)/2),tier+' path bollards flank, never block, the walkway');
+ }
+ console.log('Estates upgrade visual polish: no cross-item clipping, flush wall fixtures, stacked bunker parts, clear walkway passed');
+}

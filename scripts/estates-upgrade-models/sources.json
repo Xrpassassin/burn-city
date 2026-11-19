@@ -53,5 +53,53 @@
   "license": "CC Attribution",
   "licslug": "by",
   "licurl": "http://creativecommons.org/licenses/by/4.0/"
+ },
+ "wall-lantern": {
+  "uid": "e8a9b72425e148e48364bc0d3d05da13",
+  "title": "Low-Poly Lantern",
+  "creator": "Emma-Lie Kamping",
+  "username": "Ellemieke25",
+  "profile": "https://sketchfab.com/Ellemieke25",
+  "url": "https://sketchfab.com/3d-models/e8a9b72425e148e48364bc0d3d05da13",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/",
+  "use": "Estates porch & path lights upgrade (wall sconces beside the door)"
+ },
+ "flower-bush": {
+  "uid": "4b47abf072604a71aaf1bda30847a1af",
+  "title": "Lowpoly Flower Bushes",
+  "creator": "Varvara",
+  "username": "krauchankavarvara",
+  "profile": "https://sketchfab.com/krauchankavarvara",
+  "url": "https://sketchfab.com/3d-models/4b47abf072604a71aaf1bda30847a1af",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/",
+  "use": "Estates flower garden beds and roof / terrace garden planting"
+ },
+ "workbench": {
+  "uid": "01c0b5991ad448ed917845df202867c2",
+  "title": "Workbench Low-poly",
+  "creator": "MaX3Dd",
+  "username": "MaX3Dd",
+  "profile": "https://sketchfab.com/MaX3Dd",
+  "url": "https://sketchfab.com/3d-models/01c0b5991ad448ed917845df202867c2",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/",
+  "use": "Estates hobby workshop upgrade (bench beside the rear service door)"
+ },
+ "arcade": {
+  "uid": "2e95a489783e4e75a132bcc9e42b69e6",
+  "title": "Arcade Machine - Pixel-art Low-Poly",
+  "creator": "Wade_Kenny",
+  "username": "Mr_Kenny12",
+  "profile": "https://sketchfab.com/Mr_Kenny12",
+  "url": "https://sketchfab.com/3d-models/2e95a489783e4e75a132bcc9e42b69e6",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/",
+  "use": "Estates bunker arcade & vault decor upgrade"
  }
 }

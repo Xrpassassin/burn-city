@@ -181,7 +181,9 @@ export function createEstateTycoonDecor({THREE,parent,lots,models=null}={}){
     for(const {geometry}of prims){geometry.computeBoundingBox();box.union(geometry.boundingBox);}
     const size=box.getSize(new THREE.Vector3()),centre=box.getCenter(new THREE.Vector3());
     const fits=entries.map(({lot,slot})=>{
-     let sx=slot.w/size.x,sy=slot.h/size.y,sz=slot.d/size.z;
+     // Slot boxes are world-aligned: a quarter-turned model swaps its x/z fit.
+     const turned=Math.abs(Math.sin(slot.ry))>.7,sw=turned?slot.d:slot.w,sd=turned?slot.w:slot.d;
+     let sx=sw/size.x,sy=slot.h/size.y,sz=sd/size.z;
      if(!slot.stretch)sx=sy=sz=Math.min(sx,sy,sz);
      const c=Math.cos(slot.ry),s=Math.sin(slot.ry),ox=centre.x*sx,oz=centre.z*sz;
      return {lot,slot,sx,sy,sz,x:lot.position.x+slot.x-(ox*c+oz*s),y:lot.position.y+slot.y-box.min.y*sy,z:lot.position.z+slot.z-(-ox*s+oz*c)};

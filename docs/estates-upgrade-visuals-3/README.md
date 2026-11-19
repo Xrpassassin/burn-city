@@ -1,0 +1,3 @@
+# Estates upgrade visuals, round 3 (before / after)
+
+Rendered with the QA harness (SwiftShader, all upgrades owned). Pairs: `before-close-porch.jpg` / `after-close-porch.jpg`, `before-close-trailer-porch.jpg` / `after-close-trailer-porch.jpg`, `before-close-flowers.jpg` / `after-close-flowers.jpg`, `before-close-workshop.jpg` / `after-close-workshop.jpg`, `before-close-arcade.jpg` / `after-close-arcade.jpg`, `before-close-terrace.jpg` / `after-close-terrace.jpg`, `before-close-mansion-entry.jpg` / `after-close-mansion-entry.jpg`, `before-starter-front.jpg` / `after-starter-front.jpg`, `before-mansion-front.jpg` / `after-mansion-front.jpg`, `before-starter-night.jpg` / `after-starter-night.jpg`.

@@ -319,7 +319,7 @@ export async function installEstatesIslandLive({
       const ownershipOptions={api:apiBase,onOwnership:properties=>renderer.setOwnership(properties)};
       let ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);
       let finishes;
-      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshFreeStyles(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
+      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onAuthenticated:()=>{void refreshOwnership(true);ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);},onSettled:()=>{void refreshAppearance(true);void refreshFreeStyles(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
       mountEstateFreeStyle(panel,property.propertyId,{api:apiBase,
         initialStyle:verifiedFreeStyles.find(x=>x.propertyId===property.propertyId),
         onPreview:style=>previewFreeStyle(property.propertyId,style),

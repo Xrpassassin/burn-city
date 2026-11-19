@@ -1,0 +1,54 @@
+/* Xaman identity approval is part of BURN City's shared modal vocabulary. */
+#bcEstatesXaman{
+  position:fixed;inset:0;z-index:1800;
+  display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
+    max(16px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  background:rgba(3,7,13,.88);
+  -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+  box-sizing:border-box;
+}
+#bcEstatesXaman .bc-xaman-card{
+  box-sizing:border-box;
+  width:min(420px,100%);max-height:100%;
+  overflow-y:auto;overscroll-behavior:contain;
+  padding:22px 24px;border-radius:20px;
+  border:1px solid var(--bc-border-strong,rgba(255,173,108,.43));
+  background:linear-gradient(145deg,#1b232c,#0c121a);
+  box-shadow:0 24px 80px #000a;
+  color:var(--bc-text,#f7f4f0);
+  font:500 14px/1.5 var(--bc-font-ui,system-ui,sans-serif);
+}
+#bcEstatesXaman .bc-xaman-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#bcEstatesXaman h2{margin:0;font:800 21px/1.2 var(--bc-font-display,system-ui,sans-serif);letter-spacing:-.02em}
+#bcEstatesXaman p{margin:12px 0;color:var(--bc-text-muted,#c4cbd0)}
+#bcEstatesXaman .bc-xaman-status{color:#ffd4b6;font-weight:700;min-height:1.5em}
+#bcEstatesXaman .bc-xaman-qr{min-height:16px;display:flex;justify-content:center;padding:10px 0}
+#bcEstatesXaman .bc-xaman-qr img{display:block;width:min(224px,100%);height:auto;aspect-ratio:1;border-radius:12px;background:#fff;padding:8px;box-sizing:border-box}
+#bcEstatesXaman .bc-xaman-open{
+  display:flex;align-items:center;justify-content:center;
+  min-height:48px;padding:10px 14px;margin-top:8px;
+  background:linear-gradient(135deg,#ff7b27,#ffc078);
+  color:#241508;border-radius:12px;font-weight:800;text-decoration:none
+}
+#bcEstatesXaman .bc-xaman-open[hidden]{display:none}
+#bcEstatesXaman .bc-xaman-close{
+  flex:0 0 44px;width:44px;height:44px;min-height:44px;
+  border:1px solid var(--bc-border,rgba(255,173,108,.19));
+  border-radius:11px;background:#ffffff12;color:#fff;
+  font:600 23px/1 var(--bc-font-ui,system-ui,sans-serif);cursor:pointer
+}
+#bcEstatesXaman .bc-xaman-close:focus-visible,
+#bcEstatesXaman .bc-xaman-open:focus-visible{
+  outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:3px
+}
+#bcEstatesXaman .bc-xaman-hint{font-size:12px}
+@media(max-height:500px) and (orientation:landscape){
+  #bcEstatesXaman .bc-xaman-card{padding:12px 16px}
+  #bcEstatesXaman .bc-xaman-qr img{width:110px}
+  #bcEstatesXaman h2{font-size:18px}
+  #bcEstatesXaman p{margin:6px 0}
+}
+@media(prefers-reduced-motion:reduce){
+  #bcEstatesXaman{-webkit-backdrop-filter:none;backdrop-filter:none}
+}

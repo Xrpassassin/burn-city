@@ -1,6 +1,7 @@
 // Only one private interior room is built at a time. No external assets or shader stack.
 // Authenticated room admission is performed by the live controller before setRoom().
 import {createSecretRoomLayout,PRIVATE_ROOM_ORIGIN,resolveSecretRoomMotion,secretRoomInteraction} from './estates-secret-layout.mjs';
+import {createEstateInteriorModelCache} from './estates-interior-models.mjs';
 const PALETTE={
  concrete:{color:0x575b62,roughness:.96},ceiling:{color:0x272f39,roughness:.92},
  wall:{color:0x3d454e,roughness:.87},steel:{color:0x596977,metalness:.68,roughness:.42},
@@ -25,6 +26,20 @@ const PALETTE={
  'home-metal':{color:0x68716d,metalness:.48,roughness:.52},
  'home-glass':{color:0x93b3b2,metalness:.1,roughness:.25,transparent:true,opacity:.76},
  'home-warm':{color:0xffd9a0,emissive:0xffbc78,emissiveIntensity:.7,roughness:.5},
+ 'home-wall-panel':{color:0xd6cbb6,roughness:.85},'home-wall-sage':{color:0xbdc4ae,roughness:.92},'home-wall-ivory':{color:0xe6dccb,roughness:.9},
+ 'home-floor-vinyl':{color:0xa98f70,roughness:.7},'home-floor-oak':{color:0x9a7652,roughness:.72},'home-floor-marble':{color:0xc9bfae,roughness:.38},
+ 'home-tile':{color:0xcfd5d4,roughness:.45},'home-white':{color:0xeeeae2,roughness:.4},'home-dark-wood':{color:0x5a3f2c,roughness:.72},
+ 'home-brass':{color:0xc6a35d,metalness:.7,roughness:.35},'home-stone':{color:0xb8b0a0,roughness:.6},'home-mat':{color:0x5d4a3a,roughness:1},
+ 'home-red':{color:0x9c3b30,roughness:.6},'home-steel':{color:0x6f7a80,metalness:.6,roughness:.45},'home-shadow':{color:0x1d1a17,roughness:1},
+ 'home-pegboard':{color:0xb08a5c,roughness:.9},'home-arcade':{color:0x2a2340,roughness:.55},
+ 'home-hazard':{color:0xd7a92a,emissive:0x6b4c00,emissiveIntensity:.4,roughness:.6},
+ 'home-window':{color:0xdfeeff,emissive:0xbfdcff,emissiveIntensity:.95,roughness:.15},
+ 'home-screen':{color:0x0c1218,emissive:0x1d4466,emissiveIntensity:.45,roughness:.2},
+ 'home-art-a':{color:0xb5653f,roughness:.9},'home-art-b':{color:0x3f6f8a,roughness:.9},'home-art-c':{color:0xc9a54a,roughness:.9},
+ 'home-feed':{color:0x335a40,emissive:0x4fae74,emissiveIntensity:.7,roughness:.4},
+ 'home-neon':{color:0xff6ad5,emissive:0xff3fc4,emissiveIntensity:1.4,roughness:.4},
+ 'home-grow':{color:0xc58cff,emissive:0xa45cff,emissiveIntensity:1.3,roughness:.4},
+ 'home-fire':{color:0xffa040,emissive:0xff7a1a,emissiveIntensity:1.8,roughness:.5},
  screen:{color:0x1a5f8a,emissive:0x14548b,emissiveIntensity:.67,roughness:.4},
  emissive:{color:0x76edda,emissive:0x31c4a6,emissiveIntensity:1.2,roughness:.3}
 };
@@ -39,7 +54,9 @@ const INDIRECT_BOUNCE=Object.freeze({
  fabric:{color:0x5a6b7e,power:.31},rug:{color:0x554d66,power:.27},
  velvet:{color:0x5f5472,power:.28},accent:{color:0x796952,power:.26},
  'home-wall':{color:0x8f806f,power:.24},'home-ceiling':{color:0x9c8e78,power:.22},
- 'home-floor':{color:0x675849,power:.12}
+ 'home-floor':{color:0x675849,power:.12},
+ 'home-wall-panel':{color:0x8f806f,power:.22},'home-wall-sage':{color:0x7c8270,power:.22},'home-wall-ivory':{color:0x968a76,power:.22},
+ 'home-floor-vinyl':{color:0x675849,power:.12},'home-floor-oak':{color:0x5e4632,power:.12},'home-floor-marble':{color:0x7d776c,power:.12}
 });
 function requireThree(THREE){
  for(const name of ['Group','Mesh','BoxGeometry','MeshStandardMaterial'])
@@ -50,10 +67,11 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
  if(typeof scene?.add!=='function'||typeof scene?.remove!=='function')throw TypeError('scene_required');
  const root=new THREE.Group();root.name='estates-secret-private-room';
  root.position.set(origin.x,origin.y,origin.z);root.visible=false;scene.add(root);
- let active=null,materials=new Map(),illumination=[],powerOn=true,disposed=false;
+ let active=null,materials=new Map(),illumination=[],powerOn=true,disposed=false,reveal=0,roomToken=0;
+ const models=createEstateInteriorModelCache(THREE);
  function disposeRoom(){
   const meshes=new Set(),mats=new Set();
-  root.traverse?.(obj=>{if(obj.geometry)meshes.add(obj.geometry);if(obj.material){
+  root.traverse?.(obj=>{if(obj.userData?.sharedModel)return;if(obj.geometry)meshes.add(obj.geometry);if(obj.material){
    const arr=Array.isArray(obj.material)?obj.material:[obj.material];
    for(const m of arr)mats.add(m);
   }});
@@ -87,7 +105,14 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   disposeRoom();
   active=layout;
   // Build room only on entry, so island traversal has no interior draw-call burden.
+  const token=++roomToken,fallbacks=[];
+  // Homes: merge static furnishing boxes per material (one draw call each) to stay
+  // cheap on phones; the shell, windows, lights and model fallbacks stay separate.
+  const merge=layout.roomId==='home'&&typeof THREE.BufferGeometry==='function'&&typeof THREE.Matrix4==='function';
+  const SHELL=/^(home-|window-|ceiling-)/,batches=new Map();
   for(const part of layout.items){
+   if(part.invisible)continue;
+   if(merge&&!part.model&&!SHELL.test(part.id)){if(!batches.has(part.mat))batches.set(part.mat,[]);batches.get(part.mat).push(part);continue;}
    const geo=part.shape==='sphere'&&THREE.SphereGeometry?
     new THREE.SphereGeometry(.5,10,7):part.shape==='cylinder'&&THREE.CylinderGeometry?
     new THREE.CylinderGeometry(.5,.5,1,10):new THREE.BoxGeometry(1,1,1);
@@ -97,19 +122,54 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
    if(mesh.rotation&&Number.isFinite(part.ry))mesh.rotation.y=part.ry;
    mesh.name='secret-'+part.id;
    mesh.castShadow=false;mesh.receiveShadow=false;root.add(mesh);
+   if(part.model)fallbacks.push([part,mesh]);
   }
+  for(const [mat,parts] of batches){
+   const pos=[],nor=[],m=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),sc=new THREE.Vector3();
+   for(const part of parts){
+    let g=part.shape==='sphere'&&THREE.SphereGeometry?new THREE.SphereGeometry(.5,10,7):part.shape==='cylinder'&&THREE.CylinderGeometry?
+     new THREE.CylinderGeometry(.5,.5,1,10):new THREE.BoxGeometry(1,1,1);
+    if(g.index)g=g.toNonIndexed();
+    e.set(0,Number.isFinite(part.ry)?part.ry:0,0);q.setFromEuler(e);
+    m.compose(v.set(part.x,part.y,part.z),q,sc.set(part.w,part.h,part.d));g.applyMatrix4(m);
+    pos.push(...g.attributes.position.array);nor.push(...g.attributes.normal.array);g.dispose();
+   }
+   const geo=new THREE.BufferGeometry();
+   geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+   const mesh=new THREE.Mesh(geo,material(mat));mesh.name='secret-merged-'+mat;mesh.userData.parts=parts.map(p=>p.id);
+   mesh.castShadow=false;mesh.receiveShadow=false;root.add(mesh);
+  }
+  // Furniture models load lazily on entry and replace their box fallbacks.
+  if(fallbacks.length)void models.load(fallbacks.map(([p])=>p.model.id)).then(found=>{
+   if(disposed||token!==roomToken)return;
+   for(const [part,mesh] of fallbacks){
+    const parts=found.get(part.model.id);if(!parts)continue;
+    const group=new THREE.Group();group.name='home-model-'+part.model.id;group.userData.sharedModel=true;
+    for(const {geometry,material} of parts){const m=new THREE.Mesh(geometry,material);m.userData.sharedModel=true;m.castShadow=false;m.receiveShadow=false;group.add(m);}
+    group.position.set(part.x,part.model.y||0,part.z);group.rotation.y=part.ry||0;group.scale.set(part.model.sx||1,1,1);
+    root.add(group);mesh.visible=false;
+   }
+  });
   // Interior lighting must not depend on the city's sun being visible.
   // The outdoor scene is hidden during private-room traversal, leaving
   // physically based concrete and wood almost black without local fill light.
   // A small hemisphere fill preserves readable surfaces during normal and
   // emergency-power modes; four ceiling-area point lights provide depth.
+  const home=Array.isArray(layout.lights);
   if(typeof THREE.HemisphereLight==='function'){
-   const fill=new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
+   const fill=home?new THREE.HemisphereLight(0xfff0dc,0x7a6450,1.05):new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
    fill.name='private-room-indirect-fill';
-   fill.userData={onIntensity:.8,emergencyIntensity:.22};
+   fill.userData={onIntensity:home?1.05:.8,emergencyIntensity:.22};
    root.add(fill);illumination.push(fill);
   }
-  if(typeof THREE.PointLight==='function'){
+  if(typeof THREE.PointLight==='function'&&home){
+   // Warm room lights (max four, no shadows) for a cosy, mobile-friendly look.
+   for(const l of layout.lights.slice(0,4)){
+    const light=new THREE.PointLight(l.color,l.intensity,l.distance,2);
+    light.name='home-room-light';light.position.set(l.x,l.y,l.z);light.castShadow=false;
+    light.userData={onIntensity:l.intensity,emergencyIntensity:.08};root.add(light);illumination.push(light);
+   }
+  }else if(typeof THREE.PointLight==='function'){
    for(const [x,z,c,intensity] of [
     [-4.2,-3.2,0xb5d9ff,2.5],[4.2,-3.2,0xffd5a3,2.3],
     [-4.2,3.5,0xd4e7ff,2.25],[4.2,3.5,0xffd7b3,2.1]
@@ -121,14 +181,29 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
    }
   }
   root.visible=true;setPower(true);
+  reveal=options.reveal?1:0;applyReveal();
   return layout;
+ }
+ // Entrance reveal (same idea as the Ember Bar): lights come up over ~1 s.
+ function applyReveal(){
+  const k=.2+.8*(1-Math.pow(reveal,3));
+  for(const lamp of illumination)if('intensity' in lamp&&powerOn)lamp.intensity=(lamp.userData?.onIntensity??1)*k;
  }
  function tickCamera({camera,localPosition,yaw,dt=1/60}={}){
   if(!active||!camera?.position||!Number.isFinite(yaw))return false;
-  const distance=2.8,smooth=1-Math.exp(-Math.max(0,Math.min(.1,dt))*11);
-  const x=Math.max(-active.bounds.x+.65,Math.min(active.bounds.x-.65,localPosition.x+Math.sin(yaw)*distance));
-  const z=Math.max(-active.bounds.z+.65,Math.min(active.bounds.z-.65,localPosition.z+Math.cos(yaw)*distance));
-  const tx=origin.x+x,tz=origin.z+z,ty=origin.y+2.65;
+  if(reveal>0){reveal=Math.max(0,reveal-Math.max(0,Math.min(.1,dt))/1.1);applyReveal();}
+  const smooth=1-Math.exp(-Math.max(0,Math.min(.1,dt))*11);
+  let distance=2.8;
+  // Homes have interior walls: pull the camera in so it never sits behind a partition.
+  if(active.roomId==='home'){
+   const walls=active.obstacles.filter(o=>o.id.startsWith('partition-')||o.id.startsWith('stair'));
+   for(let d=.3;d<=2.8;d+=.1){const px=localPosition.x+Math.sin(yaw)*d,pz=localPosition.z+Math.cos(yaw)*d;
+    if(walls.some(o=>Math.abs(px-o.x)<o.halfX+.18&&Math.abs(pz-o.z)<o.halfZ+.18)){distance=Math.max(.45,d-.15);break;}}
+  }
+  const x=Math.max(-active.bounds.x+.4,Math.min(active.bounds.x-.4,localPosition.x+Math.sin(yaw)*distance));
+  const z=Math.max(-active.bounds.z+.4,Math.min(active.bounds.z-.4,localPosition.z+Math.cos(yaw)*distance));
+  const ceiling=Number.isFinite(active.height)?active.height-.3:2.65;
+  const tx=origin.x+x,tz=origin.z+z,ty=origin.y+Math.min(2.65,ceiling,1.55+distance*.4);
   if(typeof camera.position.lerp==='function'&&typeof THREE.Vector3==='function')
    camera.position.lerp(new THREE.Vector3(tx,ty,tz),smooth);
   else if(typeof camera.position.set==='function')camera.position.set(
@@ -137,13 +212,13 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   camera.lookAt?.(origin.x+localPosition.x,origin.y+1.28,origin.z+localPosition.z);
   return true;
  }
- function hide(){root.visible=false;disposeRoom();}
+ function hide(){root.visible=false;roomToken++;disposeRoom();models.dispose();}
  function dispose(){if(disposed)return false;disposed=true;hide();scene.remove(root);return true;}
  return {
   root,origin,setRoom,hide,dispose,setPower,tickCamera,
   move:(position,delta)=>resolveSecretRoomMotion(position,delta,active),
   interaction:position=>secretRoomInteraction(active,position),
   get layout(){return active;},get powerOn(){return powerOn;},
-  get active(){return !!active;},get disposed(){return disposed;}
+  get active(){return !!active;},get disposed(){return disposed;},get loadedModels(){return models.size;},get revealing(){return reveal>0;}
  };
 }

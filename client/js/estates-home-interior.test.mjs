@@ -15,17 +15,16 @@ for(const [tier,[width,depth]]of Object.entries(HOME_FOOTPRINT)){
   assert(Math.abs(layout.bounds.x-dims.halfX)<1e-6);
   assert(Math.abs(layout.bounds.z-dims.halfZ)<1e-6);
   assert(layout.items.length>20,'authored warm residential shell includes detail');
-  assert(layout.items.some(i=>i.mat==='home-wall')&&layout.items.some(i=>i.mat==='home-floor'));
+  assert(layout.items.some(i=>/^home-wall/.test(i.mat))&&layout.items.some(i=>/^home-floor/.test(i.mat)));
   assert(layout.items.some(i=>i.id==='home-exit-door')===false);
   assert(layout.items.some(i=>i.id==='home-exit-panel'));
   assert(!layout.obstacles.some(o=>Math.abs(o.x-layout.spawn.x)<o.halfX+.35&&Math.abs(o.z-layout.spawn.z)<o.halfZ+.35),'free entry is navigable');
-  assert.equal(secretRoomInteraction(layout,{x:0,z:dims.halfZ-.85})?.id,'exit');
+  assert.equal(secretRoomInteraction(layout,{x:layout.doorX,z:dims.halfZ-.85})?.id,'exit','front door exit lines up with the exterior door');
   const motion=resolveSecretRoomMotion(layout.spawn,{x:0,z:20},layout);
   assert(motion.z<=layout.bounds.z-.35,'room controller blocks exterior wall traversal');
  }
  const decorated=createEstateHomeLayout({tier,layoutId:'cozy',furniture:[{id:'one',type:'sofa',x:-1.5,z:-.5,rotation:90}]});
- assert(decorated.items.some(i=>i.id==='furnish-one-cushion--1'),'placed sofas have actual cushions');
- assert(decorated.obstacles.some(i=>i.id==='furnish-one-base'),'placed sofas use real collision bounds');
+ assert(decorated.items.some(i=>i.id==='furnish-one-cushion--1')!==decorated.hiddenFurniture.includes('one'),'owner furniture is drawn, or hidden when it would clash with an authored fixture');
 }
 assert(validateHomePlacement(fixtures,{halfX:2.6,halfZ:2.1}));
 assert(!validateHomePlacement([...fixtures,{...fixtures[0],id:'duplicate'}],{halfX:2.6,halfZ:2.1}),'furniture overlapping is rejected');
@@ -33,4 +32,7 @@ assert(!validateHomePlacement([{id:'oops',type:'sofa',x:0,z:1.5,rotation:0}],{ha
 const next=nextFurnitureSlot('chair',fixtures,{halfX:2.6,halfZ:2.1});
 assert(next&&validateHomePlacement([...fixtures,next],{halfX:2.6,halfZ:2.1}));
 assert.equal(nextFurnitureSlot('invalid',[],{halfX:2.6,halfZ:2.1}),null);
+const free=createEstateHomeLayout({tier:'starter',furniture:[{id:'one',type:'sofa',x:0,z:-2,rotation:90}]});
+assert(free.items.some(i=>i.id==='furnish-one-cushion--1'),'placed sofas have actual cushions');
+assert(free.obstacles.some(i=>i.id==='furnish-one-base'),'placed sofas use real collision bounds');
 console.log('Estate tier-scaled homes: 5 property sizes, 3 free and 3 verified-premium layouts, 3D furniture and walkable collision passed');

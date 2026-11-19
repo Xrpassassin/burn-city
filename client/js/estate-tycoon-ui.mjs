@@ -1,7 +1,7 @@
 // Optional per-property Roblox-style tycoon shop for Estates.
 // Never display a purchase as installed until the server confirms validated XRP.
 const xrp=d=>{const n=BigInt(d||0);return (n/1000000n).toString()+(n%1000000n?'.'+(n%1000000n).toString().padStart(6,'0').replace(/0+$/,''):'');};
-const humanError={sign_in_with_xaman:'Your wallet session expired. Sign in with Xaman again to manage your property.',slow_down:'Too many upgrade requests. Please retry shortly.',tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',upgrade_tier_restricted:'Helicopters are available only for Family Homes and Luxury Mansions.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'A payment request is pending. Check again later.',tycoon_order_requires_review:'This payment request requires review; do not pay again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.',tycoon_order_expired:'That payment request expired unpaid, so it was released. You can start a new one.'};
+const humanError={sign_in_with_xaman:'Your wallet session expired. Sign in with Xaman again to manage your property.',slow_down:'Too many upgrade requests. Please retry shortly.',tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',upgrade_tier_restricted:'Helicopters are available only for Family Homes and Luxury Mansions.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'Xaman has not issued this payment request yet. Nothing was charged. If it never opened, it clears by itself about 15 minutes after you tapped Buy.',tycoon_order_requires_review:'Xaman could not create this payment request, so nothing can be paid or charged. It clears by itself about 15 minutes after you tapped Buy; then you can buy again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.',tycoon_order_expired:'That payment request expired unpaid, so it was released. You can start a new one.'};
 // Shared look for the shop (injected once; scoped with :is(#id,body) so it wins
 // over the in-world panel's generic `#bcEstatesLivePrompt button/p` rules).
 const S=':is(#bcEstatesLivePrompt,body) .bc-tycoon';
@@ -36,6 +36,8 @@ ${S} .bc-ty-actions{display:flex;flex-wrap:wrap;gap:8px}
 ${S} button,${S} .bc-ty-xaman{box-sizing:border-box;min-height:var(--bc-touch-target,44px);padding:8px 14px;border-radius:10px;border:1px solid #ffb45b80;background:#2a1d14;color:#fff1df;font:700 13px/1.2 var(--bc-font-ui,system-ui);cursor:pointer;touch-action:manipulation}
 ${S} button.primary,${S} .bc-ty-xaman{background:linear-gradient(135deg,#ff7b27,#ffc078);color:#241508;border-color:#ffe0b4}
 ${S} .bc-ty-xaman{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+${S} .bc-ty-qr{display:block;width:168px;height:168px;margin:0 0 10px;border-radius:10px;background:#fff;padding:6px;box-sizing:content-box}
+${S} .bc-ty-alt{align-self:center;font-size:12px;color:#ffd49a}
 ${S} button:disabled{opacity:.45;cursor:not-allowed}
 ${S} button:focus-visible,${S} .bc-ty-xaman:focus-visible,${S}>summary:focus-visible{outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:2px}
 ${S} h5{margin:14px 0 4px;font:800 11px/1.2 var(--bc-font-ui,system-ui);letter-spacing:.12em;text-transform:uppercase;color:#ffb877}
@@ -71,12 +73,12 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
  let current=null,busy=false,orderId='',orderLink='',orderItemId='',justInstalled='',previewItemId=null;
  function token(){return storage?.getItem('bcToken')||'';}
  const itemName=id=>current?.catalog?.find(i=>i.id===id)?.name||'Upgrade';
- async function request(path,data){
+ async function request(path,data,{allowConflict=false}={}){
   const auth=token();
   if(!auth)throw Error('Connect your Xaman wallet to purchase property upgrades.');
   const r=await fetcher(api+'/api/estates/tycoon/'+path,{method:data?'POST':'GET',
    headers:{authorization:'Bearer '+auth,'content-type':'application/json'},...(data?{body:JSON.stringify(data)}:{})});
-  const v=await r.json();if(!r.ok&&r.status!==202)throw Error(humanError[v.error]||v.error||'Upgrade request failed.');
+  const v=await r.json();if(!r.ok&&r.status!==202&&!(allowConflict&&r.status===409&&v?.error))throw Error(humanError[v.error]||v.error||'Upgrade request failed.');
   return v;
  }
  function button(label,run,disabled=false,{primary=false,aria=''}={}){
@@ -86,8 +88,13 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    try{await run();}catch(e){message.textContent=e.message;}finally{busy=false;b.disabled=disabled;b.setAttribute('aria-busy','false');if(b.textContent!==was)b.textContent=was;}};
   return b;
  }
+ function safeXaman(url){try{const u=new URL(url);return u.protocol==='https:'&&['xumm.app','xaman.app'].includes(u.hostname)?u:null;}catch{return null;}}
+ const touch=()=>{try{return !!globalThis.matchMedia?.('(pointer:coarse)').matches;}catch{return false;}};
+ // Open a tab synchronously inside the tap (before any await) so mobile browsers don't
+ // block it as a popup; it is pointed at Xaman once the server returns the request.
+ function preopen(){if(!touch())return null;try{return globalThis.open?.('about:blank','_blank')||null;}catch{return null;}}
  function xamanLink(url){
-  try{const parsed=new URL(url);if(parsed.protocol!=='https:')throw Error('unsafe_payment_link');
+  try{const parsed=safeXaman(url);if(!parsed)throw Error('unsafe_payment_link');
    const a=el('a','bc-ty-xaman','Open in Xaman');a.href=parsed.href;a.target='_blank';a.rel='noopener noreferrer';
    a.setAttribute('aria-label','Review upgrade payment in Xaman');return a;
   }catch{return el('span',null,'Unable to open a secure Xaman link. Contact support before paying.');}
@@ -101,12 +108,12 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   expired:{title:()=>'Payment request expired',steps:['stop','','']},
   review:{title:()=>'Payment needs review',steps:['','stop','']}
  };
- function showOrder(phase,text,actions=[]){
+ function showOrder(phase,text,actions=[],extra=null){
   const p=PHASES[phase];order.hidden=false;order.dataset.phase=phase;section.open=true;
   const steps=el('ol','bc-ty-steps');steps.setAttribute('aria-label','Upgrade purchase progress');
   STEPS.forEach((label,i)=>{const li=el('li',null,label);if(p.steps[i])li.dataset.s=p.steps[i];if(p.steps[i]==='active')li.setAttribute('aria-current','step');steps.append(li);});
   const row=el('div','bc-ty-actions');row.append(...actions);
-  order.replaceChildren(el('h4',null,p.title(itemName(orderItemId))),steps,el('p',null,text),row);
+  order.replaceChildren(el('h4',null,p.title(itemName(orderItemId))),steps,el('p',null,text),...(extra?[extra]:[]),row);
  }
  function hideOrder(){order.hidden=true;order.replaceChildren();delete order.dataset.phase;}
  async function confirm(){
@@ -122,14 +129,26 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   await load();
   showOrder('settled','Validated on the XRP Ledger and added to your property. Look for it outside your home.');
  }
- function showPendingLink(result){
-  if(!result?.ok||!result?.orderId||!result?.deeplink){
-   showOrder('review','The existing payment request needs review. Do not send a second payment.');
+ function showPendingLink(result,win=null){
+  const link=result?.ok&&result?.orderId?safeXaman(result.deeplink):null;
+  if(!link){
+   try{win?.close();}catch{}
+   if(result?.orderId)orderId=result.orderId;
+   showOrder('review',(humanError[result?.error]||'This payment request could not be opened.')+' Do not send XRP manually.',
+    [button('Check payment',confirm)]);
    return;
   }
-  orderId=result.orderId;orderLink=result.deeplink;
-  showOrder('sign','Review this upgrade request in Xaman. Only the server-verified XRP amount is payable. After you sign, come back and check the payment.',
-   [xamanLink(orderLink),button('Check payment',confirm)]);
+  orderId=result.orderId;orderLink=link.href;
+  let opened=false;
+  if(win){try{win.location.href=orderLink;opened=true;}catch{try{win.close();}catch{}}}
+  const qr=safeXaman(result.qr);
+  const actions=[xamanLink(orderLink),button('Check payment',confirm)];
+  const uuid=/\/sign\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(orderLink)?.[1];
+  if(uuid&&touch()){const a=el('a','bc-ty-alt','Xaman app didn\'t open? Try here');a.href='xumm://xumm.app/sign/'+uuid.toLowerCase();actions.push(a);}
+  let img=null;
+  if(qr&&!touch()){img=el('img','bc-ty-qr');img.src=qr.href;img.alt='Xaman payment QR code';img.width=168;img.height=168;}
+  showOrder('sign',(opened?'Xaman opened in a new tab. ':touch()?'Tap Open in Xaman to review the payment. ':'Scan the QR code with Xaman, or open the request. ')+
+   'Only the server-verified XRP amount is payable. After you sign, come back and tap Check payment.',actions,img);
  }
  async function resumePending(){
   const pending=current?.state?.pending;
@@ -137,17 +156,22 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    message.textContent='This request cannot be reopened. Check the existing payment before contacting support; do not pay again.';
    return;
   }
-  orderItemId=pending.itemId;
-  showPendingLink(await request('start',{propertyId,itemId:pending.itemId}));
+  orderItemId=pending.itemId;const win=preopen();
+  try{showPendingLink(await request('start',{propertyId,itemId:pending.itemId},{allowConflict:true}),win);}catch(e){try{win?.close();}catch{}throw e;}
  }
  async function buy(item){
+  const win=preopen();
+  try{await buyWith(item,win);}catch(e){try{win?.close();}catch{}throw e;}
+ }
+ async function buyWith(item,win){
   const q=await request('quote?propertyId='+encodeURIComponent(propertyId)+'&itemId='+encodeURIComponent(item.id));
   if(!q.canPurchase||!q.purchasesEnabled){
+   try{win?.close();}catch{}
    message.textContent=q.pending?'An existing upgrade order is blocking another purchase. Check that payment first.':'This upgrade is not payable. Check the owner, prerequisites, and payment availability above.';
    await load();return;
   }
   orderItemId=item.id;justInstalled='';
-  showPendingLink(await request('start',{propertyId,itemId:item.id}));
+  showPendingLink(await request('start',{propertyId,itemId:item.id},{allowConflict:true}),win);
  }
  function render(){
   if(!section.isConnected||!current)return;

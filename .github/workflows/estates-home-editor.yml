@@ -9,6 +9,10 @@ on:
       - 'client/js/estates-secret-layout.mjs'
       - 'client/js/estates-secret-interior-renderer.mjs'
       - 'client/js/estates-island-live.mjs'
+      - 'client/js/estates-interior-models.mjs'
+      - 'client/assets/estates-interiors/**'
+      - 'client/city-credits.html'
+      - 'scripts/estates-interior-models/**'
       - 'test/estate-home-interior-http.test.js'
       - 'scripts/estates-home-editor-browser-qa.mjs'
       - '.github/workflows/estates-home-editor.yml'
@@ -32,6 +36,9 @@ jobs:
           node --check client/js/estates-home-layout.mjs
           node --check client/js/estates-island-live.mjs
           node --check client/js/estates-secret-interior-renderer.mjs
+          node --check client/js/estates-home-plans.mjs
+          node --check client/js/estates-home-door.mjs
+          node --check client/js/estates-interior-models.mjs
       - name: Estate home and resale permissions
         run: |
           node server/estate-home-interior.test.js
@@ -43,6 +50,10 @@ jobs:
           node client/js/estates-home-editor-ui.test.mjs
           node client/js/estates-secret-interior.test.mjs
           node client/js/estates-secret-room-integration.test.mjs
+      - name: Walk-in homes (door alignment, room reachability, collision, door enter/exit, CC BY credits, mobile budget)
+        run: |
+          node client/js/estates-home-plans.test.mjs
+          node client/js/estates-interior-models.test.mjs
 
   browser-editor:
     runs-on: ubuntu-24.04

@@ -62,13 +62,13 @@ function requireThree(THREE){
  for(const name of ['Group','Mesh','BoxGeometry','MeshStandardMaterial'])
   if(typeof THREE?.[name]!=='function')throw TypeError('missing_three_constructor_'+name);
 }
-export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_ROOM_ORIGIN}={}){
+export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_ROOM_ORIGIN,modelLoader=null}={}){
  requireThree(THREE);
  if(typeof scene?.add!=='function'||typeof scene?.remove!=='function')throw TypeError('scene_required');
  const root=new THREE.Group();root.name='estates-secret-private-room';
  root.position.set(origin.x,origin.y,origin.z);root.visible=false;scene.add(root);
  let active=null,materials=new Map(),illumination=[],powerOn=true,disposed=false,reveal=0,roomToken=0;
- const models=createEstateInteriorModelCache(THREE);
+ const models=createEstateInteriorModelCache(THREE,{loader:modelLoader});
  function disposeRoom(){
   const meshes=new Set(),mats=new Set();
   root.traverse?.(obj=>{if(obj.userData?.sharedModel)return;if(obj.geometry)meshes.add(obj.geometry);if(obj.material){

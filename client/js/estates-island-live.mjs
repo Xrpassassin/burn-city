@@ -699,7 +699,7 @@ export async function installEstatesIslandLive({
 
   // Secret interiors are client-side 3D scenes with server-verified entitlement.
   // Public island presence is suspended inside; there is no private-room networking yet.
-  let secretSession=null,secretPending=false,secretPrompt=null,secretRecheckAt=0,secretRecheckBusy=false,lastHatchId=null;
+  let secretSession=null,secretPending=false,secretPrompt=null,secretExitArmed=false,secretRecheckAt=0,secretRecheckBusy=false,lastHatchId=null;
   const currentWalletToken=()=>{try{return localStorage.getItem('bcToken')||'';}catch{return '';}};
   async function privateRoomRequest(action,propertyId,roomId=''){
     const token=currentWalletToken();
@@ -740,7 +740,7 @@ export async function installEstatesIslandLive({
     const at=floor>0?layout.spawn:(layout.arrival||layout.spawn),origin=secretInterior.origin;
     player.pos.set(origin.x+at.x,origin.y+layout.walkHeight,origin.z+at.z);player.vel?.set(0,0,0);
     setYaw(at.yaw||0);avatar.position.copy(player.pos);avatar.rotation.y=at.yaw||0;fadeIn();
-    secretPrompt=null;hidePanel();return true;
+    secretPrompt=null;secretExitArmed=false;hidePanel();return true;
   }
   async function openHomeEditor(propertyId){
     if(disposed||!active||!secretSession||secretSession.roomId!=='home'||secretSession.propertyId!==propertyId)return;
@@ -824,7 +824,7 @@ export async function installEstatesIslandLive({
       camera.position.set(origin.x,origin.y+2.65,origin.z+6.05);
       camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
       exitButton.textContent=roomId==='home'?'↩ Exit Home':'↩ Exit Secret Room';exitButton.setAttribute('aria-label',roomId==='home'?'Exit Home':'Exit Secret Room');
-      secretPrompt=null;secretRecheckAt=Date.now();
+      secretPrompt=null;secretExitArmed=false;secretRecheckAt=Date.now();
       hidePanel();
       if(roomId==='home'&&tour)showPanel('SHOW HOME TOUR','This home is for sale. Walk through every room; stairs lead upstairs in Family and Mansion homes.',
         [{label:'Start exploring',primary:true,run:hidePanel}],'Tour only · nothing is saved · step back through the front door to leave.');
@@ -934,7 +934,11 @@ export async function installEstatesIslandLive({
     avatar.rotation.y=Math.hypot(moved.x-before.x,moved.z-before.z)>.001?
       Math.atan2(-(moved.x-before.x),-(moved.z-before.z)):getYaw();
     secretInterior.tickCamera({camera,localPosition:moved,yaw:getYaw(),dt});
-    const trigger=secretInterior.interaction(moved);
+    // Arrival is just inside the front door: like the Ember Bar, the exit only
+    // arms once the player has stepped away from it, so entering never pops
+    // the leave prompt over the arrival view.
+    let trigger=secretInterior.interaction(moved);
+    if(trigger?.id!=='exit')secretExitArmed=true;else if(!secretExitArmed)trigger=null;
     if(trigger?.id!==secretPrompt)showSecretInteraction(trigger);
     if(edge&&trigger){
       if(trigger.id==='exit')leaveSecretInterior();

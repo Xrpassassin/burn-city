@@ -203,13 +203,16 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   const x=Math.max(-active.bounds.x+.4,Math.min(active.bounds.x-.4,localPosition.x+Math.sin(yaw)*distance));
   const z=Math.max(-active.bounds.z+.4,Math.min(active.bounds.z-.4,localPosition.z+Math.cos(yaw)*distance));
   const ceiling=Number.isFinite(active.height)?active.height-.3:2.65;
-  const tx=origin.x+x,tz=origin.z+z,ty=origin.y+Math.min(2.65,ceiling,1.55+distance*.4);
+  // Near the front wall (arrival) the clamp squeezes the camera onto the avatar:
+  // lift it over the shoulder and look ahead into the room instead of down at the head.
+  const eff=Math.hypot(x-localPosition.x,z-localPosition.z),squeeze=Math.max(0,Math.min(1,(1.6-eff)/1.6));
+  const tx=origin.x+x,tz=origin.z+z,ty=origin.y+Math.min(2.65,ceiling,1.55+eff*.4+squeeze*1.3);
   if(typeof camera.position.lerp==='function'&&typeof THREE.Vector3==='function')
    camera.position.lerp(new THREE.Vector3(tx,ty,tz),smooth);
   else if(typeof camera.position.set==='function')camera.position.set(
    camera.position.x+(tx-camera.position.x)*smooth,camera.position.y+(ty-camera.position.y)*smooth,
    camera.position.z+(tz-camera.position.z)*smooth);
-  camera.lookAt?.(origin.x+localPosition.x,origin.y+1.28,origin.z+localPosition.z);
+  camera.lookAt?.(origin.x+localPosition.x-Math.sin(yaw)*squeeze*3.5,origin.y+1.28-squeeze*.35,origin.z+localPosition.z-Math.cos(yaw)*squeeze*3.5);
   return true;
  }
  function hide(){root.visible=false;roomToken++;disposeRoom();models.dispose();}

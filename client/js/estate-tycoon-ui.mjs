@@ -2,16 +2,75 @@
 // Never display a purchase as installed until the server confirms validated XRP.
 const xrp=d=>{const n=BigInt(d||0);return (n/1000000n).toString()+(n%1000000n?'.'+(n%1000000n).toString().padStart(6,'0').replace(/0+$/,''):'');};
 const humanError={sign_in_with_xaman:'Your wallet session expired. Sign in with Xaman again to manage your property.',slow_down:'Too many upgrade requests. Please retry shortly.',tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',upgrade_tier_restricted:'Helicopters are available only for Family Homes and Luxury Mansions.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'A payment request is pending. Check again later.',tycoon_order_requires_review:'This payment request requires review; do not pay again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.',tycoon_order_expired:'That payment request expired unpaid, so it was released. You can start a new one.'};
+// Shared look for the shop (injected once; scoped with :is(#id,body) so it wins
+// over the in-world panel's generic `#bcEstatesLivePrompt button/p` rules).
+const S=':is(#bcEstatesLivePrompt,body) .bc-tycoon';
+const STYLE=`
+${S}{margin-top:12px;border-top:1px solid var(--bc-border-strong,#ffad6c6e);padding:10px 0 2px;color:var(--bc-text,#f7f4f0);font:500 13px/1.45 var(--bc-font-ui,system-ui,sans-serif)}
+${S}>summary{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;list-style:none;font:800 14px/1.2 var(--bc-font-display,system-ui,sans-serif);letter-spacing:.04em;color:#ffd49a}
+${S}>summary::-webkit-details-marker{display:none}
+${S}>summary::before{content:'▸';color:var(--bc-ember,#ff8b39);transition:transform var(--bc-motion-fast,160ms)}
+${S}[open]>summary::before{transform:rotate(90deg)}
+${S} .bc-ty-count{margin-left:auto;font:700 11px var(--bc-font-data,monospace);color:var(--bc-text-muted,#c4cbd0);background:#ffffff10;border-radius:99px;padding:3px 8px}
+${S} p{margin:0 0 10px}
+${S} .bc-ty-banner{display:flex;gap:8px;align-items:flex-start;margin:4px 0 10px;padding:9px 11px;border-radius:10px;font-size:12.5px;border:1px solid;background:#ffffff08}
+${S} .bc-ty-banner::before{content:'●';font-size:10px;line-height:1.9}
+${S} .bc-ty-banner[data-tone=ok]{border-color:#7dffd255;color:#c9fff0}${S} .bc-ty-banner[data-tone=ok]::before{color:var(--bc-success,#7dffd2)}
+${S} .bc-ty-banner[data-tone=warn]{border-color:#ffc06a66;color:#ffe2b8}${S} .bc-ty-banner[data-tone=warn]::before{color:#ffc06a}
+${S} .bc-ty-banner[data-tone=off]{border-color:#ffffff26;color:var(--bc-text-muted,#c4cbd0)}
+${S} .bc-ty-msg:empty{display:none}
+${S} .bc-ty-msg{font-size:12.5px;color:#ffd9b8;padding:8px 10px;border-radius:9px;background:#ff8b3914}
+${S} .bc-ty-order{margin:0 0 12px;padding:12px;border-radius:12px;border:1px solid var(--bc-border-strong,#ffad6c6e);background:linear-gradient(145deg,#2a1a10e6,#141a22e6)}
+${S} .bc-ty-order[data-phase=settled]{border-color:#7dffd277;background:linear-gradient(145deg,#0f2a22e6,#141a22e6)}
+${S} .bc-ty-order[data-phase=expired],${S} .bc-ty-order[data-phase=review]{border-color:#ff9b8a77}
+${S} .bc-ty-order h4{margin:0 0 8px;font:800 14px/1.3 var(--bc-font-display,system-ui,sans-serif);color:var(--bc-text,#fff)}
+${S} .bc-ty-order p{font-size:12.5px;color:#e6dcd2}
+${S} .bc-ty-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 10px;padding:0;list-style:none;counter-reset:s}
+${S} .bc-ty-steps li{counter-increment:s;font:700 11px/1.25 var(--bc-font-ui,system-ui);color:#9aa4ab;padding-top:8px;border-top:3px solid #ffffff22}
+${S} .bc-ty-steps li::before{content:counter(s) '. '}
+${S} .bc-ty-steps li[data-s=done]{color:var(--bc-success,#7dffd2);border-color:var(--bc-success,#7dffd2)}
+${S} .bc-ty-steps li[data-s=done]::before{content:'✓ '}
+${S} .bc-ty-steps li[data-s=active]{color:#ffd49a;border-color:var(--bc-ember,#ff8b39)}
+${S} .bc-ty-steps li[data-s=stop]{color:#ffb4a6;border-color:#ff8a75}
+${S} .bc-ty-actions{display:flex;flex-wrap:wrap;gap:8px}
+${S} button,${S} .bc-ty-xaman{box-sizing:border-box;min-height:var(--bc-touch-target,44px);padding:8px 14px;border-radius:10px;border:1px solid #ffb45b80;background:#2a1d14;color:#fff1df;font:700 13px/1.2 var(--bc-font-ui,system-ui);cursor:pointer;touch-action:manipulation}
+${S} button.primary,${S} .bc-ty-xaman{background:linear-gradient(135deg,#ff7b27,#ffc078);color:#241508;border-color:#ffe0b4}
+${S} .bc-ty-xaman{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+${S} button:disabled{opacity:.45;cursor:not-allowed}
+${S} button:focus-visible,${S} .bc-ty-xaman:focus-visible,${S}>summary:focus-visible{outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:2px}
+${S} h5{margin:14px 0 4px;font:800 11px/1.2 var(--bc-font-ui,system-ui);letter-spacing:.12em;text-transform:uppercase;color:#ffb877}
+${S} .bc-ty-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #ffffff14}
+${S} .bc-ty-item strong{display:block;font-size:13.5px;font-weight:700;color:var(--bc-text,#fff)}
+${S} .bc-ty-chips{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:2px;font-size:11.5px;color:var(--bc-text-muted,#c4cbd0)}
+${S} .bc-ty-price{font-family:var(--bc-font-data,monospace);font-weight:700;color:#ffd49a}
+${S} .bc-ty-badge{font-weight:700;color:#ffc9a3}
+${S} .bc-ty-item[data-state=owned] .bc-ty-badge{color:var(--bc-success,#7dffd2)}
+${S} .bc-ty-item[data-state=locked] strong{color:#cfd5da}
+${S} .bc-ty-item button{padding:8px 11px;font-size:12.5px}
+${S} .bc-ty-item[data-just-installed]{animation:bcTyGlow 2.4s ease-out}
+@keyframes bcTyGlow{from{background:#7dffd233}to{background:transparent}}
+${S} .bc-ty-foot{margin:12px 0 0;font-size:11px;line-height:1.45;color:#9aa4ab}
+@media(max-width:380px){${S} .bc-ty-item{grid-template-columns:1fr 1fr}${S} .bc-ty-item>:first-child{grid-column:1/-1}}
+@media(prefers-reduced-motion:reduce){${S} .bc-ty-item[data-just-installed]{animation:none}${S}>summary::before{transition:none}}
+`;
+function injectStyle(){
+ const doc=globalThis.document;
+ if(!doc?.head||typeof doc.getElementById!=='function'||doc.getElementById('bc-tycoon-style'))return;
+ const st=doc.createElement('style');st.id='bc-tycoon-style';st.textContent=STYLE;doc.head.append(st);
+}
+const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;};
 export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,storage=localStorage,onConfirmed=()=>{},onPreview=null}={}){
- const section=document.createElement('details');section.dataset.estateTycoon=propertyId;
- section.style.cssText='margin-top:12px;border-top:1px solid #7ca9bf;padding:10px 0;color:#d7e8ed';
- const summary=document.createElement('summary');summary.textContent='BUILD & UPGRADE · Estates Tycoon';summary.style.cssText='cursor:pointer;font-weight:800;color:#6bd4ff';
- const meta=document.createElement('p'),availability=document.createElement('p'),message=document.createElement('p'),catalogue=document.createElement('div');
- availability.dataset.tycoonAvailability='';availability.style.cssText='font-size:12px;color:#ffd19c';
- message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#ffca9e';
- section.append(summary,meta,availability,message,catalogue);container.append(section);
- let current=null,busy=false,orderId='',previewItemId=null;
+ injectStyle();
+ const section=el('details','bc-tycoon');section.dataset.estateTycoon=propertyId;
+ const summary=el('summary',null,'Build & upgrade'),count=el('span','bc-ty-count','');summary.append(count);
+ const availability=el('p','bc-ty-banner'),message=el('p','bc-ty-msg'),order=el('div','bc-ty-order'),catalogue=el('div'),meta=el('p','bc-ty-foot');
+ availability.dataset.tycoonAvailability='';availability.setAttribute('role','status');
+ message.setAttribute('role','status');message.setAttribute('aria-live','polite');
+ order.setAttribute('aria-live','polite');order.hidden=true;
+ section.append(summary,availability,message,order,catalogue,meta);container.append(section);
+ let current=null,busy=false,orderId='',orderLink='',orderItemId='',justInstalled='',previewItemId=null;
  function token(){return storage?.getItem('bcToken')||'';}
+ const itemName=id=>current?.catalog?.find(i=>i.id===id)?.name||'Upgrade';
  async function request(path,data){
   const auth=token();
   if(!auth)throw Error('Connect your Xaman wallet to purchase property upgrades.');
@@ -20,40 +79,57 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   const v=await r.json();if(!r.ok&&r.status!==202)throw Error(humanError[v.error]||v.error||'Upgrade request failed.');
   return v;
  }
- function button(label,run,disabled=false){
-  const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=disabled;
-  b.style.cssText='font:600 12px system-ui;background:#20394c;color:#e5f7ff;border:1px solid #5f8ba7;border-radius:8px;padding:8px;min-height:44px;cursor:pointer';
-  b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;try{await run();}catch(e){message.textContent=e.message;}finally{busy=false;b.disabled=disabled;}};
+ function button(label,run,disabled=false,{primary=false,aria=''}={}){
+  const b=el('button',primary?'primary':null,label);b.type='button';b.disabled=disabled;
+  if(aria)b.setAttribute('aria-label',aria);
+  b.onclick=async()=>{if(busy)return;busy=true;b.disabled=true;const was=b.textContent;b.setAttribute('aria-busy','true');
+   try{await run();}catch(e){message.textContent=e.message;}finally{busy=false;b.disabled=disabled;b.setAttribute('aria-busy','false');if(b.textContent!==was)b.textContent=was;}};
   return b;
  }
- function paymentLink(url){
+ function xamanLink(url){
   try{const parsed=new URL(url);if(parsed.protocol!=='https:')throw Error('unsafe_payment_link');
-   const a=document.createElement('a');a.href=parsed.href;a.textContent='Review upgrade payment in Xaman';a.target='_blank';a.rel='noopener noreferrer';a.style.color='#ffd19c';message.append(' ',a);
-  }catch{message.textContent='Unable to open a secure Xaman link. Contact support before paying.';}
+   const a=el('a','bc-ty-xaman','Open in Xaman');a.href=parsed.href;a.target='_blank';a.rel='noopener noreferrer';
+   a.setAttribute('aria-label','Review upgrade payment in Xaman');return a;
+  }catch{return el('span',null,'Unable to open a secure Xaman link. Contact support before paying.');}
  }
+ // One card describes the whole purchase: 1 approve in Xaman → 2 ledger check → 3 installed.
+ const STEPS=['Approve in Xaman','Ledger check','Installed'];
+ const PHASES={
+  sign:{title:n=>'Approve '+n+' in Xaman',steps:['active','','']},
+  checking:{title:()=>'Waiting for the XRP Ledger',steps:['done','active','']},
+  settled:{title:n=>n+' installed',steps:['done','done','done']},
+  expired:{title:()=>'Payment request expired',steps:['stop','','']},
+  review:{title:()=>'Payment needs review',steps:['','stop','']}
+ };
+ function showOrder(phase,text,actions=[]){
+  const p=PHASES[phase];order.hidden=false;order.dataset.phase=phase;section.open=true;
+  const steps=el('ol','bc-ty-steps');steps.setAttribute('aria-label','Upgrade purchase progress');
+  STEPS.forEach((label,i)=>{const li=el('li',null,label);if(p.steps[i])li.dataset.s=p.steps[i];if(p.steps[i]==='active')li.setAttribute('aria-current','step');steps.append(li);});
+  const row=el('div','bc-ty-actions');row.append(...actions);
+  order.replaceChildren(el('h4',null,p.title(itemName(orderItemId))),steps,el('p',null,text),row);
+ }
+ function hideOrder(){order.hidden=true;order.replaceChildren();delete order.dataset.phase;}
  async function confirm(){
   if(!orderId){message.textContent='No pending upgrade payment was found. Refresh the property before trying again.';return;}
+  message.textContent='';
   const r=await request('confirm',{orderId});
   if(!r.ok){
-   const originalLink=message.querySelector('a[href]')?.href;
-   message.replaceChildren((humanError[r.error]||'Payment has not yet been validated.')+' No upgrade was credited; do not send another payment.');
-   if(originalLink){message.append(' ');paymentLink(originalLink);}
-   message.append(' ',button('Check payment again',confirm));
+   showOrder('checking',(humanError[r.error]||'Payment has not yet been validated.')+' No upgrade was credited; do not send another payment. Ledger checks usually finish within a minute.',
+    [...(orderLink?[xamanLink(orderLink)]:[]),button('Check payment again',confirm,false,{primary:!orderLink})]);
    return;
   }
-  orderId='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);
+  justInstalled=orderItemId;orderId='';orderLink='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);
   await load();
-  message.textContent='Validated purchase credited to your property development value and recorded share balance.';
+  showOrder('settled','Validated on the XRP Ledger and added to your property. Look for it outside your home.');
  }
  function showPendingLink(result){
   if(!result?.ok||!result?.orderId||!result?.deeplink){
-   message.textContent='The existing payment request needs review. Do not send a second payment.';
+   showOrder('review','The existing payment request needs review. Do not send a second payment.');
    return;
   }
-  orderId=result.orderId;
-  message.replaceChildren('Review this upgrade request in Xaman. Only the server-verified XRP amount is payable. ');
-  paymentLink(result.deeplink);
-  message.append(' ',button('Check payment',confirm));
+  orderId=result.orderId;orderLink=result.deeplink;
+  showOrder('sign','Review this upgrade request in Xaman. Only the server-verified XRP amount is payable. After you sign, come back and check the payment.',
+   [xamanLink(orderLink),button('Check payment',confirm)]);
  }
  async function resumePending(){
   const pending=current?.state?.pending;
@@ -61,6 +137,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    message.textContent='This request cannot be reopened. Check the existing payment before contacting support; do not pay again.';
    return;
   }
+  orderItemId=pending.itemId;
   showPendingLink(await request('start',{propertyId,itemId:pending.itemId}));
  }
  async function buy(item){
@@ -69,14 +146,18 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    message.textContent=q.pending?'An existing upgrade order is blocking another purchase. Check that payment first.':'This upgrade is not payable. Check the owner, prerequisites, and payment availability above.';
    await load();return;
   }
+  orderItemId=item.id;justInstalled='';
   showPendingLink(await request('start',{propertyId,itemId:item.id}));
  }
  function render(){
   if(!section.isConnected||!current)return;
   catalogue.replaceChildren();
   const s=current.state,items=current.catalog;
+  const unlocked=new Set(s.unlockedItemIds);
+  count.textContent=items.filter(i=>unlocked.has(i.id)).length+'/'+items.length+' installed';
   meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?'Recorded upgrade units are not active payout weight yet. ':'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
   const isOwner=!!s.ownerAuthorized;
+  availability.dataset.tone=!s.owned||!isOwner?'off':!s.purchasesEnabled?'warn':'ok';
   availability.textContent=!s.owned?'This property must be purchased before upgrades can be bought.'
    :!isOwner?'Only the wallet that owns this property can purchase upgrades. Sign in with that wallet.'
    :!s.purchasesEnabled?(s.purchaseStatus==='treasury_paused'
@@ -87,29 +168,32 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    ' · not purchased, not installed, and no recorded shares or financial rights have changed.';
   else if(message.textContent.startsWith('CYAN 3D PREVIEW ONLY'))message.textContent='';
   if(s.ownerAuthorized&&s.pending?.orderId){
-   orderId=s.pending.orderId;
+   orderId=s.pending.orderId;orderItemId=s.pending.itemId;
    const expired=Date.now()>=Number(s.pending.expiresAt);
-   const existing=document.createElement('p');existing.dataset.tycoonPending='';
-   existing.textContent='Pending '+(items.find(i=>i.id===s.pending.itemId)?.name||'upgrade')
-    +(expired?' · the original signing window has expired.':' · finish or review this order before buying another.')
-    +' Do not send a duplicate payment.';
-   catalogue.append(existing);
-   catalogue.append(button('Check existing payment',confirm));
-   if(s.purchasesEnabled&&!expired)catalogue.append(button('Continue existing Xaman request',resumePending));
+   const actions=[button('Check existing payment',confirm,false,{primary:expired})];
+   if(s.purchasesEnabled&&!expired)actions.push(button('Continue existing Xaman request',resumePending,false,{primary:true}));
+   showOrder(expired?'expired':'sign',expired
+    ?'The signing window for this request has closed. If you never signed it, it is released automatically (about 15 minutes after it was created) and you can buy again. If you did sign, check the existing payment. Do not send a duplicate payment.'
+    :'This order is still open. Finish or review it before buying another upgrade. Do not send a duplicate payment.',actions);
+   order.dataset.tycoonPending='';
+  }else{
+   delete order.dataset.tycoonPending;
+   if(order.dataset.phase==='expired'||(order.dataset.phase==='sign'&&!orderLink))hideOrder();
   }
-  const unlocked=new Set(s.unlockedItemIds);
   const groups=[['decor','Decorations'],['exterior','Exterior'],['interior','Interior'],['underground','Secrets & Bunkers'],['utility','Security & Utility'],['aviation','Private Aviation']];
   for(const [category,label] of groups){
    const subset=items.filter(i=>i.category===category);if(!subset.length)continue;
-   const head=document.createElement('h5');head.textContent=label;head.style.cssText='font-size:12px;color:#a8d4e8;margin:12px 0 6px';catalogue.append(head);
+   catalogue.append(el('h5',null,label));
    for(const item of subset){
-    const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 0;border-bottom:1px solid #5c7e8b55';
-    const labelText=document.createElement('span');labelText.style.cssText='font-size:12px;flex:1';
     const missing=item.requires.filter(id=>!unlocked.has(id)),owned=unlocked.has(item.id);
     const tierEligible=!item.eligibleTiers?.length||item.eligibleTiers.includes(s.tier);
-    labelText.textContent=item.name+' · '+item.priceXrp+' XRP · +'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')+
-     (owned?' · UNLOCKED':!tierEligible?' · Family / Mansion only':missing.length?' · Needs '+missing.join(', '):'');
-    row.append(labelText);
+    const row=el('div','bc-ty-item');row.dataset.state=owned?'owned':(!tierEligible||missing.length)?'locked':'available';
+    if(owned&&item.id===justInstalled)row.dataset.justInstalled='';
+    const info=el('div'),chips=el('div','bc-ty-chips');
+    chips.append(el('span','bc-ty-price',item.priceXrp+' XRP'),el('span',null,'+'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')));
+    const badge=owned?'✓ Installed':!tierEligible?'Family / Mansion only':missing.length?'Needs '+missing.map(itemName).join(', '):'';
+    if(badge)chips.append(el('span','bc-ty-badge',badge));
+    info.append(el('strong',null,item.name),chips);row.append(info);
     // Isolated visual-only outline, never a verified unlock or entitlement.
     if(typeof onPreview==='function'&&!owned&&tierEligible&&item.category!=='aviation'){
      row.append(button(previewItemId===item.id?'Hide preview':'View on property',()=>{
@@ -117,10 +201,10 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
       const changed=onPreview(next);
       if(changed===false)throw Error('This upgrade cannot be previewed on this property.');
       previewItemId=next;render();
-     }));
+     },false,{aria:(previewItemId===item.id?'Hide preview of ':'Preview ')+item.name+' on this property'}));
     }
-    if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible&&!missing.length)row.append(button('Buy',()=>buy(item),!!s.pending));
-    else if(owned){const tick=document.createElement('span');tick.textContent='✓';tick.style.color='#73e0aa';row.append(tick);}
+    if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible&&!missing.length)
+     row.append(button('Buy',()=>buy(item),!!s.pending,{primary:true,aria:'Buy '+item.name+' for '+item.priceXrp+' XRP'}));
     catalogue.append(row);
    }
   }
@@ -140,6 +224,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   // development value; base shares are calculated using the authoritative catalog.
   current={state,catalog};render();
  }
+ if(!availability.textContent)availability.textContent='Loading upgrades…',availability.dataset.tone='off';
  section.refresh=()=>load().catch(e=>{if(section.isConnected)message.textContent=e.message;});
  void section.refresh();return section;
 }

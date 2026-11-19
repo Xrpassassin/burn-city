@@ -248,14 +248,14 @@ export function menu(panel, closePanel) {
   Object.assign(h.style, { margin: '0 0 6px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' }); panel.appendChild(h);
   const intro = document.createElement('p');
   intro.textContent = 'House specials. A free preview serves the drink at the counter. Buy for 1 XRP is a cosmetic purchase: the bartender celebrates and serves your drink. Drinks give no gameplay effects or items.';
-  Object.assign(intro.style, { margin: '0 0 8px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' }); panel.appendChild(intro);
-  const payNote = document.createElement('p'); Object.assign(payNote.style, { margin: '0 0 8px', color: '#a8998a', fontSize: '11px', lineHeight: '1.45' }); panel.appendChild(payNote);
+  Object.assign(intro.style, { margin: '0 0 8px', color: '#dccdbb', fontSize: '13px', lineHeight: '1.5' }); panel.appendChild(intro);
+  const payNote = document.createElement('p'); Object.assign(payNote.style, { margin: '0 0 8px', color: '#c2b4a4', fontSize: '12px', lineHeight: '1.45' }); panel.appendChild(payNote);
   const buyBtns = [];
   for (const [id, name, description] of DRINKS) {
     const card = document.createElement('div');
     Object.assign(card.style, { padding: '10px', margin: '8px 0', border: '1px solid #493827', borderRadius: '9px', background: '#ffffff05' });
-    const title = document.createElement('strong'); title.textContent = name; Object.assign(title.style, { display: 'block', color: '#f0d2a2', fontSize: '12px', letterSpacing: '.08em' });
-    const detail = document.createElement('p'); detail.textContent = description; Object.assign(detail.style, { margin: '5px 0 10px', color: '#bcae9f', fontSize: '11px', lineHeight: '1.45' });
+    const title = document.createElement('strong'); title.textContent = name; Object.assign(title.style, { display: 'block', color: '#f0d2a2', fontSize: '13px', letterSpacing: '.08em' });
+    const detail = document.createElement('p'); detail.textContent = description; Object.assign(detail.style, { margin: '5px 0 10px', color: '#cdbfae', fontSize: '12px', lineHeight: '1.45' });
     const row = document.createElement('div'); Object.assign(row.style, { display: 'flex', gap: '8px', flexWrap: 'wrap' });
     const preview = btn('FREE PREVIEW', true); preview.style.flex = '1';
     preview.addEventListener('click', () => { closePanel(); serve(id, { receipt: name + ' · free preview at the counter.' }); });
@@ -300,7 +300,7 @@ function showCheckout(o, panel, closePanel, host) {
   const x = o.xaman;
   if (x?.deeplink) { const a = document.createElement('a'); a.href = x.deeplink; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'OPEN IN XAMAN'; Object.assign(a.style, { display: 'inline-block', margin: '6px 0', padding: '10px 16px', borderRadius: '9px', background: 'linear-gradient(120deg,#a63f16,#63250f)', color: '#ffe0c4', fontWeight: '800', textDecoration: 'none', letterSpacing: '.08em', pointerEvents: 'auto' }); host.box.append(a); }
   if (x?.qr && !X.TOUCH) { const img = document.createElement('img'); img.src = x.qr; img.alt = 'Xaman QR code'; Object.assign(img.style, { display: 'block', width: '170px', height: '170px', margin: '6px 0', borderRadius: '8px', background: '#fff' }); host.box.append(img); }
-  const det = document.createElement('p'); Object.assign(det.style, { font: '11px ui-monospace,monospace', color: '#a8998a', wordBreak: 'break-all', margin: '6px 0' }); det.textContent = `To ${o.destination} · tag ${o.destinationTag} · order ${o.id}`;
+  const det = document.createElement('p'); Object.assign(det.style, { font: '11px ui-monospace,monospace', color: '#b8a998', wordBreak: 'break-all', margin: '6px 0' }); det.textContent = `To ${o.destination} · tag ${o.destinationTag} · order ${o.id}`;
   const close = X.btn('CLOSE', true); close.style.marginTop = '8px'; close.addEventListener('click', closePanel);
   host.box.append(st, det, close);
   clearTimeout(pollTimer);

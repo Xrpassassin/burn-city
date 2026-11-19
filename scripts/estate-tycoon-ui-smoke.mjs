@@ -54,10 +54,12 @@ try {
   assert(confirmed===0,'unvalidated payment credited property');
   assert(section.textContent.includes('No upgrade was credited'),'pending state not explained');
   assert(hasButton('Check payment again'),'pending status removed the retry button');
+  assert(section.querySelector('.bc-ty-order[data-phase="checking"] [aria-current="step"]')?.textContent==='Ledger check','pending validation is not shown as the ledger-check step');
   assert(section.querySelector('a[href="https://xumm.app/sign/test"]'),'pending status removed the Xaman link');
   validate=true;
   hasButton('Check payment again').click();await settle();
   assert(confirmed===1,'verified payment not surfaced to owner');
+  assert(section.querySelector('.bc-ty-order[data-phase="settled"]'),'settled purchase has no installed confirmation card');
   state.pending={orderId:'tycoon_test',itemId:'porch-lights',expiresAt:Date.now()+600000};
   await section.refresh();
   assert(hasButton('Continue existing Xaman request'),'pending Xaman link cannot be resumed');
@@ -67,6 +69,7 @@ try {
   await section.refresh();
   assert(!hasButton('Continue existing Xaman request'),'expired order incorrectly offered a fresh payment link');
   assert(hasButton('Check existing payment'),'expired order has no reconciliation action');
+  assert(section.querySelector('.bc-ty-order[data-phase="expired"]')?.textContent.includes('released automatically'),'expired order does not explain automatic release');
   return {ok:true,steps,confirmed};
  });
  if(!result.ok)throw Error('UI smoke returned an invalid result');

@@ -35,6 +35,12 @@ The system's **single source of visual truth** is `client/burn-ui-tokens.css`. L
 
 AEGIS news belongs in a **compact top rail**, below navigation/status and outside gameplay controls. The latest validated feed headline rotates without a moving marquee; urgent Response Ops and threat escalations temporarily take priority. No duplicate gameplay event banner or floating toast. Players can snooze the news rail for fifteen minutes without disabling AEGIS beacons, cameras or the city feed. Clicking a headline opens AEGIS Command; tapping Close snoozes. The rail yields to active menus, the AEGIS console, Estate interiors and high-priority gameplay banners. AEGIS remains optional and cannot change weather, wallets or rewards.
 
+## Estates Xaman sign-in contract
+
+A signed-out player viewing an available home gets a visible **Sign in to purchase property** action, not a dead-end instruction. The same action is accessible on the standalone Estates page. It opens the BURN City Xaman identity dialog using the existing server `POST /api/signin` and `POST /api/signin/finish` protocol, with QR and Xaman link. Authentication is confirmed by the server before the `bcToken` and `bcAcct` session are updated. Cancellation must not mutate the current session. A completed login refreshes the inspected property's current server-owned quote and ownership state in place.
+
+**Sign-in is never purchase authorization.** Quotation, terms acceptance, reservation, Xaman XRP payment and verified XRPL settlement remain separate, explicit, server-checked steps. Never create a purchase reservation merely by opening the sign-in modal; never trust a client-written account address for ownership.
+
 ## Implementation sequence
 
 **Stage 1 — shell (merged #650):** Ember Glass responsive navigation, Estates consistency, five-viewport browser QA.

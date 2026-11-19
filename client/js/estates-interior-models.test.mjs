@@ -95,6 +95,7 @@ for(const [needle,why] of [["doorPrompt.update({x:player.pos.x-OFFSET_X,z:player
  ["const showHomeAllowed=propertyId=>ownershipKnown&&!ownedPropertyIds.has(propertyId);",'tours only for known-unowned homes'],
  ["upgrades:session?.tour?[]:Array.isArray(unlocked)?unlocked:[]",'installed upgrades come from verified Tycoon state'],
  ["if(session.tour){showPanel('SHOW HOME TOUR'",'visitors cannot open the furnishing editor'],
- ["privateRoomRequest('interior-access',propertyId,roomId)",'owned homes still need server-verified access']])
+ ["privateRoomRequest('interior-access',propertyId,roomId)",'owned homes still need server-verified access'],
+ ["if(trigger?.id!=='exit')secretExitArmed=true;else if(!secretExitArmed)trigger=null;",'arriving at the door never pops the leave prompt']])
  assert(live.includes(needle),why);
 console.log('Estates walk-in homes: CC BY credits, mobile budget, lazy load/unload, door enter/exit and collision passed');

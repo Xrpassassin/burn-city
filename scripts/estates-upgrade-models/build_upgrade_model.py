@@ -20,7 +20,7 @@ CFG={
  'path-lamp':dict(rotz=0,fit=('h',1.0,None),tris=700,tex=256,parts={'body':None}),
  'arcade':dict(opaque=['Cabnet'],rotz=0,fit=('h',1.75,None),tris=420,tex=256,parts={'body':None},drop=['Plane','Plane.001']),
  'workbench':dict(rotz=90,fit=('len',1.4,None),tris=700,tex=256,parts={'body':None}),
- 'flower-bush':dict(rotz=0,fit=('h',.6,None),tris=900,tex=256,parts={'leafy':None,'bloom':None},xsplit=('leafy','bloom')),
+ 'flower-bush':dict(rotz=0,fit=('h',.6,None),tris=520,tex=256,parts={'leafy':None,'bloom':None},xsplit=('leafy','bloom'),keep=['bloom']),
 }[pid]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
@@ -55,6 +55,8 @@ for o in meshes: groups.setdefault(owner(o),[]).append(o)
 parts={n:merged(n,objs) for n,objs in groups.items()}
 for o in meshes: bpy.data.objects.remove(o,do_unlink=True)
 for o in parts.values(): sc.collection.objects.link(o)
+for n in [n for n in parts if CFG.get('keep') and n not in CFG['keep']]:
+  bpy.data.objects.remove(parts.pop(n),do_unlink=True)   # only the flowering bush ships
 if CFG.get('crop'):
   lo,hi=CFG['crop']
   for o in parts.values():

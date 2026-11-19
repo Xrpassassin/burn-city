@@ -100,14 +100,17 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     // The deck starts just proud of the fascia/corner trims, above the built-in
     // door canopy and below upper-floor sills; the trailer hangs it off the eave.
     const x=doorX,depth=1.45,start=wallF+.22;
-    const width=Math.min(lot.tier==='apartment'?2.4:lot.tier==='trailer'?2.3:3.35,2*(wallX-Math.abs(doorX))),supportX=width/2-.12;
+    const width=Math.min(lot.tier==='apartment'?2.4:lot.tier==='trailer'?2.3:lot.tier==='mansion'?2.9:3.35,2*(wallX-Math.abs(doorX))),supportX=width/2-.12;
     const deckY=lot.tier==='trailer'?top-.12:doorH+.72;
+    // The mansion facade already carries a door canopy, floor band and
+    // trims, so its veranda drops the brackets and flashing to read cleanly.
+    const lean=lot.tier==='mansion';
     for(const side of [-1,1]){
      p(id,'veranda-post-'+side,x+side*supportX,(deckY-.1)/2,start+depth-.15,.15,deckY-.1,.15,'wood','attached');
-     if(lot.tier!=='trailer')p(id,'bracket-'+side,x+side*supportX,deckY-.15,start+.3,.12,.14,.6,'metal','attached');
+     if(lot.tier!=='trailer'&&!lean)p(id,'bracket-'+side,x+side*supportX,deckY-.15,start+.3,.12,.14,.6,'metal','attached');
     }
-    p(id,'roof-deck',x,deckY,start+depth/2,width,.16,depth,['trailer','apartment','mansion'].includes(lot.tier)?'slate':'wood','attached');
-    p(id,'roof-flashing',x,deckY+.1,start+.05,width,.06,.1,'metal','attached');
+    p(id,'roof-deck',x,deckY,start+depth/2,width,lean?.12:.16,depth,['trailer','apartment','mansion'].includes(lot.tier)?'slate':'wood','attached');
+    if(!lean)p(id,'roof-flashing',x,deckY+.1,start+.05,width,.06,.1,'metal','attached');
     p(id,'front-beam',x,deckY-.15,start+depth-.15,width,.16,.16,'wood','attached');break;
    }
    case 'privacy-fence':{
@@ -328,6 +331,38 @@ export function estateUpgradeModelSlots(lot,unlockedIds=[]){
   const b=by.get('garden-pond-boulder-'+k);
   slot({id:'garden-pond',model:'rocks',part:k?'rock-b':'rock-a',x:b.x,y:b.y-b.h/2,z:b.z,w:b.w*1.15,h:b.h*1.3,d:b.d*1.15,
    stretch:true,ry:k?2.1:.6,replaces:['garden-pond-boulder-'+k]});
+ }
+ if(has('porch-lights'))for(const side of [-1,1]){
+  // Wall sconce model replaces the backing plate, lantern box and cap.
+  const b=by.get('porch-lights-wall-lantern-'+side),wallF=b.z-.14;
+  slot({id:'porch-lights',model:'wall-lantern',part:'body',x:b.x,y:b.y-.17,z:wallF+.12,w:.2,h:.36,d:.22,
+   replaces:['wall-base-','wall-lantern-','lantern-cap-'].map(n=>'porch-lights-'+n+side)});
+ }
+ if(has('flower-garden'))for(const j of [0,1]){
+  // Two flowering shrubs per raised bed, rooted in the low foliage mound,
+  // replace the stick-and-ball blooms.
+  const f=by.get('flower-garden-flower-foliage-'+j);
+  for(const k of [-1,1])slot({id:'flower-garden',model:'flower-bush',part:'bloom',x:f.x,y:.3,z:f.z+k*.43,w:1,h:.62,d:.84,ry:k>0?.4+j:2.6-j,
+   replaces:k<0?[]:[0,1,2,3,4].flatMap(n=>['flower-stem-'+j+'-'+n,'flower-bloom-'+j+'-'+n]).map(n=>'flower-garden-'+n)});
+ }
+ if(has('roof-garden')){
+  // Flowering shrubs fill the planter boxes (roof) or terrace planter.
+  const roofBush=(fol,extra,y,w,h,d,ry)=>{const f=by.get('roof-garden-'+fol);if(!f)return;
+   slot({id:'roof-garden',model:'flower-bush',part:'bloom',x:f.x,y,z:f.z,w,h,d,ry,replaces:[fol,...extra].map(n=>'roof-garden-'+n)});};
+  for(const side of [-1,1]){const b=by.get('roof-garden-flat-roof-box-'+side);
+   if(b)roofBush('flat-roof-foliage-'+side,['flat-roof-bloom-'+side],b.y+b.h/2,.95,.65,1.15,side>0?1.2:0);}
+  const t=by.get('roof-garden-terrace-planter');
+  if(t)roofBush('terrace-foliage',[],t.y+t.h/2,1.4,.75,1,.3);
+ }
+ if(has('hobby-workshop')){
+  // Workbench on the rear wall beside the service door (opposite the work light).
+  const d=by.get('hobby-workshop-utility-door'),wallF=-(d.z+.04);
+  slot({id:'hobby-workshop',model:'workbench',part:'body',x:-(d.w/2+1.05),y:0,z:-wallF-.36,w:1.3,h:.78,d:.6,stretch:true});
+ }
+ if(has('bunker-arcade')){
+  const u=by.get('bunker-arcade-utility-housing');
+  slot({id:'bunker-arcade',model:'arcade',part:'body',x:u.x,y:0,z:u.z,w:.9,h:1.75,d:.86,
+   replaces:['utility-housing','utility-grille','housing-roof','service-beacon'].map(n=>'bunker-arcade-'+n)});
  }
  for(const s of slots){
   if(Math.abs(s.x)+s.w/2>plot.width/2+.001||Math.abs(s.z)+s.d/2>plot.depth/2+.001)throw Error('upgrade_model_slot_outside_lot:'+s.model);

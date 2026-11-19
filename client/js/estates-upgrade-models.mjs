@@ -1,12 +1,12 @@
-// Optional authored models for a few Estates Tycoon upgrades (CC BY 4.0
+// Optional authored models for the Estates Tycoon upgrades (CC BY 4.0
 // Sketchfab sources, credited in client/city-credits.html and
 // client/assets/estates-upgrades/CREDITS.md). Everything here is
 // progressive enhancement: if three's GLTFLoader or any file is unavailable,
 // the code-built primitives in estates-tycoon-architecture.mjs stay in place.
-export const ESTATE_UPGRADE_MODEL_IDS=Object.freeze(['helicopter','fire-pit','camera','gnome','rocks']);
+export const ESTATE_UPGRADE_MODEL_IDS=Object.freeze(['helicopter','fire-pit','camera','gnome','rocks','wall-lantern','flower-bush','workbench','arcade']);
 const ASSETS=new URL('../assets/estates-upgrades/',import.meta.url);
 // Materials whose authored colour is a light source get a matching emissive.
-const SELF_LIT=/^(fire)$/i;
+const SELF_LIT=/^(fire|blinn2)$/i;   // fire-pit flames, arcade screen sprites
 let cache=null;
 // Resolves to Map<modelId,{parts:Map<partName,[{geometry,material}]>,info}>.
 // Never rejects: failed models are simply absent from the map.

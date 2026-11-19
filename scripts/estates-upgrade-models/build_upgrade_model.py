@@ -13,14 +13,27 @@ CFG={
  'camera':dict(rotz=0,fit=('len',.42,None),tris=820,tex=256,parts={'body':None}),
  'gnome':dict(rotz=0,fit=('h',.5,None),tris=1200,tex=256,parts={'body':None}),
  'rocks':dict(rotz=0,fit=('len',.5,None),tris=400,tex=256,parts={'body':None},loose=True),
+ # drop: source objects removed (backdrops, floor cards); crop=((lo),(hi)) keeps faces
+ # whose centre lies in a source-space box (one prop out of a multi-prop pack);
+ # xsplit: objects left/right of x=0 become two parts (two bushes in one file).
+ 'wall-lantern':dict(rotz=0,fit=('h',.36,None),tris=140,tex=256,parts={'body':None}),
+ 'path-lamp':dict(rotz=0,fit=('h',1.0,None),tris=700,tex=256,parts={'body':None}),
+ 'arcade':dict(opaque=['Cabnet'],rotz=0,fit=('h',1.75,None),tris=420,tex=256,parts={'body':None},drop=['Plane','Plane.001']),
+ 'workbench':dict(rotz=90,fit=('len',1.4,None),tris=700,tex=256,parts={'body':None}),
+ 'flower-bush':dict(rotz=0,fit=('h',.6,None),tris=900,tex=256,parts={'leafy':None,'bloom':None},xsplit=('leafy','bloom')),
 }[pid]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
 sc=bpy.context.scene
 for o in bpy.data.objects:
   if o.animation_data: o.animation_data.action=None
+for o in [o for o in bpy.data.objects if o.type=='MESH']:
+  if o.parent and any(o.parent.name==d for d in CFG.get('drop',[])): bpy.data.objects.remove(o,do_unlink=True)
 meshes=[o for o in bpy.data.objects if o.type=='MESH']
 def owner(o):
+  if CFG.get('xsplit'):
+    c=sum((o.matrix_world@mathutils.Vector(b) for b in o.bound_box),mathutils.Vector())/8
+    return CFG['xsplit'][0 if c.x<0 else 1]
   for name,prefixes in CFG['parts'].items():
     if prefixes and any(o.name.startswith(p+'_') or o.name==p for p in prefixes): return name
   return next(n for n,p in CFG['parts'].items() if p is None)
@@ -42,6 +55,13 @@ for o in meshes: groups.setdefault(owner(o),[]).append(o)
 parts={n:merged(n,objs) for n,objs in groups.items()}
 for o in meshes: bpy.data.objects.remove(o,do_unlink=True)
 for o in parts.values(): sc.collection.objects.link(o)
+if CFG.get('crop'):
+  lo,hi=CFG['crop']
+  for o in parts.values():
+    bm=bmesh.new();bm.from_mesh(o.data)
+    bmesh.ops.delete(bm,geom=[f for f in bm.faces if not all(lo[i]<=f.calc_center_median()[i]<=hi[i] for i in range(3))],context='FACES')
+    bmesh.ops.delete(bm,geom=[v for v in bm.verts if not v.link_faces],context='VERTS')
+    bm.to_mesh(o.data);bm.free()
 if CFG.get('loose'):
   # Rock pack: keep the two largest separate stones as rock-a / rock-b.
   o=parts.pop('body');bpy.context.view_layer.objects.active=o;o.select_set(True)
@@ -116,15 +136,34 @@ for m in bpy.data.materials:
   if not m.use_nodes: continue
   nt=m.node_tree;bsdf=nt.nodes.get('Principled BSDF')
   if not bsdf: continue
-  for inp in ('Normal','Metallic','Roughness'):
+  for inp in ('Normal','Metallic','Roughness','Emission Color','Specular IOR Level'):
     for l in list(bsdf.inputs[inp].links): nt.links.remove(l)
   bsdf.inputs['Metallic'].default_value=0;bsdf.inputs['Roughness'].default_value=.75
-for im in bpy.data.images:
+  # Keep only textures that still feed the shader (colour/alpha): orphaned
+  # normal/occlusion maps would otherwise still be exported (or fail to save).
+  live=set();todo=[n for n in nt.nodes if n.type in ('BSDF_PRINCIPLED','OUTPUT_MATERIAL')]
+  while todo:
+    n=todo.pop()
+    if n in live: continue
+    live.add(n);todo+=[l.from_node for i in n.inputs for l in i.links]
+  for n in list(nt.nodes):
+    if n.type=='TEX_IMAGE' and n not in live: nt.nodes.remove(n)
+  for n in list(nt.nodes):
+    if n.type=='GROUP' and 'gltf' in (n.node_tree.name if n.node_tree else '').lower(): nt.nodes.remove(n)
+for im in list(bpy.data.images):
+  if not im.users: bpy.data.images.remove(im);continue
   if im.size[0]>CFG['tex'] or im.size[1]>CFG['tex']:
     f=CFG['tex']/max(im.size);im.scale(max(1,int(im.size[0]*f)),max(1,int(im.size[1]*f)))
 for x in bpy.context.view_layer.objects: x.select_set(x.name in parts)
 os.makedirs(outdir,exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=f'{outdir}/{pid}.gltf',export_format='GLTF_SEPARATE',use_selection=True,
   export_image_format='WEBP',export_texture_dir=f'{pid}-tex',export_animations=False,export_skins=False,export_morph=False,export_apply=True)
+# Sorted alpha blending flickers on instanced props: leaf/flower cards become
+# alpha-tested cut-outs and solid bodies (CFG opaque) are forced opaque.
+g=json.load(open(f'{outdir}/{pid}.gltf'))
+for m in g.get('materials',[]):
+  if m.get('name') in CFG.get('opaque',[]): m.pop('alphaMode',None);m.pop('alphaCutoff',None)
+  elif m.get('alphaMode')=='BLEND': m['alphaMode']='MASK';m['alphaCutoff']=.5
+json.dump(g,open(f'{outdir}/{pid}.gltf','w'),separators=(',',':'))
 json.dump(info,open(f'{outdir}/{pid}.json','w'),indent=1)
 print('##',json.dumps(info))

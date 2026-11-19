@@ -1,5 +1,4 @@
 // The server owns price, reservations, signing identity and settlement status.
-import { openEstateXamanSignIn } from './estates-xaman-signin.mjs';
 export function mountEstatePurchase(container,propertyId,{api='https://burn-city-game.fly.dev',fetcher=fetch,storage=localStorage,onSettled=()=>{},onAuthenticated=()=>{}}={}){
  const section=document.createElement('section');section.style.cssText='padding:12px;border:1px solid #ffb45b66;border-radius:10px;margin-top:12px';
  const title=document.createElement('h3');title.textContent='Virtual Estate details · '+propertyId;
@@ -30,6 +29,8 @@ export function mountEstatePurchase(container,propertyId,{api='https://burn-city
  async function start(){const p=await request('/purchase/payment/start',{reservationId});actions.replaceChildren();note.textContent='Review the XRP amount and treasury destination in Xaman. Ownership is assigned only after ledger verification. This page checks automatically after you sign.';if(p.deeplink)link('Open Xaman to review payment',p.deeplink);button('Check signed payment',check);startPolling();}
  async function signInToBuy(){
   try{
+   // Loaded on demand so the purchase panel has no static dependency on the dialog.
+   const {openEstateXamanSignIn}=await import('./estates-xaman-signin.mjs');
    await openEstateXamanSignIn({api,storage,opener:document.activeElement,onAuthenticated:()=>{
     // Re-create this section with the newly verified session token. Existing
     // purchase/reservation request guards stay bound to one wallet identity.

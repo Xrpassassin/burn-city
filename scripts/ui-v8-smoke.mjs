@@ -70,8 +70,12 @@ try{
    if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS ticker overlaps '+key);
   if(!news.crawl)fail(screen.name,'AEGIS ticker is not crawling');
   // Tapping the ticker expands every headline with AEGIS Command reachable.
-  await page.locator('#aegisNews .an-headline').evaluate(el=>el.click());
-  const panel=await page.evaluate(()=>{const p=document.querySelector('#aegisNewsPanel');const r=p.getBoundingClientRect();
+  // The live server's AEGIS feed can replace the fixture lines (and the 14 s pin can lapse) on
+  // slow CI runs, so re-seed the fixture and expand in the same task, with no await in between.
+  const panel=await page.evaluate(async()=>{const {updateAegisNewsFeed,publishAegisHeadline}=await import('./js/aegis-news.mjs');
+   updateAegisNewsFeed({level:1,lines:['City Watch update one','City Watch update two']});publishAegisHeadline('Signal anomaly in BURN district',2);
+   document.querySelector('#aegisNews .an-headline').click();
+   const p=document.querySelector('#aegisNewsPanel');const r=p.getBoundingClientRect();
    return {open:!p.hidden,items:p.querySelectorAll('li').length,cmd:!!p.querySelector('.an-open'),inView:r.left>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,
     paused:getComputedStyle(document.querySelector('#aegisNews .an-track')).animationPlayState};});
   if(!panel.open||panel.items!==3||!panel.cmd||!panel.inView||panel.paused!=='paused')

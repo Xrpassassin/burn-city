@@ -1383,6 +1383,14 @@ const avatar=(()=>{const g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin
 anim.push(()=>{const pl=avatar.userData.pl;pl.intensity=avatar.visible?2:0;if(avatar.visible)pl.position.set(avatar.position.x,avatar.position.y+1.5,avatar.position.z)});
 let NET=null;const peers=new Map();window.__city={pedMesh:pedM,audio:()=>({AC,on:!!aud.on,master:aud.master}),pick,colliders,groundAt,streets,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,soundOn:()=>!!aud.on,showInfo,input:{keys,yp,get joy(){return joy},get tb(){return tb}},get bokeh(){return bokeh}};
 function tlOn(){return !!(window.__wildsTravelLocked&&window.__wildsTravelLocked())}
+// Local player pose for every on-foot path (city, Estates island, home interiors): the shared
+// walker, plus an NFT holder's own Gas Mask Guy, which otherwise stayed frozen off the city
+// streets. `speed` is the measured ground speed so the Walk/Run clips step in time with movement.
+function poseMe(dt,amp,run){const L=avatar.userData,t=performance.now()/1000,q=L.lastPos||(L.lastPos={x:P.pos.x,z:P.pos.z});
+ const raw=dt>0?Math.hypot(P.pos.x-q.x,P.pos.z-q.z)/dt:0;q.x=P.pos.x;q.z=P.pos.z;
+ const prev=L.groundSpeed||0;L.groundSpeed=raw>40?prev:prev+(raw-prev)*Math.min(1,dt*10); // ignore teleports
+ poseWalker(avatar,P.walk,amp,t,run,L.groundSpeed);
+ if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(t,amp>.05,!!P.climb,run,L.groundSpeed);}
 function setMode(m){if((tlOn()||window.__estatesIslandLive?.active)&&m!=='explore')return;const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'&&prev!==m){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
@@ -1568,7 +1576,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    const ml=Math.min(1,Math.hypot(f,s));
    island.tick(dt,f,s,run);
    P.walk+=Math.max(0,Math.min(dt,.1))*ml*(run?MOTION.runCadence:MOTION.walkCadence);
-   poseWalker(avatar,P.walk,ml,performance.now()/1000);
+   poseMe(dt,ml,run);
    avatar.position.copy(P.pos);avatar.visible=!P.fp;
    P.near=null;$('prompt').style.display='none';$('tUse')?.classList.remove('hot');
    me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);
@@ -1581,7 +1589,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    P.vel.y-=MOTION.gravity*dt;P.pos.y+=P.vel.y*dt;if(P.pos.y<=0){P.pos.y=0;P.vel.y=0;P.onGround=true;}else P.onGround=false;
   }
   island.tick(dt,f,s,run,desiredDelta);if(boardHeading!==null)avatar.rotation.y=boardHeading;
-  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000,run);}
+  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseMe(dt,ml,run);}
   avatar.position.copy(P.pos);avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;
  }
  if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run))return;
@@ -1599,7 +1607,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
- P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;const avatarTime=performance.now()/1000;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),avatarTime,run);if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(avatarTime,ml>.05,!!P.climb,run);
+ P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;poseMe(dt,Math.min(1,ml)*(P.onGround?1:.25),run);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}

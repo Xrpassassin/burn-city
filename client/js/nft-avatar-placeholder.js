@@ -42,8 +42,8 @@ export function buildCollectionPlaceholder(n,opts={}) {
   walker.rotation.y=Math.PI;root.add(walker);
   root.userData={...walker.userData,nftId:n?.id,representation:'gas-mask-guy',
     nftAvatarProfile:{collectionKey:n?.key||'generic',exactReconstruction:false,skin:'gas-mask-guy'},
-    anim(t,moving,armsUp,running=false){
-      poseWalker(walker,t*9,moving?1:0,t,!!running);
+    anim(t,moving,armsUp,running=false,speed){
+      poseWalker(walker,t*9,moving?1:0,t,!!running,speed);
       if(armsUp) for(const arm of walker.userData.arms) {arm.rotation.x=-1.2;if(arm.userData.elbow)arm.userData.elbow.rotation.x=-.45;}
       if(root.userData.card) root.userData.card.position.y=root.userData.frame.position.y=2.55+Math.sin(t*2)*.045;
     }};

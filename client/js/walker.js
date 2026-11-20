@@ -62,10 +62,11 @@ export function buildPlayerWalker(options) {
 }
 
 // pose: ph = walk phase, amp 0..1 (0 = idle), t = seconds. Writes legs/arms rotation.x (compatible with NFT chars: extras apply only if present)
-export function poseWalker(g, ph, amp, t = 0, running = false) {
-  const previous = g.userData.avatarTime ?? t;
-  g.userData.avatarTime = t;
-  g.userData.defaultAvatar?.update(t - previous, amp > .12 ? (running ? 'Run' : 'Walk') : 'Idle');
+// speed (m/s, optional): real ground speed, so the Gas Mask Guy Walk/Run clips step in time with movement.
+export function poseWalker(g, ph, amp, t = 0, running = false, speed) {
+  const previous = Number.isFinite(g.userData.avatarTime) ? g.userData.avatarTime : t;
+  g.userData.avatarTime = Number.isFinite(t) ? t : previous;
+  g.userData.defaultAvatar?.update(g.userData.avatarTime - previous, amp > .12 ? (running ? 'Run' : 'Walk') : 'Idle', speed);
   const u = g.userData, L = u.legs, A = u.arms, sw = Math.sin(ph) * .7 * amp;
   L[0].rotation.x = sw; L[1].rotation.x = -sw; A[0].rotation.x = -sw * .8; A[1].rotation.x = sw * .8;
   if (L[0].userData.knee) { L[0].userData.knee.rotation.x = -Math.max(0, Math.cos(ph)) * .9 * amp; L[1].userData.knee.rotation.x = -Math.max(0, -Math.cos(ph)) * .9 * amp }

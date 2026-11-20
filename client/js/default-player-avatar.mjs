@@ -39,9 +39,56 @@ function loadModel(variant) {
     let skinned = false;
     gltf.scene.traverse(node => { if (node.isSkinnedMesh) skinned = true; });
     if (!skinned || !['Idle', 'Walk'].every(name => clips.get(name)?.duration > 0)) return null;
-    return { scene: gltf.scene, clips };
+    return { scene: gltf.scene, clips, strideSpeed: measureStrideSpeeds(gltf.scene, clips) };
   }).catch(() => null));
   return sources.get(variant);
+}
+
+// Ground speed (model units per second at timeScale 1) each locomotion clip implies: the planted
+// (lower) foot slides backwards at exactly the speed the body should travel, so integrate its
+// backwards motion over one cycle. The mixer then scales playback to the avatar's real speed.
+export const FALLBACK_STRIDE_SPEED = Object.freeze({ Walk: 1.1, Run: 1.3 });
+export function measureStrideSpeeds(scene, clips) {
+  const out = { ...FALLBACK_STRIDE_SPEED }, saved = [];
+  try {
+    const feet = [];
+    scene.traverse(node => { if (node.isBone && /^foot/i.test(node.name)) feet.push(node); });
+    if (feet.length < 2) return out;
+    // Sampling poses the shared source scene; remember every node's transform and put it back.
+    scene.traverse(node => saved.push([node, node.position.clone(), node.quaternion.clone(), node.scale.clone()]));
+    const mixer = new THREE.AnimationMixer(scene), v = new THREE.Vector3(), inv = new THREE.Matrix4(), N = 48;
+    for (const name of ['Walk', 'Run']) {
+      const clip = clips.get(name); if (!(clip?.duration > 0)) continue;
+      const action = mixer.clipAction(clip).play(), rows = [];
+      for (let i = 0; i <= N; i++) {
+        mixer.setTime(clip.duration * i / N);
+        scene.updateMatrixWorld(true);
+        inv.copy(scene.matrixWorld).invert();
+        rows.push(feet.slice(0, 2).map(foot => foot.getWorldPosition(v).applyMatrix4(inv).clone()));
+      }
+      let travel = 0;
+      for (let i = 0; i < N; i++) {
+        const k = rows[i][0].y <= rows[i][1].y ? 0 : 1;
+        travel += rows[i + 1][k].z - rows[i][k].z;
+      }
+      action.stop();
+      const speed = Math.abs(travel) / clip.duration;
+      if (speed > .05) out[name] = speed;
+    }
+    mixer.stopAllAction(); mixer.uncacheRoot(scene);
+  } catch { /* keep the measured-offline fallbacks */ } finally {
+    for (const [node, p, q, sc] of saved) { node.position.copy(p); node.quaternion.copy(q); node.scale.copy(sc); }
+    scene.updateMatrixWorld(true);
+  }
+  return out;
+}
+// Playback rate for a locomotion clip at `speed` m/s. Bounded so a sprint never turns into a blur
+// and a shuffle never freezes; unknown speed keeps the authored rate.
+export function locomotionTimeScale(state, speed, strideSpeed, scale = 1) {
+  if (!(state === 'Walk' || state === 'Run') || !Number.isFinite(speed) || speed < 0) return 1;
+  const natural = (strideSpeed?.[state] || FALLBACK_STRIDE_SPEED[state]) * scale;
+  const [lo, hi] = state === 'Run' ? [.8, 3.2] : [.6, 2.6];
+  return Math.min(hi, Math.max(lo, speed / natural));
 }
 
 function cloneMaterials(root) {
@@ -80,7 +127,7 @@ export function mountDefaultPlayerAvatar(root, {
   variant = 'thirdPerson', lod = false, tint, fallback
 } = {}) {
   if (mounted.has(root)) return mounted.get(root);
-  let visual, mixer, current, clips, disposed = false, hidden = false, requestedLod = !!lod;
+  let visual, mixer, current, clips, strideSpeed, disposed = false, hidden = false, requestedLod = !!lod;
   const using = () => (variant === 'thirdPerson' && requestedLod && MODEL_AVAILABLE.thirdPersonLod) ? 'thirdPersonLod' : variant;
 
   function attach(asset) {
@@ -106,6 +153,7 @@ export function mountDefaultPlayerAvatar(root, {
     });
     root.add(visual);
     clips = asset.clips;
+    strideSpeed = asset.strideSpeed;
     mixer = new THREE.AnimationMixer(visual);
     handle.update(0);
     fallback?.(false);
@@ -113,7 +161,9 @@ export function mountDefaultPlayerAvatar(root, {
 
   const handle = {
     get ready() { return !!visual; },
-    update(dt, state = 'Idle') {
+    get timeScale() { return current?.timeScale ?? 1; },
+    // `speed` (m/s, optional) syncs Walk/Run playback to how fast the avatar actually moves.
+    update(dt, state = 'Idle', speed) {
       if (!mixer || !clips) return;
       const clip = clipFor(clips, seated, state);
       if (clip && clip !== current?.getClip()) {
@@ -122,7 +172,9 @@ export function mountDefaultPlayerAvatar(root, {
         if (current) next.fadeIn(.16);
         current = next;
       }
-      mixer.update(Math.min(.1, Math.max(0, dt || 0)));
+      if (current && !seated) current.timeScale = locomotionTimeScale(state, speed, strideSpeed, height / 1.8);
+      // A NaN/negative step would poison the mixer clock and freeze the pose for good.
+      mixer.update(Number.isFinite(dt) ? Math.min(.1, Math.max(0, dt)) : 0);
     },
     setLod(useFar) {
       const next = !!useFar;

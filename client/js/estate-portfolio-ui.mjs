@@ -42,12 +42,12 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    card.append(make('h3',p.address||p.id),field(t.label,t.price+' XRP'),field('Allocation weight',t.shareUnits+' share units'),cityLink(p.id));
    card.append(make('p',mine?'Owned by you':verifiedOwner?'Owned · unavailable for purchase':liveSalesEnabled?'Unowned · check availability':'Sales paused · view only','muted'));
    const target=make('div');target.dataset.purchaseDetail=p.id;
-   const button=action(mine?'Manage property':verifiedOwner?'View owned property':liveSalesEnabled?'Check availability / buy':'View details (sales paused)',()=>{
+   const button=action(mine?'Manage & upgrade property':verifiedOwner?'View owned property':liveSalesEnabled?'Check availability / buy':'View details (sales paused)',()=>{
     // Keep at most one expanded detail panel across the directory.
     for(const other of $('properties').querySelectorAll('[data-purchase-detail]'))if(other!==target)other.replaceChildren();
     if(target.childElementCount){target.replaceChildren();button.setAttribute('aria-expanded','false');return;}
     mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});
-    if(mine)mountEstateTycoon(target,p.id,{api,fetcher,storage,onConfirmed:()=>void refresh()});
+    if(mine){const shop=mountEstateTycoon(target,p.id,{api,fetcher,storage,onConfirmed:()=>void refresh()});if(shop)shop.open=true;}
     button.setAttribute('aria-expanded','true');
    });button.setAttribute('aria-expanded','false');card.append(button,target);$('properties').append(card);
   }
@@ -112,6 +112,25 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
    if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+' from upgrades; not active payout weight)'));
+   // Upgrade straight from the Estates tab: the same tycoon shop and Xaman flow as in the
+   // 3D city (server-priced items, validated-ledger settlement), no travel needed.
+   const installed=make('p','','installed-upgrades');installed.dataset.installedUpgrades=p.propertyId;
+   const showInstalled=state=>{const ids=state?.unlockedItemIds||[],names=new Map((state?.items||[]).map(i=>[i.id,i.name]));
+    installed.textContent='Installed upgrades: '+(ids.length?ids.map(id=>names.get(id)||id).join(', '):'none yet');};
+   showInstalled(tycoon);
+   const upgradePanel=make('div');upgradePanel.dataset.ownedUpgradePanel=p.propertyId;
+   let upgradedWhileOpen=false;
+   const upgrade=action('Upgrade this property',()=>{
+    if(upgradePanel.childElementCount){upgradePanel.replaceChildren();upgrade.setAttribute('aria-expanded','false');upgrade.textContent='Upgrade this property';
+     if(upgradedWhileOpen){upgradedWhileOpen=false;void refresh();}return;}
+    for(const other of $('owned-properties').querySelectorAll('[data-owned-upgrade-panel]'))if(other!==upgradePanel&&other.childElementCount)other.parentElement?.querySelector('[data-owned-upgrade]')?.click();
+    const shop=mountEstateTycoon(upgradePanel,p.propertyId,{api,fetcher,storage,onConfirmed:state=>{upgradedWhileOpen=true;showInstalled(state);}});
+    if(shop)shop.open=true;
+    upgrade.setAttribute('aria-expanded','true');upgrade.textContent='Close upgrades';
+   });
+   upgrade.dataset.ownedUpgrade=p.propertyId;upgrade.className='primary';upgrade.setAttribute('aria-expanded','false');
+   upgrade.setAttribute('aria-label','Upgrade '+(p.property?.address||p.propertyId)+' without travelling to it');
+   card.append(installed,upgrade,upgradePanel);
    const funding=s.capitalAllocations?.find(a=>a.property_id===p.propertyId)?.fundingState;
    const allocation=s.capitalAllocations?.find(a=>a.property_id===p.propertyId);if(allocation)card.append(field(allocation.policy_version===1?'Historic funding record':'Funding route',allocation.pool||'Funding record unavailable'));
    card.append(field('Pool funding',({awaiting_pool:'Awaiting IMG/RLUSD pool activation',invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review',legacy_retired_review:'Legacy route retired · prior funding under review'})[funding]||'Status unavailable'));

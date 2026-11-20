@@ -21,6 +21,8 @@ on:
       - 'client/estate-theme.css'
       - 'client/js/movement-games-menu.js'
       - 'scripts/ui-v8-smoke.mjs'
+      - 'scripts/estate-owned-upgrade-smoke.mjs'
+      - 'client/js/estate-portfolio-ui.mjs'
       - '.github/workflows/ui-v8-browser-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -58,3 +60,5 @@ jobs:
         run: node scripts/ui-v8-smoke.mjs http://127.0.0.1:8080
       - name: Exercise Tycoon upgrade payment UI with mocked server (no XRP)
         run: node scripts/estate-tycoon-ui-smoke.mjs http://127.0.0.1:8080
+      - name: Upgrade an owned property from the Estates tab (mocked server, no XRP)
+        run: node scripts/estate-owned-upgrade-smoke.mjs http://127.0.0.1:8080

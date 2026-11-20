@@ -53,40 +53,37 @@ try{
     const b=node.getBoundingClientRect();return{left:b.left,right:b.right,top:b.top,bottom:b.bottom};
    };
    return {hasCss:[...document.styleSheets].some(s=>s.href?.includes('aegis-news.css')),
-    hidden:el?.hidden,headline:el?.querySelector('.an-headline')?.textContent,level:el?.dataset.level,
+    hidden:el?.hidden,headline:el?.querySelector('.an-headline')?.dataset.lead,level:el?.dataset.level,
+    reserved:document.documentElement.classList.contains('aegis-ticker-on'),crawl:el?.dataset.motion==='crawl'&&!!el.querySelector('.an-track.an-go'),
     bar:rect('#aegisNews'),hud:rect('#hud'),toolbar:rect('#btns'),status:rect('#status'),recap:rect('#recap'),
     bodyClass:document.body.className,
     blockers:{gameBanner:!!document.querySelector('#evbanner.show'),toast:!!document.querySelector('#toasts .toast.in'),cityToast:!!document.querySelector('#cityToast div.on')},
     visibleStyle:getComputedStyle(el).visibility};
   });
   if(!news.hasCss||news.hidden||news.headline!=='Signal anomaly in BURN district'||news.level!=='2')
-   fail(screen.name,'AEGIS news bar did not show high-priority headline');
-  if(!news.bar||news.bar.left<-2||news.bar.right>screen.width+2||news.bar.top<-2||news.bar.bottom>screen.height+2)
-   fail(screen.name,'AEGIS news is offscreen: '+JSON.stringify(news));
+   fail(screen.name,'AEGIS ticker did not lead with the high-priority headline');
+  // News-station ticker: a slim strip on the very top edge that reserves its own space.
+  if(!news.bar||news.bar.left>1||news.bar.right<screen.width-1||news.bar.top>1||news.bar.bottom-news.bar.top>40)
+   fail(screen.name,'AEGIS ticker is not a slim full-width top strip: '+JSON.stringify(news.bar));
+  if(!news.reserved)fail(screen.name,'AEGIS ticker did not reserve its top strip');
   for(const key of ['hud','toolbar','status','recap'])
-   if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS news overlaps '+key);
-  if(screen.mobile&&screen.width<700&&screen.height>500){
-   const placement=await page.evaluate(()=>{
-    document.body.classList.add('mExplore');
-    const ticker=document.querySelector('#aegisNews').getBoundingClientRect();
-    const minimap=document.querySelector('#minimap').getBoundingClientRect();
-    document.body.classList.remove('mExplore');
-    return {ticker:{left:ticker.left,right:ticker.right,top:ticker.top,bottom:ticker.bottom},
-      minimap:{left:minimap.left,right:minimap.right,top:minimap.top,bottom:minimap.bottom}};
-   });
-   if(overlap(placement.ticker,placement.minimap))
-    fail(screen.name,'AEGIS news overlaps Explore minimap');
-  }
-  if(screen.mobile){
-   const gearYield=await page.evaluate(()=>{
-    const gear=document.querySelector('#gearBar'),rail=document.querySelector('#aegisNews');
-    if(!gear||!rail)return null;
-    gear.classList.add('on');
-    const hidden=getComputedStyle(rail).visibility==='hidden';
-    gear.classList.remove('on');
-    return hidden;
-   });
-   if(gearYield===false)fail(screen.name,'AEGIS rail does not yield to touch gear controls');
+   if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS ticker overlaps '+key);
+  if(!news.crawl)fail(screen.name,'AEGIS ticker is not crawling');
+  // Tapping the ticker expands every headline with AEGIS Command reachable.
+  await page.locator('#aegisNews .an-headline').evaluate(el=>el.click());
+  const panel=await page.evaluate(()=>{const p=document.querySelector('#aegisNewsPanel');const r=p.getBoundingClientRect();
+   return {open:!p.hidden,items:p.querySelectorAll('li').length,cmd:!!p.querySelector('.an-open'),inView:r.left>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,
+    paused:getComputedStyle(document.querySelector('#aegisNews .an-track')).animationPlayState};});
+  if(!panel.open||panel.items!==3||!panel.cmd||!panel.inView||panel.paused!=='paused')
+   fail(screen.name,'AEGIS ticker expand panel broken: '+JSON.stringify(panel));
+  await page.locator('#aegisNews .an-close').evaluate(el=>el.click());
+  if(screen.name==='mobile-portrait'){
+   await page.emulateMedia({reducedMotion:'reduce'});
+   const still=await page.evaluate(async()=>{const {updateAegisNewsFeed}=await import('./js/aegis-news.mjs');
+    updateAegisNewsFeed({level:1,lines:['City Watch update one','City Watch update two','City Watch update three']});
+    const el=document.querySelector('#aegisNews');return {motion:el.dataset.motion,anim:getComputedStyle(el.querySelector('.an-track')).animationName,runs:el.querySelectorAll('.an-run').length};});
+   if(still.motion!=='static'||still.runs!==1||/anCrawl/.test(still.anim))fail(screen.name,'reduced motion still crawls: '+JSON.stringify(still));
+   await page.emulateMedia({reducedMotion:'no-preference'});
   }
   if(!screen.mobile){
    const hit=await page.locator('#aegisNews .an-dismiss').evaluate(el=>{
@@ -99,8 +96,8 @@ try{
    // the hit-test above verifies reachability and this checks the actual handler.
    await page.locator('#aegisNews .an-dismiss').evaluate(el=>el.click());
   }else await page.locator('#aegisNews .an-dismiss').click();
-  if(!await page.locator('#aegisNews').evaluate(el=>el.hidden))
-   fail(screen.name,'AEGIS snooze did not hide news');
+  if(!await page.locator('#aegisNews').evaluate(el=>el.hidden)||await page.evaluate(()=>document.documentElement.classList.contains('aegis-ticker-on')))
+   fail(screen.name,'AEGIS snooze did not hide news and release the top strip');
   await page.evaluate(async()=>{
    const {publishAegisHeadline}=await import('./js/aegis-news.mjs');
    publishAegisHeadline('New response incident',2);

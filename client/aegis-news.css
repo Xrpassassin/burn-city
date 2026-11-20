@@ -1,111 +1,89 @@
-/* AEGIS City Watch: a quiet, readable news rail below City navigation/status.
-   No marquee animation; urgent announcements get a temporary priority slot. */
+/* AEGIS City Watch: a slim news-station ticker on the top edge of the screen.
+   It reserves its own strip (html.aegis-ticker-on shifts the HUD's safe-area top by
+   --an-h), so it never covers navigation or controls. Crawl is transform-only. */
+:root{--an-h:26px}
+html.aegis-ticker-on{--sa-t:calc(env(safe-area-inset-top,0px) + var(--an-h))}
 #aegisNews{
   box-sizing:border-box;
-  position:fixed;
-  z-index:var(--z-hud,10);
-  top:calc(var(--row2,58px) + 47px);
-  left:var(--left,12px);
-  right:var(--right,12px);
-  margin-inline:auto;
-  width:min(720px,calc(100vw - var(--left,12px) - var(--right,12px)));
-  height:42px;
-  display:flex;align-items:center;gap:10px;
-  padding:0 0 0 12px;
+  position:fixed;z-index:var(--z-hud,10);
+  top:0;left:0;right:0;
+  height:calc(env(safe-area-inset-top,0px) + var(--an-h));
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);
+  display:flex;align-items:stretch;
   color:var(--bc-text,#f7f4f0);
-  border:1px solid var(--bc-border,rgba(255,173,108,.19));
-  border-left:3px solid var(--an-accent,#2fe3ff);
-  border-radius:11px;
-  background:rgba(8,14,21,.92);
-  box-shadow:0 10px 26px #0006;
-  -webkit-backdrop-filter:blur(12px);
-  backdrop-filter:blur(12px);
+  background:linear-gradient(180deg,rgba(6,10,16,.94),rgba(10,16,24,.9));
+  border-bottom:1px solid color-mix(in srgb,var(--an-accent) 55%,transparent);
+  box-shadow:0 2px 10px #0005;
   font-family:var(--bc-font-ui,system-ui,sans-serif);
 }
 #aegisNews[hidden]{display:none!important}
 #aegisNews[data-level="0"]{--an-accent:#2fe3ff}
 #aegisNews[data-level="1"]{--an-accent:#ffb74c}
 #aegisNews[data-level="2"]{--an-accent:#ff6254}
+#aegisNews button{font:inherit;color:inherit;border:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 #aegisNews .an-brand{
-  flex:none;display:inline-flex;gap:5px;align-items:center;
-  color:#f4ebdf;white-space:nowrap;letter-spacing:.09em;
-  font:800 10px/1 var(--bc-font-data,monospace)
+  flex:none;display:inline-flex;align-items:center;gap:5px;padding:0 16px 0 10px;
+  background:var(--an-accent);color:#071016;
+  font:900 10.5px/1 var(--bc-font-data,monospace);letter-spacing:.12em;
+  clip-path:polygon(0 0,100% 0,calc(100% - 7px) 100%,0 100%)
 }
-#aegisNews .an-mark{font-size:17px;color:var(--an-accent)}
-#aegisNews .an-level{
-  flex:none;min-width:0;color:var(--an-accent);
-  font:800 10px var(--bc-font-data,monospace);
-  letter-spacing:.04em
+#aegisNews .an-mark{font-size:13px}
+#aegisNews .an-level{font-weight:700;letter-spacing:.06em;opacity:.8;font-size:9.5px}
+#aegisNews .an-viewport{
+  position:relative;flex:1;min-width:0;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 22px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 22px),transparent)
 }
-#aegisNews .an-headline{
-  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  text-align:left;border:0;background:transparent;color:inherit;
-  padding:0 4px;min-height:40px;border-radius:6px;cursor:pointer;
-  font:600 12px/1.4 var(--bc-font-ui,system-ui,sans-serif)
-}
-#aegisNews .an-headline:hover{text-decoration:underline;text-decoration-color:var(--an-accent)}
-#aegisNews .an-headline:focus-visible,#aegisNews .an-dismiss:focus-visible{
-  outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:-3px
-}
+#aegisNews .an-headline{display:block;width:100%;height:100%;padding:0;background:transparent;text-align:left;overflow:hidden;white-space:nowrap}
+#aegisNews .an-track{display:inline-flex;white-space:nowrap;will-change:transform;padding-left:12px}
+#aegisNews .an-track.an-go{animation:anCrawl linear infinite}
+#aegisNews:hover .an-track,#aegisNews:focus-within .an-track,#aegisNews[data-expanded] .an-track{animation-play-state:paused}
+@keyframes anCrawl{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+/* Each run carries its own trailing gap so the -50% loop point is seamless. */
+#aegisNews .an-track.an-go{padding-left:0}
+#aegisNews .an-run{display:inline-flex;align-items:center;gap:12px;padding-right:12px;height:var(--an-h)}
+#aegisNews .an-item{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--bc-font-ui,system-ui,sans-serif)}
+#aegisNews .an-tag{font:800 9.5px/1 var(--bc-font-data,monospace);letter-spacing:.08em;padding:3px 5px;border-radius:3px;background:#2fe3ff26;color:#9ff1ff}
+#aegisNews .an-item[data-level="1"] .an-tag{background:#ffb74c2e;color:#ffd08a}
+#aegisNews .an-item[data-level="2"] .an-tag{background:#ff625433;color:#ffb0a6}
+#aegisNews .an-sep{color:var(--an-accent);font-size:8px;opacity:.75}
 #aegisNews .an-dismiss{
-  flex:0 0 42px;width:42px;height:40px;min-height:40px;padding:0;border:0;
-  border-left:1px solid var(--bc-border,rgba(255,173,108,.19));
-  border-radius:0 10px 10px 0;color:#b9c3cf;background:transparent;
-  cursor:pointer;font:500 22px/1 var(--bc-font-ui,system-ui,sans-serif)
+  flex:none;width:34px;padding:0;background:transparent;color:#b9c3cf;
+  font:500 18px/1 var(--bc-font-ui,system-ui,sans-serif);
+  border-left:1px solid #ffffff1a;margin-right:env(safe-area-inset-right,0px)
 }
 #aegisNews .an-dismiss:hover{color:#fff;background:#ffffff12}
+#aegisNews button:focus-visible{outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:-2px}
+/* Tap the ticker: every current headline, readable, with AEGIS Command one tap away. */
+#aegisNews .an-panel{
+  position:absolute;top:100%;left:calc(8px + env(safe-area-inset-left,0px));
+  width:min(520px,calc(100vw - 16px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));
+  max-height:min(55dvh,420px);overflow:auto;box-sizing:border-box;
+  margin-top:6px;padding:10px 12px;border-radius:12px;z-index:var(--z-pop,45);
+  background:rgba(8,14,21,.96);border:1px solid #ffffff22;border-left:3px solid var(--an-accent);
+  box-shadow:0 14px 34px #000a
+}
+#aegisNews .an-panel[hidden]{display:none}
+#aegisNews .an-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
+#aegisNews .an-list .an-item{white-space:normal;align-items:flex-start;line-height:1.4;font-size:13px}
+#aegisNews .an-actions{display:flex;gap:8px;flex-wrap:wrap}
+#aegisNews .an-actions button{min-height:40px;padding:0 14px;border-radius:10px;background:#ffffff12;border:1px solid #ffffff26;font:700 12.5px var(--bc-font-ui,system-ui)}
+#aegisNews .an-actions .an-open{background:var(--an-accent);color:#071016;border-color:transparent}
 #aegisNews .an-announcer{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-/* Let gameplay's high-priority overlays, navigation and full-screen AEGIS take focus. */
+@media(min-width:701px){:root{--an-h:28px}#aegisNews .an-item{font-size:12.5px}}
+/* Static fade instead of a crawl. */
+#aegisNews[data-motion="static"] .an-track{padding-left:10px;animation:anFade .5s ease-out}
+#aegisNews[data-motion="static"] .an-sep{display:none}
+#aegisNews[data-motion="static"] .an-run{max-width:100%;overflow:hidden}
+#aegisNews[data-motion="static"] .an-text{overflow:hidden;text-overflow:ellipsis}
+@keyframes anFade{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  #aegisNews .an-track.an-go{animation:none}
+  #aegisNews[data-motion="static"] .an-track{animation:none}
+}
+/* Full-screen menus, AEGIS Command and indoor HUDs take the screen; the strip stays reserved. */
 body.bcMenuOpen #aegisNews,
 body.moreOpen #aegisNews,
 body.uiHudOpen #aegisNews,
 body:has(#aegisModal) #aegisNews,
-body:has(#evbanner.show) #aegisNews,
 body:has(#estateInteriorHud) #aegisNews{visibility:hidden;pointer-events:none}
-/* On touch devices the right-side movement/jet controls own this lane. */
-body.touch:has(#gearBar.on) #aegisNews{visibility:hidden;pointer-events:none}
-/* The daily recap occupies the same upper zone in Orbit. Reserve space for
-   the news rail instead of layering a non-clickable alert over the recap. */
-body:has(#aegisNews:not([hidden])) #recap{
-  top:calc(var(--row2) + 96px)!important;
-}
-body:has(#toasts .toast.in) #aegisNews,
-body:has(#cityToast div.on) #aegisNews{
-  visibility:hidden;pointer-events:none;
-}
-/* Roomier layouts retain the left HUD; allocate only the remaining upper lane
-   to the AEGIS rail instead of centering it across the entire game window. */
-@media(min-width:701px) and (min-height:501px){
-  #aegisNews{
-    left:calc(max(var(--left,12px),var(--hud-right,310px)) + 12px);
-    right:var(--right,12px);
-    width:min(720px,calc(100vw - max(var(--left,12px),var(--hud-right,310px)) - var(--right,12px) - 12px));
-    margin-inline:auto;
-  }
-}
-@media(max-width:700px) and (min-height:501px){
-  #aegisNews{top:calc(var(--row2) + 49px);height:40px;gap:7px;padding-left:8px}
-  #aegisNews .an-brand-extra,#aegisNews .an-level{display:none}
-  #aegisNews .an-headline{font-size:11px}
-}
-@media(max-width:700px) and (min-height:501px){
-  body.touch.mExplore #aegisNews,body.touch.mFly #aegisNews{
-    left:calc(var(--left) + 108px);right:var(--right);width:auto;margin:0;
-  }
-}
-@media(max-height:500px) and (orientation:landscape){
-  body:has(#aegisNews:not([hidden])) #recap{
-    top:calc(var(--top) + var(--ctl) + 56px)!important;
-    max-height:calc(100dvh - var(--top) - var(--ctl) - 64px)!important;
-  }
-
-  #aegisNews{
-    top:calc(var(--top) + var(--ctl) + 10px);
-    height:38px;width:min(550px,calc(100vw - 2*var(--left)));
-    max-width:calc(100vw - var(--left) - var(--right));
-  }
-  #aegisNews .an-brand-extra,#aegisNews .an-level{display:none}
-  #aegisNews .an-headline{font-size:11px;min-height:36px}
-  #aegisNews .an-dismiss{height:36px}
-}
-/* No motion required; AEGIS never autoscrolls text or steals keyboard focus. */

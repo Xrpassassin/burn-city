@@ -70,6 +70,8 @@ try{
    if(news[key]&&overlap(news.bar,news[key]))fail(screen.name,'AEGIS ticker overlaps '+key);
   if(!news.crawl)fail(screen.name,'AEGIS ticker is not crawling');
   // Tapping the ticker expands every headline with AEGIS Command reachable.
+  // The priority headline is pinned for 14 s; slow CI viewports can outlive it, so re-pin first.
+  await page.evaluate(async()=>{const {publishAegisHeadline}=await import('./js/aegis-news.mjs');publishAegisHeadline('Signal anomaly in BURN district',2);});
   await page.locator('#aegisNews .an-headline').evaluate(el=>el.click());
   const panel=await page.evaluate(()=>{const p=document.querySelector('#aegisNewsPanel');const r=p.getBoundingClientRect();
    return {open:!p.hidden,items:p.querySelectorAll('li').length,cmd:!!p.querySelector('.an-open'),inView:r.left>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,

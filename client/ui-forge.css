@@ -228,3 +228,12 @@ body.mExplore #status,body.mFly #status{opacity:0!important;visibility:hidden!im
   #more.open,#bcMoveGamesPanel.on .bc-mg-card,.jp-sheet>div,#bcEstatesXaman .bc-xaman-card,#guide .gbox,.fg-count-pop{animation:none!important}
   #btns>button,#tbtns button,#bcMoveGamesPanel button,.jp-sheet button,#guide button{transition:none!important}
 }
+
+/* ---------- 17. follow-up: guide step icon, burn line, skate gear, desktop targets ---------- */
+#guide .gico .bc-ico{width:56px;height:56px;color:var(--bc-ember);stroke-width:1.75;filter:drop-shadow(0 0 10px rgba(255,139,57,.45))}
+#guide .gbox p .bc-ico,#burnCount .bc-ico{width:1.05em;height:1.05em;color:var(--bc-ember);vertical-align:-.15em}
+#skGear .sg-head .bc-ico{width:20px;height:20px;color:var(--bc-ember);margin-right:6px;vertical-align:-3px}
+#skGear .sg-x .bc-ico,#skGearBtn .bc-ico{width:18px;height:18px}
+#skGearBtn .bc-ico{margin-right:6px}
+/* desktop: the top-bar buttons meet the 44px target too (phones already did) */
+#btns>button,#btns .barLink,#btns #bcMoveGamesOpen,#btns #playBtn,#btns #moreBtn{min-height:44px!important;min-width:44px!important;box-sizing:border-box}

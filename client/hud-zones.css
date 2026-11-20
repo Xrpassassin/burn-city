@@ -1,0 +1,146 @@
+/* ==========================================================================
+   BURN City HUD zones (t449u) — loaded last. One calm, triaged HUD in fixed corner zones:
+     top-left      identity (BURN CITY) + currency pill (streak · coins)
+     top-right     navigation, ⋯ menu, minimap
+     top-centre    slim AEGIS ticker (reserves its own strip); district banner when relevant
+     bottom-left   joystick (touch) · Keys (desktop) · the daily recap pill on arrival
+     bottom-right  actions · Board/Web (Explore only) · City chat
+   Tiers: always-on essentials (movement, primary action, currency, minimap, ticker), contextual (gear, hints,
+   banners, prompts appear only when relevant), one tap away (the categorised ⋯ menu, js/hud-zones.mjs).
+   Spacing comes from the shared tokens (--top/--left/--right/--bottom include safe areas; --tap = 44px; gap 8px).
+   Selectors carry :not(#_) so the zones win over the older per-mode position rules without reordering them.
+   ========================================================================== */
+html.hz{--hz-gap:8px;--hz-map:96px;--hz-row2:calc(var(--top) + var(--tap) + var(--hz-gap));--hz-map-top:var(--hz-row2)}
+
+/* ---------- minimap: always top-right, same place in Orbit, Explore and Fly ---------- */
+html.hz #minimap:not(#_){top:var(--hz-map-top)!important;bottom:auto!important;left:auto!important;right:var(--right)!important;
+  width:var(--hz-map)!important;height:var(--hz-map)!important}
+
+/* ---------- ⋯ menu: categories ---------- */
+html.hz #more:not(#_){overflow-y:auto;overscroll-behavior:contain;max-height:calc(100dvh - var(--top) - var(--tap) - var(--hz-gap) - var(--bottom) - 8px)}
+html.hz #more .hz-cat{font:800 10.5px var(--bc-font-ui,var(--f-ui));letter-spacing:.16em;text-transform:uppercase;color:var(--bc-ember,#ff8b39);
+  opacity:.85;padding:12px 12px 4px;pointer-events:none;grid-column:1/-1}
+html.hz #more .hz-cat:first-child{padding-top:6px}
+html.hz #more .hz-cat[hidden],html.hz #more .hz-info[hidden]{display:none!important}
+html.hz #more .hz-info{display:flex;align-items:center;gap:12px;min-height:36px;padding:0 12px;color:var(--txt-2);font:600 13px var(--bc-font-ui,var(--f-ui));grid-column:1/-1}
+html.hz #more .hz-info .bc-ico{width:16px;height:16px;padding:8px;color:var(--txt-3)}
+html.hz #more .hz-info span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- live dot on the brand mark (the connection pill folds into the menu on phones) ---------- */
+html.hz:not([data-hz-live=live]) #hud .hdr .flame{filter:grayscale(.85) brightness(.85)}
+html.hz[data-hz-live=connecting] #hud .hdr .flame{animation:hzPulse 1.4s ease-in-out infinite}
+@keyframes hzPulse{50%{opacity:.45}}
+
+/* ---------- daily recap: a compact pill that expands on tap, bottom-left, never over the controls ---------- */
+html.hz #recap.hz-mini>:not(h3):not(.x){display:none!important}
+html.hz #recap.hz-mini:not(#_){padding:0 52px 0 14px!important;min-height:var(--tap);max-height:none!important;overflow:hidden;width:max-content!important;max-width:calc(100vw - var(--left) - var(--right) - 56px)!important;border-radius:var(--r-pill,999px)!important}
+html.hz #recap.hz-mini h3{margin:0!important;padding:0!important;background:none!important;line-height:var(--tap)!important;font-size:14px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.hz #recap.hz-mini h3::after{content:'';display:inline-block;width:6px;height:6px;margin:0 0 3px 10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);opacity:.7;vertical-align:middle}
+html.hz #recap.hz-mini .x{top:0!important;right:0!important}
+html.hz #recap h3[role=button]{cursor:pointer}
+html.hz #recap h3[role=button]:focus-visible{outline:2px solid var(--bc-ember,#ff8b39);outline-offset:2px;border-radius:6px}
+html.hz #recap:not(#_){top:auto!important;bottom:var(--bottom)!important;left:var(--left)!important;right:auto!important;margin:0!important;
+  width:min(340px,calc(100vw - var(--left) - var(--right) - 56px))!important;overflow-y:auto}
+/* never over the first-time guide or the install hint */
+html.hz body:has(#guide:not([hidden])) #recap{visibility:hidden}
+html.hz body:has(#iosHint) #recap:not(#_){bottom:calc(var(--bottom) + var(--tap) + var(--hz-gap))!important}
+
+/* ==========================================================================
+   Phones, portrait
+   row 1: [BURN CITY ▾][🔥 streak · coins]                [⋯]
+   row 2: [☰ View][🏠][⇄ Play ▾]                       (minimap)
+   ========================================================================== */
+@media (max-width:700px) and (min-height:501px){
+  html.hz #hud:not(.open):not(#_){max-width:calc(100vw - var(--left) - var(--right) - var(--tap) - 132px)!important}
+  html.hz #rChip:not(#_){top:var(--top)!important;bottom:auto!important;left:calc(var(--left) + var(--hz-id-w,140px) + var(--hz-gap))!important;right:auto!important}
+  html.hz #btns #moreBtn:not(#_){position:fixed;top:var(--top);right:var(--right);margin:0!important}
+  html.hz #btns:not(#_){top:var(--hz-row2)!important;left:var(--left)!important;right:auto!important;width:max-content!important;
+    max-width:calc(100vw - var(--left) - var(--right) - var(--hz-map) - var(--hz-gap))!important}
+  /* market weather + connection live in the ⋯ menu (Info) and the brand dot: one less row */
+  html.hz #status:not(#_){display:none!important}
+  /* the menu drops below the nav row so View / Estates / Play stay tappable while it is open */
+  html.hz #more:not(#_){top:calc(var(--hz-row2) + var(--tap) + var(--hz-gap))!important;max-height:calc(100dvh - var(--hz-row2) - var(--tap) - var(--hz-gap) - var(--bottom) - 8px)}
+  html.hz body.uiHudOpen #rChip,html.hz body.uiHudOpen #moreBtn,html.hz body.uiHudOpen #minimap{visibility:hidden}
+  /* contextual: Board/Web column under the minimap (Explore only) */
+  html.hz body.touch #gearBar:not(#_){top:calc(var(--hz-map-top) + var(--hz-map) + var(--hz-gap))!important;right:var(--right)!important}
+  html.hz #recap:not(#_){max-height:calc(100dvh - var(--hz-map-top) - var(--hz-map) - 16px - var(--bottom))!important}
+  /* district banner: under the nav row, beside the minimap column */
+  html.hz #banner:not(#_){top:calc(var(--hz-row2) + var(--tap) + var(--hz-gap))!important;left:var(--left)!important;right:calc(var(--right) + var(--hz-map) + var(--hz-gap))!important;
+    width:auto!important;max-width:none!important;transform:none!important;font-size:15px!important;letter-spacing:.1em!important}
+}
+/* 350–380px phones: the nav row no longer shares the ⋯ button, so ⇄ Play keeps its label */
+@media (min-width:350px) and (max-width:380px) and (min-height:501px){
+  html.hz #btns:not(.tight) #bcMoveGamesOpen .bc-mg-short{display:inline!important}
+  html.hz #btns:not(.tight) #bcMoveGamesOpen .bc-mg-mark{margin-right:7px!important}
+}
+/* tablets / desktop and portrait phones: City chat sits in the bottom-right corner in Orbit */
+@media (min-height:501px){
+  html.hz #cityChat:not(.open):not(#_){top:auto!important;bottom:var(--bottom)!important;right:var(--right)!important}
+  /* Explore / Fly on touch: chat goes under the right column (controls own the bottom) */
+  html.hz body.touch.mExplore #cityChat:not(.open):not(#_),html.hz body.touch.mFly #cityChat:not(.open):not(#_){bottom:auto!important;top:calc(var(--hz-rc-b,260px) + var(--hz-gap))!important}
+}
+
+/* ==========================================================================
+   Short landscape phones: one slim top band, controls in the corners
+   ========================================================================== */
+@media (max-height:500px) and (orientation:landscape){
+  html.hz{--hz-map:88px;--hz-map-top:calc(var(--top) + var(--tap) + var(--hz-gap))}
+  html.hz #rChip:not(#_){top:var(--top)!important;bottom:auto!important;left:calc(var(--left) + var(--hz-id-w,140px) + var(--hz-gap))!important;right:auto!important}
+  /* contextual gear: left column under the brand, above the joystick */
+  html.hz body.touch #gearBar:not(#_){top:var(--hz-map-top)!important;left:var(--left)!important;right:auto!important}
+  html.hz body.touch #skGearBtn:not(#_){top:var(--hz-map-top)!important;left:calc(var(--left) + 112px)!important}
+  html.hz #cityChat:not(.open):not(#_){top:auto!important;bottom:var(--bottom)!important;right:var(--right)!important}
+  html.hz body.touch.mExplore #cityChat:not(.open):not(#_),html.hz body.touch.mFly #cityChat:not(.open):not(#_){bottom:auto!important;top:var(--hz-map-top)!important;right:calc(var(--right) + var(--hz-map) + var(--hz-gap))!important}
+  html.hz #recap:not(#_){max-height:calc(100dvh - var(--hz-map-top) - var(--bottom) - 8px)!important}
+  html.hz #banner:not(#_){top:var(--hz-map-top)!important;left:calc(var(--left) + 120px)!important;right:calc(var(--right) + var(--hz-map) + 120px)!important;
+    width:auto!important;max-width:none!important;transform:none!important;font-size:15px!important}
+}
+
+/* ==========================================================================
+   Tablets and desktop: identity card top-left (compact; ▾ opens the full stats), nav + status + minimap top-right
+   ========================================================================== */
+@media (min-width:701px) and (min-height:501px){
+  html.hz{--hz-map:140px;--hz-map-top:calc(var(--hz-tr-b,110px) + var(--hz-gap))}
+  html.hz #hud:not(.open) :is(#mood,#secSettings,#secLegend,#src){display:none!important}
+  html.hz #hud .hdr .chev{display:block}
+  html.hz #hud.open .hdr .chev{transform:rotate(-135deg);margin-top:3px}
+  html.hz #rChip:not(#_){top:calc(var(--hz-id-b,120px) + var(--hz-gap))!important;bottom:auto!important;left:var(--left)!important;right:auto!important}
+  html.hz #keysBtn:not(#_){left:var(--left)!important}
+  html.hz body:not(.touch) #recap:not(#_){bottom:calc(var(--bottom) + var(--ctl) + var(--hz-gap))!important}
+  html.hz body.touch #gearBar:not(#_){top:calc(var(--hz-map-top) + var(--hz-map) + var(--hz-gap))!important}
+  html.hz #recap:not(#_){max-height:calc(100dvh - var(--hz-id-b,200px) - var(--tap) - 70px - var(--bottom))!important}
+  html.hz #help:not(#_){max-width:calc(100vw - 2*var(--left) - 360px)}
+  /* district banner: centred under both top clusters, between the currency pill and the minimap */
+  html.hz #banner:not(#_){top:calc(max(var(--hz-id-b,120px),var(--hz-tr-b,110px)) + var(--hz-gap))!important;
+    max-width:calc(100vw - 2*(var(--hz-map) + var(--right) + 16px))!important;white-space:normal}
+}
+/* tablets / small laptops: the identity card folds to the brand pill (▾ opens the stats) so the nav row fits beside it */
+@media (min-width:701px) and (max-width:1023px) and (min-height:501px){
+  html.hz #hud:not(.open):not(#_){width:auto!important;max-width:200px!important;padding:0 12px!important;border-radius:var(--r-pill,999px)!important;max-height:none;overflow:hidden}
+  html.hz #hud:not(.open) #hudBody{display:none!important}
+  html.hz #hud:not(.open) .hdr #fps{display:none}
+}
+@media (min-width:1600px) and (min-height:501px){html.hz{--hz-map:156px}}
+
+/* ---------- contextual hints: one column above the controls, never over the gear or each other ---------- */
+html.hz body.touch #vHint:not(#_){max-width:calc(100vw - 2*var(--left))!important}
+html.hz body.touch #tapTip:not(#_){top:auto!important;bottom:calc(var(--bottom) + var(--ctl-h,0px) + 120px)!important;max-width:calc(100vw - 2*var(--left))!important;transform:translateX(-50%)!important}
+
+/* one hint at a time: "how to exit" waits while the inspect tip is up */
+html.hz body:has(#tapTip[style*="opacity: 1"]) #vHint{opacity:0!important}
+/* the one-line control hint steps aside while the recap card is up (they share the bottom edge) */
+html.hz body:has(#recap) #help{visibility:hidden}
+
+/* ---------- calm arrival: the HUD settles in, corner by corner, once the city is ready ---------- */
+html.hz-pre :is(#hud,#rChip,#btns,#status,#minimap,#joy,#tbtns,#cityChat,#keysBtn){opacity:0}
+@keyframes hzInDown{from{opacity:0;transform:translateY(-8px)}}
+@keyframes hzInUp{from{opacity:0;transform:translateY(8px)}}
+@keyframes hzFade{from{opacity:0}}
+html.hz-in :is(#hud,#rChip){animation:hzInDown .42s var(--ease,ease-out) backwards}
+html.hz-in :is(#btns,#status){animation:hzInDown .42s .1s var(--ease,ease-out) backwards}
+html.hz-in #minimap{animation:hzFade .5s .2s var(--ease,ease-out) backwards}
+html.hz-in :is(#joy,#tbtns button,#cityChat,#keysBtn){animation:hzFade .5s .3s var(--ease,ease-out) backwards}
+@media (prefers-reduced-motion:reduce){
+  html.hz-in :is(#hud,#rChip,#btns,#status,#minimap,#joy,#tbtns button,#cityChat,#keysBtn){animation:hzFade .2s backwards!important}
+  html.hz[data-hz-live=connecting] #hud .hdr .flame{animation:none}
+}

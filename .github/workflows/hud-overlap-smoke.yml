@@ -1,0 +1,55 @@
+name: BURN City HUD overlap smoke
+on:
+  pull_request:
+    paths:
+      - 'client/index.html'
+      - 'client/hud-zones.css'
+      - 'client/js/hud-zones.mjs'
+      - 'client/ui.css'
+      - 'client/ui-v8.css'
+      - 'client/ui-forge.css'
+      - 'client/style.css'
+      - 'client/aegis-news.css'
+      - 'client/js/ui.js'
+      - 'client/js/ui-forge.mjs'
+      - 'client/js/notify-lane.mjs'
+      - 'client/js/fx2.js'
+      - 'client/js/retain.js'
+      - 'client/js/app.js'
+      - 'scripts/hud-overlap-smoke.mjs'
+      - '.github/workflows/hud-overlap-smoke.yml'
+  workflow_dispatch:
+jobs:
+  hud-overlap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: HUD zones unit test
+        run: node client/js/hud-zones.test.mjs
+      - name: Install Chromium and browser harness
+        timeout-minutes: 10
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start read-only local static preview
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory client > /tmp/bc-hud-server.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/bc-hud-server.log
+          exit 1
+      - name: No HUD overlaps at 360x640, 390x844, 430x932, 844x390, 768x1024, 1280x800, 1920x1080
+        run: node scripts/hud-overlap-smoke.mjs http://127.0.0.1:8080 /tmp/hud-overlap
+      - name: Upload HUD screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hud-overlap-screens
+          path: /tmp/hud-overlap
+          if-no-files-found: ignore

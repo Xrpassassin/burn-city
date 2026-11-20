@@ -1,23 +1,110 @@
-/* BURN City experience system — one palette, one type and motion language.
-   Deliberately uses local system fonts to avoid network dependencies and layout shift.
-   Import before ui-v8.css and estate-theme.css; semantic aliases remain in each surface. */
+/* BURN City design tokens — "Forge" system (v9).
+   ONE variable system for every surface: colour, type, spacing, radii, outlines, shadows, motion.
+   Game-grade direction: chunky outlined panels and buttons (Clash/Fortnite readability), angled
+   tactical cuts (Apex/Valorant), clean HUD discipline (GTA) — with a BURN identity: ember orange,
+   charcoal and heat glow.
+   Fonts are self-hosted (fonts/barlow, SIL OFL 1.1, credited in city-credits.html): no network
+   dependency, `font-display:swap` so text never blocks on load.
+   Import before ui-v8.css and estate-theme.css; older aliases (--f-ui, --ember, --glass…) are
+   remapped onto these tokens in ui-v8.css / the legacy-alias block below. */
+
+/* ---------- fonts ---------- */
+@font-face{font-family:"Barlow";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/barlow/Barlow-500.woff2") format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/barlow/Barlow-600.woff2") format("woff2")}
+@font-face{font-family:"Barlow";font-style:normal;font-weight:700 900;font-display:swap;src:url("fonts/barlow/Barlow-700.woff2") format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/barlow/BarlowCondensed-600.woff2") format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url("fonts/barlow/BarlowCondensed-700.woff2") format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:800 900;font-display:swap;src:url("fonts/barlow/BarlowCondensed-800.woff2") format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:italic;font-weight:800 900;font-display:swap;src:url("fonts/barlow/BarlowCondensed-800i.woff2") format("woff2")}
+
 :root{
   color-scheme:dark;
-  --bc-font-display:"Avenir Next","Trebuchet MS","Segoe UI",system-ui,sans-serif;
-  --bc-font-ui:"Avenir Next","Segoe UI",-apple-system,system-ui,sans-serif;
-  --bc-font-data:"SFMono-Regular","Cascadia Code",ui-monospace,Menlo,Consolas,monospace;
+
+  /* ---------- type ---------- */
+  --bc-font-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;  /* headings, buttons, numbers */
+  --bc-font-ui:"Barlow","Segoe UI",-apple-system,system-ui,sans-serif;                             /* body + controls */
+  --bc-font-data:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;                           /* counters, prices, chips (tabular) */
+  --bc-font-mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;                  /* hashes / code only */
+  --bc-num:tabular-nums;
+  --bc-t-2xs:10.5px;--bc-t-xs:11.5px;--bc-t-sm:13px;--bc-t-md:15px;--bc-t-lg:18px;--bc-t-xl:22px;--bc-t-2xl:30px;--bc-t-hero:44px;
+  --bc-track-display:.04em;   /* uppercase display tracking */
+  --bc-track-label:.12em;     /* small caps labels / eyebrows */
+
+  /* ---------- colour: charcoal + ember + heat ---------- */
+  --bc-coal-950:#07080a;
+  --bc-coal-900:#0d0f12;
+  --bc-coal-850:#13161a;
+  --bc-coal-800:#1a1d22;
+  --bc-coal-700:#24282e;
+  --bc-coal-600:#323840;
+  --bc-ember:#ff8b39;          /* canonical brand ember (smoke-tested) */
+  --bc-ember-hot:#ff5b14;      /* pressed / flame core */
+  --bc-ember-deep:#b8380a;     /* button lip / shadow */
+  --bc-gold:#ffc54d;           /* rewards, top tier */
+  --bc-heat:#ff7a2a;           /* glow colour */
+  --bc-ember-grad:linear-gradient(180deg,#ffb054 0%,#ff8b39 46%,#ff5b14 100%);
+  --bc-gold-grad:linear-gradient(180deg,#ffe28a 0%,#ffc54d 50%,#f39a1c 100%);
+  --bc-coal-grad:linear-gradient(180deg,#22262c 0%,#16191d 100%);
   --bc-bg:#080c12;
   --bc-surface:#141a22;
   --bc-surface-elevated:#1b232c;
+  --bc-panel:rgba(16,18,22,.94);
+  --bc-panel-2:rgba(24,27,32,.96);
   --bc-text:#f7f4f0;
   --bc-text-muted:#c4cbd0;
-  --bc-ember:#ff8b39;
+  --bc-text-dim:#8e969e;
   --bc-success:#7dffd2;
+  --bc-ok:#4ef0a0;
+  --bc-warn:#ffc54d;
+  --bc-danger:#ff5a4d;
+  --bc-info:#62e4ff;
   --bc-focus:#7ce2ff;
   --bc-border:rgba(255,173,108,.19);
   --bc-border-strong:rgba(255,173,108,.43);
-  --bc-touch-target:44px;
+
+  /* ---------- outlines (thick, game-grade) ---------- */
+  --bc-outline-w:2px;
+  --bc-outline:rgba(0,0,0,.72);            /* dark keyline around chunky elements */
+  --bc-outline-ember:rgba(255,139,57,.62);
+  --bc-hairline:rgba(255,255,255,.08);
+  --bc-highlight:inset 0 1px 0 rgba(255,255,255,.14);   /* top bevel highlight */
+
+  /* ---------- spacing (4px grid) ---------- */
+  --bc-space-1:4px;--bc-space-2:8px;--bc-space-3:12px;--bc-space-4:16px;--bc-space-5:20px;--bc-space-6:24px;--bc-space-8:32px;
+
+  /* ---------- radii + angled cuts ---------- */
+  --bc-radius-xs:4px;--bc-radius-sm:8px;--bc-radius-md:12px;--bc-radius-lg:16px;--bc-radius-pill:999px;
+  --bc-cut:10px;     /* bevelled-corner size for panels (clip-path) */
+  --bc-cut-sm:6px;   /* bevel for buttons / chips */
+  --bc-panel-radius:4px 16px 4px 16px;   /* tactical asymmetric corners (fallback where clip-path is unsafe) */
+
+  /* ---------- shadows + glow ---------- */
+  --bc-shadow-sm:0 2px 0 rgba(0,0,0,.55);
+  --bc-shadow-panel:0 6px 0 rgba(0,0,0,.42),0 18px 40px rgba(0,0,0,.5);
+  --bc-lip:0 4px 0 var(--bc-ember-deep);          /* chunky 3D button edge */
+  --bc-lip-coal:0 4px 0 #050607;
+  --bc-glow-heat:0 0 0 1px rgba(255,139,57,.55),0 0 18px rgba(255,107,26,.38);
+  --bc-glow-gold:0 0 18px rgba(255,197,77,.45);
+  --bc-text-shadow:0 2px 0 rgba(0,0,0,.55);       /* readable display text over the 3D city */
+
+  /* ---------- motion ---------- */
+  --bc-dur-press:80ms;
   --bc-motion-fast:160ms;
   --bc-motion-panel:240ms;
+  --bc-dur-pop:320ms;
+  --bc-dur-count:900ms;   /* reward count-up */
   --bc-motion-ease:cubic-bezier(.22,.8,.25,1);
+  --bc-ease-pop:cubic-bezier(.34,1.56,.64,1);    /* overshoot for pop-in */
+  --bc-ease-press:cubic-bezier(.3,0,.2,1);
+
+  /* ---------- touch + layering ---------- */
+  --bc-touch-target:44px;
+  --bc-blur:blur(12px) saturate(125%);
 }
+/* phones and low-power devices: no heavy blur (it is the #1 mobile GPU cost of glass UI) */
+@media (max-width:640px),(pointer:coarse),(prefers-reduced-transparency:reduce){:root{--bc-blur:none}}
+@media (prefers-reduced-motion:reduce){:root{--bc-dur-press:0ms;--bc-motion-fast:0ms;--bc-motion-panel:0ms;--bc-dur-pop:0ms;--bc-dur-count:0ms}}
+
+/* tabular numerals everywhere numbers are compared at a glance: currency, counters, timers */
+html{font-variant-numeric:tabular-nums}
+.bc-num,.pnum,kbd,.kbd,#burnCount,#tot,.price,[data-price],[data-count]{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}

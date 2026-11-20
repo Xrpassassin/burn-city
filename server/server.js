@@ -314,12 +314,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
       if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
-        const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),buyer:u.acct});
+        const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),
+          ...(url.searchParams.has('itemIds')?{itemIds:String(url.searchParams.get('itemIds')).split(',').slice(0,32)}:{}),buyer:u.acct});
         return json(res,result.ok?200:400,result);
       }
       if (url.pathname === '/api/estates/tycoon/start' && req.method === 'POST') {
         if(gate('estate-tycoon-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});
-        const b=await body(),result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),buyer:u.acct});
+        const b=await body(),result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),
+          ...(Array.isArray(b?.itemIds)?{itemIds:b.itemIds.slice(0,32)}:{}),buyer:u.acct});
         return json(res,result.ok?200:409,result);
       }
       if (url.pathname === '/api/estates/tycoon/confirm' && req.method === 'POST') {

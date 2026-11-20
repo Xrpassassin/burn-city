@@ -41,7 +41,7 @@ ${S} .bc-ty-alt{align-self:center;font-size:12px;color:#ffd49a}
 ${S} button:disabled{opacity:.45;cursor:not-allowed}
 ${S} button:focus-visible,${S} .bc-ty-xaman:focus-visible,${S}>summary:focus-visible{outline:2px solid var(--bc-focus,#7ce2ff);outline-offset:2px}
 ${S} h5{margin:14px 0 4px;font:800 11px/1.2 var(--bc-font-ui,system-ui);letter-spacing:.12em;text-transform:uppercase;color:#ffb877}
-${S} .bc-ty-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #ffffff14}
+${S} .bc-ty-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #ffffff14}
 ${S} .bc-ty-item strong{display:block;font-size:13.5px;font-weight:700;color:var(--bc-text,#fff)}
 ${S} .bc-ty-chips{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:2px;font-size:11.5px;color:var(--bc-text-muted,#c4cbd0)}
 ${S} .bc-ty-price{font-family:var(--bc-font-data,monospace);font-weight:700;color:#ffd49a}
@@ -51,8 +51,15 @@ ${S} .bc-ty-item[data-state=locked] strong{color:#cfd5da}
 ${S} .bc-ty-item button{padding:8px 11px;font-size:12.5px}
 ${S} .bc-ty-item[data-just-installed]{animation:bcTyGlow 2.4s ease-out}
 @keyframes bcTyGlow{from{background:#7dffd233}to{background:transparent}}
+${S} .bc-ty-acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+${S} .bc-ty-item button[aria-pressed=true]{background:#123a2e;border-color:var(--bc-success,#7dffd2);color:#c9fff0}
+${S} .bc-ty-item[data-in-cart]{background:linear-gradient(90deg,#7dffd212,transparent)}
+${S} .bc-ty-cart{position:sticky;bottom:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 4px;padding:10px 12px;border-radius:12px;border:1px solid #7dffd266;background:linear-gradient(145deg,#0f2a22f2,#141a22f2);box-shadow:0 -6px 18px #0008}
+${S} .bc-ty-cart[hidden]{display:none}
+${S} .bc-ty-cart-sum{flex:1 1 160px;min-width:0;font-size:12.5px;color:#c9fff0}
+${S} .bc-ty-cart-sum b{display:block;font:800 13.5px/1.3 var(--bc-font-ui,system-ui);color:#fff}
 ${S} .bc-ty-foot{margin:12px 0 0;font-size:11px;line-height:1.45;color:#9aa4ab}
-@media(max-width:380px){${S} .bc-ty-item{grid-template-columns:1fr 1fr}${S} .bc-ty-item>:first-child{grid-column:1/-1}}
+@media(max-width:380px){${S} .bc-ty-item{grid-template-columns:1fr}${S} .bc-ty-acts{justify-content:flex-start}}
 @media(prefers-reduced-motion:reduce){${S} .bc-ty-item[data-just-installed]{animation:none}${S}>summary::before{transition:none}}
 `;
 function injectStyle(){
@@ -66,13 +73,17 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
  const section=el('details','bc-tycoon');section.dataset.estateTycoon=propertyId;
  const summary=el('summary',null,'Build & upgrade'),count=el('span','bc-ty-count','');summary.append(count);
  const availability=el('p','bc-ty-banner'),message=el('p','bc-ty-msg'),order=el('div','bc-ty-order'),catalogue=el('div'),meta=el('p','bc-ty-foot');
+ const cartBar=el('div','bc-ty-cart');cartBar.dataset.tycoonCart='';cartBar.hidden=true;cartBar.setAttribute('aria-live','polite');
  availability.dataset.tycoonAvailability='';availability.setAttribute('role','status');
  message.setAttribute('role','status');message.setAttribute('aria-live','polite');
  order.setAttribute('aria-live','polite');order.hidden=true;
- section.append(summary,availability,message,order,catalogue,meta);container.append(section);
+ section.append(summary,availability,message,order,catalogue,cartBar,meta);container.append(section);
  let current=null,busy=false,orderId='',orderLink='',orderItemId='',justInstalled='',previewItemId=null;
+ // Multi-upgrade cart: ids chosen for ONE payment. The server prices it; this is only a selection.
+ const cartIds=new Set();
+ const keyIds=key=>String(key||'').startsWith('cart:')?String(key).slice(5).split('+'):key?[String(key)]:[];
  function token(){return storage?.getItem('bcToken')||'';}
- const itemName=id=>current?.catalog?.find(i=>i.id===id)?.name||'Upgrade';
+ const itemName=id=>String(id||'').startsWith('cart:')?keyIds(id).length+' upgrades':current?.catalog?.find(i=>i.id===id)?.name||'Upgrade';
  async function request(path,data,{allowConflict=false}={}){
   const auth=token();
   if(!auth)throw Error('Connect your Xaman wallet to purchase property upgrades.');
@@ -125,9 +136,10 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
     [...(orderLink?[xamanLink(orderLink)]:[]),button('Check payment again',confirm,false,{primary:!orderLink})]);
    return;
   }
-  justInstalled=orderItemId;orderId='';orderLink='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);
+  justInstalled=orderItemId;orderId='';orderLink='';previewItemId=null;onPreview?.(null);
+  for(const id of keyIds(orderItemId))cartIds.delete(id);onConfirmed(r.property);
   await load();
-  showOrder('settled','Validated on the XRP Ledger and added to your property. Look for it outside your home.');
+  showOrder('settled',keyIds(orderItemId).length>1?'One validated XRP Ledger payment installed all '+keyIds(orderItemId).length+' upgrades. Look for them around your home.':'Validated on the XRP Ledger and added to your property. Look for it outside your home.');
  }
  function showPendingLink(result,win=null){
   const link=result?.ok&&result?.orderId?safeXaman(result.deeplink):null;
@@ -173,6 +185,47 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   orderItemId=item.id;justInstalled='';
   showPendingLink(await request('start',{propertyId,itemId:item.id},{allowConflict:true}),win);
  }
+ function cartItems(){const items=current?.catalog||[];return items.filter(i=>cartIds.has(i.id));}
+ // Removing a prerequisite also removes cart items that depended on it.
+ function pruneCart(){
+  const items=current?.catalog||[],s=current?.state||{},unlocked=new Set(s.unlockedItemIds||[]);
+  let changed=true;
+  while(changed){changed=false;
+   for(const id of [...cartIds]){const i=items.find(x=>x.id===id);
+    const ok=i&&!unlocked.has(id)&&(!i.eligibleTiers?.length||i.eligibleTiers.includes(s.tier))&&i.requires.every(r=>unlocked.has(r)||cartIds.has(r));
+    if(!ok){cartIds.delete(id);changed=true;}}
+  }
+ }
+ function toggleCart(item){if(cartIds.has(item.id))cartIds.delete(item.id);else cartIds.add(item.id);pruneCart();render();}
+ async function buyCart(){
+  const ids=cartItems().map(i=>i.id);if(!ids.length)return;
+  if(ids.length===1)return buy(cartItems()[0]);
+  const win=preopen();
+  try{
+   const q=await request('quote?propertyId='+encodeURIComponent(propertyId)+'&itemIds='+ids.map(encodeURIComponent).join(','));
+   if(!q.canPurchase||!q.purchasesEnabled){
+    try{win?.close();}catch{}
+    message.textContent=q.pending?'An existing upgrade order is blocking another purchase. Check that payment first.'
+     :q.missingPrerequisites?.length?'Add '+q.missingPrerequisites.map(itemName).join(', ')+' to the cart first.':'This cart is not payable. Check the owner, prerequisites, and payment availability above.';
+    await load();return;
+   }
+   orderItemId=q.itemId;justInstalled='';
+   showPendingLink(await request('start',{propertyId,itemIds:ids},{allowConflict:true}),win);
+  }catch(e){try{win?.close();}catch{}throw e;}
+ }
+ function renderCart(s){
+  pruneCart();
+  const list=cartItems(),canBuy=!!(s.ownerAuthorized&&s.purchasesEnabled);
+  if(!list.length||!canBuy){cartBar.hidden=true;cartBar.replaceChildren();return;}
+  const totalXrp=list.reduce((n,i)=>n+i.priceXrp,0),shares=list.reduce((n,i)=>n+i.shareUnitsDelta,0);
+  const sum=el('div','bc-ty-cart-sum');
+  sum.append(el('b',null,list.length===1?'1 upgrade selected':list.length+' upgrades · one Xaman payment'),
+   el('span',null,list.map(i=>i.name).join(' · ')+' — '+totalXrp+' XRP total, +'+shares+' share'+(shares===1?'':'s')));
+  cartBar.hidden=false;
+  cartBar.replaceChildren(sum,
+   button('Clear',()=>{cartIds.clear();render();},false,{aria:'Clear the upgrade cart'}),
+   button(list.length===1?'Buy · '+totalXrp+' XRP':'Buy all · '+totalXrp+' XRP',buyCart,!!s.pending,{primary:true,aria:'Buy '+list.length+' upgrade'+(list.length===1?'':'s')+' for '+totalXrp+' XRP in one payment'}));
+ }
  function render(){
   if(!section.isConnected||!current)return;
   catalogue.replaceChildren();
@@ -212,26 +265,36 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
     const missing=item.requires.filter(id=>!unlocked.has(id)),owned=unlocked.has(item.id);
     const tierEligible=!item.eligibleTiers?.length||item.eligibleTiers.includes(s.tier);
     const row=el('div','bc-ty-item');row.dataset.state=owned?'owned':(!tierEligible||missing.length)?'locked':'available';
-    if(owned&&item.id===justInstalled)row.dataset.justInstalled='';
+    if(owned&&keyIds(justInstalled).includes(item.id))row.dataset.justInstalled='';
+    if(cartIds.has(item.id))row.dataset.inCart='';
+    const acts=el('div','bc-ty-acts');
     const info=el('div'),chips=el('div','bc-ty-chips');
     chips.append(el('span','bc-ty-price',item.priceXrp+' XRP'),el('span',null,'+'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')));
-    const badge=owned?'✓ Installed':!tierEligible?'Family / Mansion only':missing.length?'Needs '+missing.map(itemName).join(', '):'';
+    const viaCart=missing.length&&missing.every(id=>cartIds.has(id));
+    const badge=owned?'✓ Installed':!tierEligible?'Family / Mansion only':viaCart?'With '+missing.map(itemName).join(', ')+' in cart':missing.length?'Needs '+missing.map(itemName).join(', '):'';
     if(badge)chips.append(el('span','bc-ty-badge',badge));
     info.append(el('strong',null,item.name),chips);row.append(info);
     // Isolated visual-only outline, never a verified unlock or entitlement.
     if(typeof onPreview==='function'&&!owned&&tierEligible&&item.category!=='aviation'){
-     row.append(button(previewItemId===item.id?'Hide preview':'View on property',()=>{
+     acts.append(button(previewItemId===item.id?'Hide preview':'View on property',()=>{
       const next=previewItemId===item.id?null:item.id;
       const changed=onPreview(next);
       if(changed===false)throw Error('This upgrade cannot be previewed on this property.');
       previewItemId=next;render();
      },false,{aria:(previewItemId===item.id?'Hide preview of ':'Preview ')+item.name+' on this property'}));
     }
-    if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible&&!missing.length)
-     row.append(button('Buy',()=>buy(item),!!s.pending,{primary:true,aria:'Buy '+item.name+' for '+item.priceXrp+' XRP'}));
+    const payable=!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible;
+    if(payable&&(!missing.length||viaCart||cartIds.has(item.id))){
+     const inCart=cartIds.has(item.id),t=button(inCart?'✓ In cart':'+ Cart',()=>toggleCart(item),!!s.pending,{aria:(inCart?'Remove ':'Add ')+item.name+(inCart?' from':' to')+' the upgrade cart'});
+     t.setAttribute('aria-pressed',inCart?'true':'false');t.dataset.cartToggle=item.id;acts.append(t);
+    }
+    if(payable&&!missing.length)
+     acts.append(button('Buy',()=>buy(item),!!s.pending,{primary:true,aria:'Buy '+item.name+' for '+item.priceXrp+' XRP'}));
+    if(acts.children.length)row.append(acts);
     catalogue.append(row);
    }
   }
+  renderCart(s);
  }
  async function load(){
   const auth=token();let state,catalog;

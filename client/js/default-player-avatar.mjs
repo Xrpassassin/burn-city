@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
+import { GAIT_CLIPS, LOCOMOTION, gaitWeights, blendedStride, advancePhase } from './player-gait.mjs';
 
 const assetRoot = new URL('../assets/players/', import.meta.url);
 const MODEL_FILES = Object.freeze({
@@ -39,56 +40,27 @@ function loadModel(variant) {
     let skinned = false;
     gltf.scene.traverse(node => { if (node.isSkinnedMesh) skinned = true; });
     if (!skinned || !['Idle', 'Walk'].every(name => clips.get(name)?.duration > 0)) return null;
-    return { scene: gltf.scene, clips, strideSpeed: measureStrideSpeeds(gltf.scene, clips) };
+    return { scene: gltf.scene, clips };
   }).catch(() => null));
   return sources.get(variant);
 }
 
-// Ground speed (model units per second at timeScale 1) each locomotion clip implies: the planted
-// (lower) foot slides backwards at exactly the speed the body should travel, so integrate its
-// backwards motion over one cycle. The mixer then scales playback to the avatar's real speed.
-export const FALLBACK_STRIDE_SPEED = Object.freeze({ Walk: 1.1, Run: 1.3 });
-export function measureStrideSpeeds(scene, clips) {
-  const out = { ...FALLBACK_STRIDE_SPEED }, saved = [];
-  try {
-    const feet = [];
-    scene.traverse(node => { if (node.isBone && /^foot/i.test(node.name)) feet.push(node); });
-    if (feet.length < 2) return out;
-    // Sampling poses the shared source scene; remember every node's transform and put it back.
-    scene.traverse(node => saved.push([node, node.position.clone(), node.quaternion.clone(), node.scale.clone()]));
-    const mixer = new THREE.AnimationMixer(scene), v = new THREE.Vector3(), inv = new THREE.Matrix4(), N = 48;
-    for (const name of ['Walk', 'Run']) {
-      const clip = clips.get(name); if (!(clip?.duration > 0)) continue;
-      const action = mixer.clipAction(clip).play(), rows = [];
-      for (let i = 0; i <= N; i++) {
-        mixer.setTime(clip.duration * i / N);
-        scene.updateMatrixWorld(true);
-        inv.copy(scene.matrixWorld).invert();
-        rows.push(feet.slice(0, 2).map(foot => foot.getWorldPosition(v).applyMatrix4(inv).clone()));
-      }
-      let travel = 0;
-      for (let i = 0; i < N; i++) {
-        const k = rows[i][0].y <= rows[i][1].y ? 0 : 1;
-        travel += rows[i + 1][k].z - rows[i][k].z;
-      }
-      action.stop();
-      const speed = Math.abs(travel) / clip.duration;
-      if (speed > .05) out[name] = speed;
-    }
-    mixer.stopAllAction(); mixer.uncacheRoot(scene);
-  } catch { /* keep the measured-offline fallbacks */ } finally {
-    for (const [node, p, q, sc] of saved) { node.position.copy(p); node.quaternion.copy(q); node.scale.copy(sc); }
-    scene.updateMatrixWorld(true);
-  }
+// Locomotion is distance-driven (as the city citizens are): Walk, Run and Sprint share one cycle
+// phase that advances by ground distance / stride, and are blended by real measured speed, so the
+// planted boot never slides at any speed and switching gait never restarts the cycle.
+// See client/js/player-gait.mjs (strides, speed bands) and scripts/player-avatar/author_gait.mjs.
+const _scale = new THREE.Vector3();
+export function naturalSpeed(name) { const g = GAIT_CLIPS[name]; return g ? g.stride / g.duration : 0; }
+// Pure: where the locomotion blend should be for this frame. `speed` is world units/s (optional;
+// without it Walk/Run play at their authored speed, as older callers expect); `worldScale` = the
+// avatar's world size relative to the 1.8-unit model. Returns model-space speed + target weights.
+export function locomotionTarget(state, speed, worldScale = 1, out = {}) {
+  let v;
+  if (Number.isFinite(speed) && speed >= 0) v = speed / Math.max(1e-4, worldScale);
+  else v = state === 'Run' ? naturalSpeed('Run') : state === 'Walk' ? naturalSpeed('Walk') : 0;
+  out.speed = v;
+  out.weights = gaitWeights(v, out.weights);
   return out;
-}
-// Playback rate for a locomotion clip at `speed` m/s. Bounded so a sprint never turns into a blur
-// and a shuffle never freezes; unknown speed keeps the authored rate.
-export function locomotionTimeScale(state, speed, strideSpeed, scale = 1) {
-  if (!(state === 'Walk' || state === 'Run') || !Number.isFinite(speed) || speed < 0) return 1;
-  const natural = (strideSpeed?.[state] || FALLBACK_STRIDE_SPEED[state]) * scale;
-  const [lo, hi] = state === 'Run' ? [.8, 3.2] : [.6, 2.6];
-  return Math.min(hi, Math.max(lo, speed / natural));
 }
 
 function cloneMaterials(root) {
@@ -111,13 +83,8 @@ function applyTint(root, tint) {
   });
 }
 
-function clipFor(clips, seated, state) {
-  if (seated) return clips.get('Ride') || clips.get('Sit') || clips.get('Idle');
-  if (state === 'Run') return clips.get('Run') || clips.get('Walk') || clips.get('Idle');
-  if (state === 'Jump') return clips.get('Jump') || clips.get('Idle');
-  if (state === 'Sit') return clips.get('Sit') || clips.get('Ride') || clips.get('Idle');
-  return clips.get(state) || clips.get('Idle');
-}
+function seatClip(clips) { return clips.get('Ride') || clips.get('Sit') || clips.get('Idle'); }
+const BLEND_TIME = .12, AIR_TIME = .08;
 
 const mounted = new WeakMap();
 
@@ -127,7 +94,9 @@ export function mountDefaultPlayerAvatar(root, {
   variant = 'thirdPerson', lod = false, tint, fallback
 } = {}) {
   if (mounted.has(root)) return mounted.get(root);
-  let visual, mixer, current, clips, strideSpeed, disposed = false, hidden = false, requestedLod = !!lod;
+  let visual, mixer, clips, actions = null, disposed = false, hidden = false, requestedLod = !!lod;
+  let phase = 0, seatAction = null;
+  const weights = { Idle: 1, Walk: 0, Run: 0, Sprint: 0, Air: 0 }, target = {};
   const using = () => (variant === 'thirdPerson' && requestedLod && MODEL_AVAILABLE.thirdPersonLod) ? 'thirdPersonLod' : variant;
 
   function attach(asset) {
@@ -137,7 +106,7 @@ export function mountDefaultPlayerAvatar(root, {
       mixer?.stopAllAction();
       if (mixer) mixer.uncacheRoot(visual);
       root.remove(visual);
-      visual = mixer = current = null;
+      visual = mixer = actions = seatAction = null;
     }
     visual = clone(asset.scene);
     cloneMaterials(visual);
@@ -153,28 +122,53 @@ export function mountDefaultPlayerAvatar(root, {
     });
     root.add(visual);
     clips = asset.clips;
-    strideSpeed = asset.strideSpeed;
     mixer = new THREE.AnimationMixer(visual);
+    if (seated) seatAction = mixer.clipAction(seatClip(clips)).play();
+    else {
+      // Every gait clip plays at once; weights pick the mix. Locomotion clips are scrubbed by phase.
+      actions = {};
+      for (const name of ['Idle', ...LOCOMOTION, 'Air']) {
+        const clip = clips.get(name) || (name === 'Sprint' ? clips.get('Run') : name === 'Air' ? null : clips.get('Walk'));
+        if (!clip || Object.values(actions).some(a => a.getClip() === clip)) continue;
+        const action = mixer.clipAction(clip, visual);
+        if (LOCOMOTION.includes(name)) action.timeScale = 0;
+        action.play().setEffectiveWeight(weights[name] || 0);
+        actions[name] = action;
+      }
+    }
     handle.update(0);
     fallback?.(false);
   }
 
   const handle = {
     get ready() { return !!visual; },
-    get timeScale() { return current?.timeScale ?? 1; },
-    // `speed` (m/s, optional) syncs Walk/Run playback to how fast the avatar actually moves.
+    // Debug/test view of the blend: shared cycle phase (0..1) and current clip weights.
+    get phase() { return phase; },
+    get weights() { return { ...weights }; },
+    // state: 'Idle' | 'Walk' | 'Run' (legacy hint) | 'Air' / 'Jump' (airborne).
+    // speed (world units/s, optional): real ground speed; it alone picks Walk / Run / Sprint.
     update(dt, state = 'Idle', speed) {
       if (!mixer || !clips) return;
-      const clip = clipFor(clips, seated, state);
-      if (clip && clip !== current?.getClip()) {
-        current?.fadeOut(.16);
-        const next = mixer.clipAction(clip).reset().setEffectiveWeight(1).play();
-        if (current) next.fadeIn(.16);
-        current = next;
-      }
-      if (current && !seated) current.timeScale = locomotionTimeScale(state, speed, strideSpeed, height / 1.8);
       // A NaN/negative step would poison the mixer clock and freeze the pose for good.
-      mixer.update(Number.isFinite(dt) ? Math.min(.1, Math.max(0, dt)) : 0);
+      const step = Number.isFinite(dt) ? Math.min(.1, Math.max(0, dt)) : 0;
+      if (seated || !actions) { mixer.update(step); return; }
+      const worldScale = visual.getWorldScale(_scale).x;   // height / 1.8 and parent scale (x: a crouch squash only scales y)
+      const loco = locomotionTarget(state, speed, worldScale, target), want = loco.weights;
+      const air = (state === 'Air' || state === 'Jump') && actions.Air;
+      if (air) { for (const k in want) want[k] = 0; want.Air = 1; } else want.Air = 0;
+      // Phase advances by distance even while blending out, so feet land where the clip expects.
+      phase = advancePhase(phase, loco.speed, step, blendedStride(want));
+      const k = step > 0 ? 1 - Math.exp(-step / (air || weights.Air > .5 ? AIR_TIME : BLEND_TIME)) : 1;
+      let sum = 0;
+      for (const name in weights) { weights[name] += ((want[name] || 0) - weights[name]) * k; if (!actions[name]) weights[name] = 0; sum += weights[name]; }
+      for (const name in weights) {
+        const action = actions[name]; if (!action) continue;
+        const w = sum > 1e-6 ? weights[name] / sum : (name === 'Idle' ? 1 : 0);
+        action.enabled = w > 1e-3;
+        action.setEffectiveWeight(w);
+        if (LOCOMOTION.includes(name)) action.time = phase * action.getClip().duration;
+      }
+      mixer.update(step);
     },
     setLod(useFar) {
       const next = !!useFar;
@@ -203,7 +197,7 @@ export function mountDefaultPlayerAvatar(root, {
           for (const mat of mats) mat?.dispose?.();
         });
         for (const skeleton of skeletons) skeleton.dispose();
-        visual = mixer = current = null;
+        visual = mixer = actions = seatAction = null;
         fallback?.(true);
       }
       mounted.delete(root);

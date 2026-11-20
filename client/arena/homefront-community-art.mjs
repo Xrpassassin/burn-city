@@ -251,10 +251,11 @@ export function createHomefrontCommunityArt({
   group.userData.look='survivor';
   return true;
  }
- function animateExplorer(explorer,moving,dt,jumpY=0,running=false){
+ function animateExplorer(explorer,moving,dt,jumpY=0,running=false,speed){
   const nft=explorer?.userData?.nftCharacter;
   if(nft?.userData?.anim){
-   nft.userData.anim((typeof performance!=='undefined'?performance.now():0)/1000,!!moving,false);
+   // speed (world units/s, optional) keeps an NFT holder's Gas Mask Guy stepping in time (#668).
+   nft.userData.anim((typeof performance!=='undefined'?performance.now():0)/1000,!!moving,false,!!running,speed,Number.isFinite(jumpY)&&jumpY>0.08);
    nft.position.y=Number.isFinite(jumpY)?jumpY:0;
    return;
   }

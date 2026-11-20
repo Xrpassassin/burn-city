@@ -2645,7 +2645,12 @@ function boot(host) {
     const blend = current + (desired - current) * (1 - Math.exp(-11 * dt));
     explorer.userData.crouchBlend = blend;
     explorer.scale.y = 1 - 0.23 * blend;
-    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000, isLocalPlayer && !!view.running?.());
+    // Measured ground speed (dt-smoothed) so the Gas Mask Guy steps by distance, not a fixed rate.
+    const last = explorer.userData.lastStep || (explorer.userData.lastStep = { x: explorer.position.x, z: explorer.position.z, v: 0 });
+    const raw = dt > 0 ? Math.hypot(explorer.position.x - last.x, explorer.position.z - last.z) / dt : 0;
+    last.x = explorer.position.x; last.z = explorer.position.z;
+    if (raw < 60) last.v += (raw - last.v) * (1 - Math.exp(-dt * 10));
+    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000, isLocalPlayer && !!view.running?.(), movingAvatar ? last.v : 0, isLocalPlayer && localJump.y > 0.08);
     if (walker.userData.torso) walker.userData.torso.rotation.x -= 0.22 * blend;
     if (isLocalPlayer) {
       const jump = view.takeJump();

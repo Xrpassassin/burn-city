@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../assets/players');
-const names = { Idle:1, Walk:1, Run:1, Ride:1, Sit:1, Jump:1 };
+const names = { Idle:1, Walk:1, Run:1, Sprint:1, Air:1, Ride:1, Sit:1, Jump:1 };   // Sprint + Air: scripts/player-avatar/author_gait.mjs
 
 function load(file) {
   return JSON.parse(readFileSync(join(root, file), 'utf8'));
@@ -31,4 +31,4 @@ for (const g of [near, lod, body]) {
   assert.equal(g.skins?.length, 1);
 }
 function fileClips(g, have) { return 'clips ' + have.join(','); }
-console.log('Default player avatar assets: 9000 /', tris(lod), '/', tris(body), 'triangles with Idle, Walk, Run, Ride, Sit and Jump');
+console.log('Default player avatar assets: 9000 /', tris(lod), '/', tris(body), 'triangles with Idle, Walk, Run, Sprint, Air, Ride, Sit and Jump');

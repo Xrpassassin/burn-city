@@ -27,7 +27,7 @@ let sweep=null,lastAlert=-1e9;const pill=el('button','alertPill');pill.hidden=tr
 function skip(){if(sweep&&sweep.ph<2){sweep.ph=2;sweep.t=0;sweep.fromP=c.C.position.clone();sweep.fromT=c.orbit.target.clone()}}
 pill.onclick=skip;addEventListener('keydown',e=>{if(e.key==='Escape'&&sweep)skip()},true);c.R.domElement.addEventListener('pointerdown',()=>sweep&&skip(),true);c.R.domElement.addEventListener('wheel',()=>sweep&&skip(),{passive:true,capture:true});
 function alertBurn(e){const n=c.N[e.token];if(!n||!on('alerts'))return;if(e.demo&&!Q.has('alertdemo'))return;const now=performance.now();
-  if(now-lastAlert<90e3||sweep||c.getMode()!=='orbit'||c.isTour()||document.hidden)return;lastAlert=now;c.sfx.whoosh();
+  if(now-lastAlert<90e3||sweep||c.getMode()!=='orbit'||c.isTour()||document.hidden||window.__bcNotify?.isQuiet?.())return; // no camera sweep while a sheet/typing/touch is activelastAlert=now;c.sfx.whoosh();
   const tgt=new THREE.Vector3(n.pos.x,Math.min(n.h*.6,60),n.pos.z),dir=c.C.position.clone().sub(tgt).setY(0).normalize(),dist=Math.max(45,n.h*1.3);
   sweep={ph:0,t:0,homeP:c.C.position.clone(),homeT:c.orbit.target.clone(),toP:tgt.clone().add(dir.multiplyScalar(dist)).setY(tgt.y+dist*.35),toT:tgt};
   pill.textContent=`🔥 ${e.token} burn · ${short(e.amount||0)} · tap to skip`;pill.hidden=false;c.orbit.enabled=false}

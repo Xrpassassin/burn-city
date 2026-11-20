@@ -3,6 +3,7 @@
 // whose market is red), fires lit by large sells on the live XRPL feed, ambulance calls, street shows and
 // fireworks over strongly green districts. All client-side visuals; nothing is sent to the server.
 import * as THREE from 'three';
+import { notify } from './notify-lane.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const EV = window.__cityEvents = { active: [], log: [], trigger: null, yieldAt: () => false, threat: 0, setThreat: null };   // threat: AEGIS level 0 NORMAL / 1 ELEVATED / 2 CRITICAL (aegis.js); 0 = the city as it always was
@@ -84,10 +85,10 @@ function build() {
   const blue = new THREE.MeshBasicMaterial({ color: new THREE.Color(.25, .45, 2.4), toneMapped: false }), red = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, .15, .1), toneMapped: false });
 
   // ---------- toast
-  const tst = document.createElement('div'); tst.id = 'cityToast'; document.body.appendChild(tst);
-  const css = document.createElement('style'); css.textContent = '#cityToast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 108px);transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;gap:6px;align-items:center}#cityToast div{background:rgba(12,10,14,.86);border:1px solid #ff7a1a66;color:#ffe9d2;font:600 12px/1.3 system-ui,sans-serif;padding:6px 11px;border-radius:10px;opacity:0;transition:opacity .4s;white-space:nowrap}#cityToast div.on{opacity:1}';
-  document.head.appendChild(css);
-  const toast = txt => { EV.log.push({ t: Date.now(), txt }); if (EV.log.length > 40) EV.log.shift(); const d = document.createElement('div'); d.textContent = txt; tst.appendChild(d); requestAnimationFrame(() => d.classList.add('on')); setTimeout(() => d.classList.remove('on'), 5200); setTimeout(() => d.remove(), 5800); while (tst.children.length > 3) tst.firstChild.remove(); };
+  // City incidents go through the shared notification lane (ambient = low priority, deduped,
+  // rate-limited, deferred while sheets/typing/touch-steering); AEGIS escalations are normal priority.
+  const toast = txt => { EV.log.push({ t: Date.now(), txt }); if (EV.log.length > 40) EV.log.shift();
+    notify({ text: txt, color: '#ff7a1a', priority: /AEGIS (CRITICAL|ELEVATED)/.test(txt) ? 'normal' : 'low', key: 'city:' + txt }); };
 
   // ---------- vehicles parked at stations
   const vehicles = [];

@@ -1,4 +1,6 @@
 import {mountEstatePurchase} from './estate-purchase-ui.mjs';
+import {installNotifyLane} from './notify-lane.mjs';   // one queue + one lane for every toast/banner (quiet while sheets, typing, touch-moving or loading)
+const notifyLane=installNotifyLane(window);
 // BURN CITY v2 — read-only 3D visualization of the BURN ecosystem AMM graph on the XRP Ledger.
 import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
@@ -942,12 +944,12 @@ function pickShip(x,y,touch){let best=-1,bd=touch?44:26;for(let i=0;i<SHIPN;i++)
  const sx=(_p.x+1)/2*innerWidth,sy=(1-_p.y)/2*innerHeight,d=Math.hypot(sx-x,sy-y)-(s.wh?14:0);if(d<bd){bd=d;best=i}}return best}
 anim.push(()=>{if(followI<0)return;const s=ships[followI];if(!s||s.e!==followH||mode!=='orbit'){followI=-1;return}orbit.target.lerp(SHIPW[followI],.12);
  const d=C.position.distanceTo(orbit.target);if(d>90)C.position.lerp(orbit.target,.02)});
-let lastToast=0;function whaleToast(e,i){const now=performance.now();if(now-lastToast<12e3||Q.has('shot'))return;lastToast=now;let t=document.getElementById('whaleToast');
- if(!t){t=document.createElement('button');t.id='whaleToast';t.style.cssText='position:fixed;left:50%;top:calc(96px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-12px);z-index:7;background:rgba(10,12,24,.9);color:#fff6c8;border:1px solid #fff2a088;border-radius:999px;padding:7px 14px;font:700 13px system-ui,sans-serif;box-shadow:0 0 18px #fff2a055;opacity:0;transition:opacity .4s,transform .4s;cursor:pointer;white-space:nowrap';document.body.appendChild(t);
-  tradeCSS()}
- if(0){const st=document.createElement('style');st.textContent='#info .tbtn{flex:1;text-align:center;background:#ffffff12;border:1px solid #ffffff2a;color:#fff;border-radius:7px;padding:6px 4px;font:600 12px system-ui,sans-serif;text-decoration:none;cursor:pointer}#info .tbtn:disabled{opacity:.45;cursor:default}';document.head.appendChild(st)}
- const p=e.pool,buy=e.to||(p.a==='XRP'?p.b:p.a);t.textContent=`🐋 Whale: ${e.estimate?'~':''}${fmt(e.xrp)} XRP into ${buy} · tap to watch`;t.onclick=()=>{showTrade(i,e);if(mode==='orbit'&&ships[i]&&ships[i].e===e){followI=i;followH=e}hide()};
- const hide=()=>{t.style.opacity=0;t.style.transform='translateX(-50%) translateY(-12px)';t.style.pointerEvents='none'};t.style.pointerEvents='auto';t.style.opacity=1;t.style.transform='translateX(-50%)';clearTimeout(t._h);t._h=setTimeout(hide,7000);
+let lastToast=0,tradeCssOn=false;function whaleToast(e,i){const now=performance.now();if(now-lastToast<12e3||Q.has('shot'))return;lastToast=now;
+ if(!tradeCssOn){tradeCssOn=true;tradeCSS()}
+ // Through the notification lane: low priority, deduped, never over a sheet/joystick; tap to watch.
+ const p=e.pool,buy=e.to||(p.a==='XRP'?p.b:p.a);
+ notifyLane({text:`🐋 Whale: ${e.estimate?'~':''}${fmt(e.xrp)} XRP into ${buy} · tap to watch`,color:'#fff2a0',priority:'low',key:'whale',ttl:6000,
+  onClick:()=>{showTrade(i,e);if(mode==='orbit'&&ships[i]&&ships[i].e===e){followI=i;followH=e}}});
  if(window.__sfx)try{window.__sfx('whale')}catch(_){}}
 window.__trade={showTrade,pickShip,whaleToast};
 // ---------- live tower shapes: height follows market cap, footprint follows TVL; towers ease to new size as the numbers move ----------
@@ -1779,9 +1781,10 @@ function pushEvent(e){const key=e.hash&&(e.type==='trade'&&e.pool?e.hash+':'+(e.
  if(e.type==='trade'){spawnShip(e);if(e.xrp<TRADE_MIN&&!(e.arb&&e.xrp>=Math.min(50,TRADE_MIN)))return}
  if(e.type==='burn'){const q=evQ.find(x=>x.type==='burn'&&x.token===e.token&&!!x.demo===!!e.demo);if(q){q.amount+=e.amount;q.n=(q.n||1)+1;return}}
  evQ.push(e);if(evQ.length>8){let i=evQ.findIndex(x=>x.type==='aegis');if(i<0)i=evQ.findIndex(x=>x.type==='trade');evQ.splice(i>=0?i:0,1)}}
-function evBanner(html,col){const b=$('evbanner');b.dataset.src='game';b._gameUntil=performance.now()+4200;b.innerHTML=html;b.style.setProperty('--c',col);b.classList.remove('show');void b.offsetWidth;b.classList.add('show');clearTimeout(b._t);if(!Q.has('shot'))b._t=setTimeout(()=>b.classList.remove('show'),4200)}
-function toast(html,col){const box=$('toasts');const d=document.createElement('div');d.className='toast';d.style.setProperty('--c',col||'#3cf3ff');d.innerHTML=html;box.prepend(d);requestAnimationFrame(()=>d.classList.add('in'));
- while(box.children.length>3)box.lastChild.remove();if(!Q.has('shot'))setTimeout(()=>{d.classList.remove('in');setTimeout(()=>d.remove(),700)},6500)}
+function evBanner(html,col){notifyLane.banner({key:html,duration:4200,show:()=>{const b=$('evbanner');b.dataset.src='game';b._gameUntil=performance.now()+4200;b.innerHTML=html;b.style.setProperty('--c',col);b.classList.remove('show');void b.offsetWidth;b.classList.add('show');clearTimeout(b._t);if(!Q.has('shot'))b._t=setTimeout(()=>b.classList.remove('show'),4200)}})}
+// All toasts go through the notification lane (client/js/notify-lane.mjs): deduped, rate-limited,
+// deferred while a sheet/menu/Xaman flow is open, chat is focused, a touch is steering, or loading.
+function toast(html,col,opts={}){return notifyLane({html,color:col||'#3cf3ff',persist:Q.has('shot'),...opts})}
 const fmtS=v=>v>=1e12?(v/1e12).toFixed(2)+'T':v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'k':(+v).toFixed(v<10?2:0);
 function updCounter(){const r=Object.entries(burned).map(([k,v])=>`<b>${fmtS(v)}</b> ${k}`).join(' · '),d=Object.entries(burnedDemo).map(([k,v])=>`${fmtS(v)} ${k}`).join(' · ');
  $('burnCount').innerHTML=`🔥 Burned live since ${sinceStr}: ${r||'<span class="dim">none yet</span>'}${d?` <span class="dim">· demo: ${d}</span>`:''}`}
@@ -1790,7 +1793,7 @@ function runEvent(e){evCount++;try{window.__onLive&&window.__onLive(e)}catch(x){
   evBanner(`🔥 ${fmtS(e.amount)} ${e.token} burned${tag}<small>sent to blackholed issuer${e.n>1?` · ${e.n} txs`:''} · ${tStr(e.when)} · XRPL ledger ${short(e.hash)}</small>`,e.token==='IMM'?'#7ac8ff':'#ff8a2a');ambient(e)}
  else if(e.type==='aegis'){dispatchEvent(new CustomEvent('bc:aegis-news',{detail:{text:e.text,level:e.level==='CRITICAL'?2:e.level==='ELEVATED'?1:0}}))}
  else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;b.pulseT=U.t.value;b.liveVol=(b.liveVol||0)+(+e.xrp||0);actDirty=1;pulseFX(b,e.xrp);
-  toast(`<b>${e.from&&e.to?e.from+' → '+e.to:b.p.a+' ⇄ '+b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.arb?'<b style="color:#ffc64a">arbitrage loop</b>'+(e.hops>1?' · '+e.hops+' pools':''):e.hops>1?'routed swap · '+e.hops+' pools':e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff')}
+  toast(`<b>${e.from&&e.to?e.from+' → '+e.to:b.p.a+' ⇄ '+b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.arb?'<b style="color:#ffc64a">arbitrage loop</b>'+(e.hops>1?' · '+e.hops+' pools':''):e.hops>1?'routed swap · '+e.hops+' pools':e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff',{priority:'low',key:'swap:'+b.p.a+'/'+b.p.b})}
  else if(e.type==='lock'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;const L=e.pct!=null?e.pct/100:Math.min(1,b.Lv+.15);lockFX(b,L);chime();b.p.locked_pct=Math.max(b.p.locked_pct,L*100);
   evBanner(`🔒 LP LOCKED · ${b.p.a} ⇄ ${b.p.b}${tag}<small>${(L*100).toFixed(1)}% of LP tokens now in blackholed wallets · ${e.source==='recheck'?'periodic ledger recheck':'XRPL ledger '+short(e.hash)} · ${tStr(e.when)}</small>`,'#3cf3ff')}}
 function ambient(e){if(e&&e.type==='burn')crackle()}
@@ -1914,7 +1917,7 @@ const ex=document.createElement('button');ex.id='vExit';ex.textContent='✕ Exit
 const hint=document.createElement('div');hint.id='vHint';document.body.appendChild(hint);
 const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
 // Movement & Games hub (movement-games-menu.js): city toasts + "take me there" (Explore at a known world spot, facing `face`). Refuses during the Wilds travel lock, in a boat or the tower.
-window.__bcToast=(text,col)=>{const d=document.createElement('span');d.textContent=String(text);toast(d.innerHTML,col)};
+window.__bcToast=(text,col,opts)=>notifyLane({text:String(text),color:col||'#3cf3ff',...(opts||{})});
 window.__walkTo=(x,z,face)=>{if(tlOn()||window.__estatesIslandLive?.active||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
 // Estates Island live public traversal: renderer + bridge + existing third-person frame loop.
 void installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C,buildWalker:buildPlayerWalker,poseWalker,getYaw:()=>yp.yaw,setYaw:y=>{yp.yaw=y;avatar.rotation.y=y},getMode:()=>mode,setMode,isInteractPressed:()=>Boolean(keys.KeyE),cityGate:ESTATE.islandEntrance,onStatus:event=>{if(event.state==='ready')window.__bcToast?.('Estates Island ready · public paths, permission-gated properties','#ffbd68');else if(event.state==='error')window.__bcToast?.('Estates Island could not load: '+event.message,'#ff7755')}}).catch(error=>{console.error('[Estates Island] live integration failed',error);window.__bcToast?.('Estates Island unavailable; see console for details','#ff7755')});

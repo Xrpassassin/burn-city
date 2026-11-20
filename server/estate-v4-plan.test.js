@@ -328,5 +328,30 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
  svc=createEstateMonthlyService({db:s.db,pay,config:live,guard:{paused:()=>false,log:()=>{}},env:{ESTATE_MONTHLY_PLAN_ENABLED:'1',ESTATE_IMG_RLUSD_POOL_ACCOUNT:P.IMG_RLUSD_POOL,...ON},executor:stub});
  assert.deepEqual(svc.status().policyV4Blockers,[]);
  await svc.tick({monthly:true});assert.deepEqual(calls,['dep','v4','pollux'],'fee harvest skipped: auto-compound');
+ // Upgrade payouts (ESTATE_UPGRADE_PAYOUTS_ENABLED): settled upgrade XRP routes like a new purchase (1% reserve, 90/5/5), once.
+ {
+  const prevUp=process.env.ESTATE_UPGRADE_PAYOUTS_ENABLED;process.env.ESTATE_UPGRADE_PAYOUTS_ENABLED='';
+  const u=setup({env:ON});u.sell(H,'starter-05',B,75000000,Date.UTC(2026,10,16,3));
+  require('./estate-tycoon').createEstateTycoonStore(u.db);
+  const UTX='A'.repeat(64),at=Date.UTC(2026,10,16,4);
+  u.db.prepare("INSERT INTO estate_tycoon_orders(order_id,property_id,buyer,item_id,price_drops,share_delta,before_upgrade_drops,created_at,expires_at,status,payment_tx,ledger_index,settled_at) VALUES(?,?,?,?,?,?,0,?,?,'settled',?,9,?)")
+   .run('tycoon_'+'9'.repeat(40),'starter-05',B,'bunker-arcade',36000000,12,at,at+1,UTX,at);
+  u.setNow(at+60000);u.ex.syncPurchases();
+  assert(!u.db.prepare('SELECT 1 FROM estate_v4_splits WHERE purchase_tx=?').get(UTX),'flag off: upgrade XRP stays unallocated');
+  const reserveOff=BigInt(require('./estate-liquidity-runtime').estateCashReserve(u.db));
+  process.env.ESTATE_UPGRADE_PAYOUTS_ENABLED='1';
+  u.ex.syncPurchases();u.ex.syncPurchases();
+  const route=u.db.prepare('SELECT * FROM estate_upgrade_payout_routes WHERE payment_tx=?').get(UTX);
+  assert.equal(route.principal_drops,'35640000');assert.equal(route.reserve_drops,'360000');assert.equal(route.share_units,12);
+  const us=u.db.prepare('SELECT * FROM estate_v4_splits WHERE purchase_tx=?').get(UTX);
+  assert.equal(us.plx_drops,'32076000');assert.equal(us.xrp_drops,'1782000');assert.equal(us.rlusd_drops,'1782000');
+  assert.equal(u.db.prepare('SELECT COUNT(*) n FROM estate_v4_splits WHERE purchase_tx=?').get(UTX).n,1,'never split twice');
+  assert.equal(u.db.prepare("SELECT COUNT(*) n FROM estate_v4_deposits WHERE purchase_tx=?").get(UTX).n,2);
+  assert.equal(u.db.prepare('SELECT xrp_drops FROM estate_mp_deposits WHERE source=?').get(UTX).xrp_drops,'1782000');
+  assert.equal(BigInt(require('./estate-liquidity-runtime').estateCashReserve(u.db))-reserveOff,35640000n,'upgrade principal is earmarked as estate cash');
+  const w=require('./estate-img-ownership-snapshots').createEstateImgOwnershipSnapshots(u.db).at(at+120000);
+  assert.equal(w.find(h=>h.propertyId==='starter-05').weight,25+12,'36 XRP of upgrades = 12 more payout shares');
+  process.env.ESTATE_UPGRADE_PAYOUTS_ENABLED=prevUp||'';
+ }
  console.log('Estates policy v4: off by default, 90/5/5 split with folds, IMG/PLX + IMG/XRP two-sided deposits, no withdrawals, Pollux hourly IMG with 3.22% burn, XRP fallback and burn batching, carry, idempotency, reserve, harvest skipped');
 })().catch(e=>{console.error(e);process.exit(1);});

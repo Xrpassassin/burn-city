@@ -111,7 +111,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    const r=records.get(p.propertyId),tycoon=tycoonRows.get(p.propertyId),card=make('article');card.dataset.ownedProperty=p.propertyId;
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
-   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+' from upgrades; not active payout weight)'));
+   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+(tycoon.sharePolicy==='active_for_distributions'?' from upgrades; included in payout weight)':' from upgrades; not active payout weight)')));
    // Upgrade straight from the Estates tab: the same tycoon shop and Xaman flow as in the
    // 3D city (server-priced items, validated-ledger settlement), no travel needed.
    const installed=make('p','','installed-upgrades');installed.dataset.installedUpgrades=p.propertyId;

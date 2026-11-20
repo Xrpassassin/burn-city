@@ -160,6 +160,26 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
    if(prog&&Number(r.created_at)>=prog.started_ms&&!db.prepare('SELECT 1 FROM estate_mp_deposits WHERE source=?').get(r.purchase_tx)){splitV4Purchase(r);n++;continue;}
    if(L.enqueuePurchase({purchaseTx:r.purchase_tx,investDrops:r.img_rlusd_drops}))n++;
   }
+  n+=syncUpgrades();
+  return n;
+ }
+ // Upgrade payouts (flag ESTATE_UPGRADE_PAYOUTS_ENABLED, needs policy v4): each settled upgrade's
+ // validated XRP takes the same path as a new purchase (1% reserve, then 90/5/5), keyed by its
+ // payment tx hash. Route row first (earmarks the principal as estate cash), then the v4 split;
+ // both are idempotent, so a crash between them is finished on the next pass.
+ function syncUpgrades(){
+  const UP=require('./estate-upgrade-payouts');
+  if(!v4On||!UP.enabled())return 0;
+  if(!UP.program(db))UP.start(db,now());
+  let n=0;
+  for(const o of UP.unrouted(db)){
+   try{UP.recordRoute(db,o,require('./estate-capital-allocation').splitEstateCapital(String(o.price_drops),3),now());}
+   catch(e){log('upgrade_route_rejected',{orderId:o.order_id,error:e.message});continue;}
+  }
+  for(const r of db.prepare('SELECT payment_tx,principal_drops FROM estate_upgrade_payout_routes ORDER BY created,payment_tx').all()){
+   if(VL.split(r.payment_tx)||!(BigInt(r.principal_drops)>0n))continue;
+   splitV4Purchase({purchase_tx:r.payment_tx,img_rlusd_drops:r.principal_drops});n++;
+  }
   return n;
  }
  function splitV4Purchase(r){
@@ -253,7 +273,8 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  // ---- harvest, split, burn, redeposit, payouts (monthly default, or daily when configured) ----
  function owners(){
   // Snapshot at split time: current share_units, not time-weighted mid-period ownership.
-  return db.prepare('SELECT acct,share_units FROM estate_property_ownership').all().filter(r=>r.acct!==treasury).map(r=>({acct:r.acct,shareUnits:Number(r.share_units)}));
+  const up=require('./estate-upgrade-payouts').upgradeUnitsAt(db,now());
+  return db.prepare('SELECT property_id,acct,share_units FROM estate_property_ownership').all().filter(r=>r.acct!==treasury).map(r=>({acct:r.acct,shareUnits:Number(r.share_units)+(up.get(r.property_id)||0)}));
  }
  async function runMonthly(){
   if(!enabled)return {ok:false,error:'monthly_plan_disabled'};

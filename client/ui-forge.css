@@ -237,3 +237,15 @@ body.mExplore #status,body.mFly #status{opacity:0!important;visibility:hidden!im
 #skGearBtn .bc-ico{margin-right:6px}
 /* desktop: the top-bar buttons meet the 44px target too (phones already did) */
 #btns>button,#btns .barLink,#btns #bcMoveGamesOpen,#btns #playBtn,#btns #moreBtn{min-height:44px!important;min-width:44px!important;box-sizing:border-box}
+
+/* ---------- 18. first-person interior reticle (estate-first-person.mjs) ---------- */
+#bcFpReticle{position:fixed;left:50%;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;z-index:20;pointer-events:none;display:none}
+#bcFpReticle.on{display:block}
+#bcFpReticle i{position:absolute;left:9px;top:9px;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:0 0 0 2px rgba(10,11,13,.75)}
+#bcFpReticle.hot i{left:2px;top:2px;width:20px;height:20px;box-sizing:border-box;background:transparent;border:2.5px solid var(--bc-ember);
+  box-shadow:0 0 0 2px rgba(10,11,13,.7),0 0 14px rgba(255,139,57,.65)}
+#bcFpReticle span{position:absolute;left:50%;top:30px;transform:translateX(-50%) skewX(-8deg);white-space:nowrap;display:none;
+  font:italic 800 13px/1 var(--bc-font-display);letter-spacing:var(--bc-track-label);text-transform:uppercase;color:#fff;
+  padding:5px 9px;border-radius:3px;background:rgba(10,11,13,.78);box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 -2px 0 var(--bc-ember)}
+#bcFpReticle.hot span:not(:empty){display:block}
+@media (prefers-reduced-motion:no-preference){#bcFpReticle i{transition:all var(--bc-dur-pop) var(--bc-ease-pop)}}

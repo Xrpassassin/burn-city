@@ -4,6 +4,7 @@ import {mountEstateHomeEditor} from './estates-home-editor-ui.mjs';
 import { mountEstateFreeStyle } from './estate-free-style-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
+import { createEstateFirstPerson } from './estate-first-person.mjs';
 import { homeDoorSpots, createHomeDoorPrompt } from './estates-home-door.mjs';
 import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
 import { mountEstateHangarLogbook } from './estates-hangar-ui.mjs';
@@ -88,6 +89,7 @@ function addBridgeArchitecture(THREE, root) {
 
 export async function installEstatesIslandLive({
   THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode, buildWalker, poseWalker,
+  getPitch = () => 0, setPitch = () => {}, domElement = null,
   isInteractPressed = () => false,
   cityGate = CITY_GATE,
   onStatus = () => {}
@@ -115,6 +117,10 @@ export async function installEstatesIslandLive({
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
   const secretInterior=createEstatesSecretInteriorRenderer({THREE,scene});
+  // Walk-in interiors are first person (t448u): eye-height camera, body hidden via player.fp,
+  // centre reticle aims at doors / stairs / the design tablet. The previous view is restored on exit.
+  const firstPerson=createEstateFirstPerson({THREE,camera,avatar,domElement,getYaw,setYaw:y=>setYaw(y),getPitch,setPitch});
+  let fpPrevious=false,fpPrevPitch=0;
   // Walk-in homes: front doors on every catalogued lot (Ember Bar style E/tap prompt).
   const doorSpots=homeDoorSpots(manifest.lots),doorPrompt=createHomeDoorPrompt();
   let ownershipKnown=false,ownedPropertyIds=new Set();
@@ -753,7 +759,7 @@ export async function installEstatesIslandLive({
       showPanel('YOUR HOME DESIGN STUDIO','Arrange furnishings in a free floor-plan builder. Premium room themes only unlock after a verified Tycoon purchase.',
         [{label:'Keep exploring',run:hidePanel}],
         'Free furniture · 0 XRP. Existing Arcade, Workshop and Bunker upgrades unlock three premium themes.');
-      homeEditorActive=true;
+      homeEditorActive=true;if(document.pointerLockElement)document.exitPointerLock?.(); // the editor needs the cursor
       mountEstateHomeEditor(panel,state,{api:apiBase,
         onPreview:preview=>{
           if(secretSession!==session||!homeEditorActive)return;
@@ -811,6 +817,7 @@ export async function installEstatesIslandLive({
       if(!switching){
         const returnAt=door?{x:OFFSET_X+door.outside.x,y:player.pos.y,z:door.outside.z,yaw:0,door}:{x:player.pos.x,y:player.pos.y,z:player.pos.z,yaw:getYaw()};
         secretSession={propertyId,roomId,token,returnAt,homeState,tour,floor:0};
+        fpPrevious=!!player.fp;fpPrevPitch=getPitch();
         stopPresence();root.visible=false;directoryButton.style.display='none';
         if(guidanceHud)guidanceHud.style.display='none';
         if(window.__skate?.active)window.__skate.toggle(false);
@@ -819,8 +826,9 @@ export async function installEstatesIslandLive({
       fadeIn();
       const origin=secretInterior.origin;
       player.pos.set(origin.x+layout.spawn.x,origin.y+layout.walkHeight,origin.z+layout.spawn.z);
-      player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
+      player.vel?.set(0,0,0);player.fp=true;player.onGround=true;player.climb=null;player.spawned=1;
       setYaw(0);avatar.position.copy(player.pos);avatar.rotation.y=0;
+      firstPerson.enter();
       camera.position.set(origin.x,origin.y+2.65,origin.z+6.05);
       camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
       exitButton.textContent=roomId==='home'?'↩ Exit Home':'↩ Exit Secret Room';exitButton.setAttribute('aria-label',roomId==='home'?'Exit Home':'Exit Secret Room');
@@ -849,8 +857,9 @@ export async function installEstatesIslandLive({
     directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';exitButton.setAttribute('aria-label','Return to BURN City');
     const p=previous.returnAt;
     player.pos.set(p.x,p.y,p.z);
-    player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
-    setYaw(p.yaw);avatar.position.copy(player.pos);avatar.rotation.y=p.yaw;
+    firstPerson.exit();
+    player.vel?.set(0,0,0);player.fp=fpPrevious;player.onGround=true;player.climb=null;player.spawned=1;
+    setYaw(p.yaw);setPitch(fpPrevPitch);avatar.position.copy(player.pos);avatar.rotation.y=p.yaw;
     camera.position.set(p.x+Math.sin(p.yaw)*7,p.y+2.6,p.z+Math.cos(p.yaw)*7);
     camera.lookAt(p.x,p.y+1.25,p.z);
     hidePanel();
@@ -933,11 +942,21 @@ export async function installEstatesIslandLive({
     avatar.position.copy(player.pos);
     avatar.rotation.y=Math.hypot(moved.x-before.x,moved.z-before.z)>.001?
       Math.atan2(-(moved.x-before.x),-(moved.z-before.z)):getYaw();
-    secretInterior.tickCamera({camera,localPosition:moved,yaw:getYaw(),dt});
+    // First person by default inside (V still toggles back to the over-the-shoulder view).
+    let aimed=null;
+    if(player.fp){
+      if(!firstPerson.active)firstPerson.enter();
+      secretInterior.tickReveal(dt);
+      aimed=firstPerson.tick({layout:room,origin,local:moved,dt,moved:Math.hypot(moved.x-before.x,moved.z-before.z)}).aim;
+    }else{
+      if(firstPerson.active)firstPerson.exit();
+      secretInterior.tickCamera({camera,localPosition:moved,yaw:getYaw(),dt});
+    }
     // Arrival is just inside the front door: like the Ember Bar, the exit only
     // arms once the player has stepped away from it, so entering never pops
-    // the leave prompt over the arrival view.
-    let trigger=secretInterior.interaction(moved);
+    // the leave prompt over the arrival view. The centre reticle wins over proximity once the
+    // player has stepped in (so nothing it happens to point at pops up over the arrival view).
+    let trigger=(secretExitArmed&&aimed)||secretInterior.interaction(moved);
     if(trigger?.id!=='exit')secretExitArmed=true;else if(!secretExitArmed)trigger=null;
     if(trigger?.id!==secretPrompt)showSecretInteraction(trigger);
     if(edge&&trigger){
@@ -1220,7 +1239,7 @@ export async function installEstatesIslandLive({
       if(disposed)return false;
       if(secretSession)leaveSecretInterior(false);
       if(flightSession)endHelicopterFlight(true,false);
-      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();fade.remove();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);window.removeEventListener('blur',releasePilotInput);document.removeEventListener('visibilitychange',onPilotVisibility);
+      disposed=true; firstPerson.exit(); islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();fade.remove();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);window.removeEventListener('blur',releasePilotInput);document.removeEventListener('visibilitychange',onPilotVisibility);
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

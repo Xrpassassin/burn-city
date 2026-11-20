@@ -89,7 +89,8 @@ const QUIET_SHEETS = [
   '#bcEstatesXaman', '#bcEstatesLivePrompt', // Xaman sign-in / QR; Estates lot, shop, cart, exit prompt
   '#bcMoveGamesPanel', '#more', '#vMenu', '#rPanel', '.jp-sheet', '#aegisModal', '#estateAccessDialog',
   '#wlModal', '.burn-tower-panel', '#aegisNews[data-expanded]',
-  '[aria-modal="true"]', '[role="dialog"]', 'dialog[open]'
+  '[aria-modal="true"]', '[role="dialog"]', 'dialog[open]',
+  'html.hz-pre', 'html.hz-in'               // the HUD is still settling in on arrival (hud-zones.mjs)
 ];
 const RESERVED = [
   'button', 'a[href]', 'input', 'select', 'textarea', 'summary', '[role="button"]', '[tabindex]:not([tabindex="-1"])',

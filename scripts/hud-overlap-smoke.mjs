@@ -79,11 +79,15 @@ try {
     // seed the AEGIS ticker so the top strip is part of the layout (as ui-v8-smoke does)
     await page.evaluate(async () => { try { const m = await import('./js/aegis-news.mjs'); m.updateAegisNewsFeed({ level: 1, lines: ['City Watch update one', 'City Watch update two'] }); } catch {} });
     await page.waitForTimeout(5000); // recap pill arrives ~4s after load
-    const states = [['arrival', await page.evaluate(collect, HUD)]];
+    // the notification lane re-places itself twice a second: give a lane-only overlap one second to settle
+    const settled = async () => { let r = await page.evaluate(collect, HUD);
+      if (r.overlaps.length && r.overlaps.every(o => o.includes('#bcNotifyLane'))) { await page.waitForTimeout(1000); r = await page.evaluate(collect, HUD); }
+      return r; };
+    const states = [['arrival', await settled()]];
     if (OUT) await shot(page, { path: `${OUT}/${vp.name}-arrival.png` });
     // the recap expands without covering anything else
     const exp = await page.evaluate(() => { const h = document.querySelector('#recap h3[role=button]'); if (!h) return false; h.click(); return true; });
-    if (exp) { await page.waitForTimeout(400); states.push(['recap-open', await page.evaluate(collect, HUD)]);
+    if (exp) { await page.waitForTimeout(400); states.push(['recap-open', await settled()]);
       if (OUT) await shot(page, { path: `${OUT}/${vp.name}-recap-open.png` });
       await page.evaluate(() => document.querySelector('#recap h3[role=button]')?.click()); }
     // reachability: every function is on the bar, visible, or in the ⋯ menu
@@ -96,7 +100,7 @@ try {
     // Explore: controls, gear and hints
     await page.evaluate(() => { document.getElementById('recap')?.remove(); document.querySelector('[data-m="explore"]')?.click(); });
     await page.waitForTimeout(2500);
-    states.push(['explore', await page.evaluate(collect, HUD)]);
+    states.push(['explore', await settled()]);
     if (OUT) await shot(page, { path: `${OUT}/${vp.name}-explore.png` });
     for (const [state, r] of states) {
       console.log(`${vp.name} ${state}: share ${r.share}% (persistent ${r.core}%) · ${r.names.join(' ')}${r.overlaps.length ? ' · OVERLAPS ' + r.overlaps.join('; ') : ''}`);

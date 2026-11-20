@@ -30,7 +30,8 @@ function db0(){const db=new DatabaseSync(':memory:');
   get:async()=>({meta:{signed},response:{account:buyer,txid:hash},next:{always:'https://xumm.app/sign/'+UUID}})}};
  const pay={sdk:()=>sdk,ledger:async()=>({request:async()=>{const result={validated,hash,ledger_index:200,
   tx_json:{...tx,hash,date:Math.floor(createdAt/1000)-946684800},meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx.Amount}};mutate(result);return {result};}})};
- const rt=createEstateTycoonRuntime({db,pay,config,env:{ESTATE_TYCOON_UPGRADES_ENABLED:'1'},paused:()=>false,clock:()=>now});
+ const kicks=[];const tick=()=>new Promise(r=>setImmediate(r));
+ const rt=createEstateTycoonRuntime({db,pay,config,env:{ESTATE_TYCOON_UPGRADES_ENABLED:'1'},paused:()=>false,clock:()=>now,onSettled:x=>kicks.push(x)});
  // Quote: prerequisites may come from the same cart; total and shares are exact sums.
  const cart=['garden-pond','flower-garden','fire-pit'];
  const q=rt.quote({propertyId:'trailer-01',itemIds:cart,buyer});
@@ -68,6 +69,7 @@ function db0(){const db=new DatabaseSync(':memory:');
  mutate=r=>{r.meta.TransactionResult='tecUNFUNDED_PAYMENT';};
  assert.equal((await rt.confirm({orderId:s1.orderId,buyer})).pending,true);
  assert.deepEqual(rt.store.state('trailer-01').unlockedItemIds,[],'no partial award');
+ await tick();assert.equal(kicks.length,0,'no allocation kick without a settled payment');
  // Exact validated payment: every item awarded atomically; shares = total/3.
  mutate=()=>{};
  const ok=await rt.confirm({orderId:s1.orderId,buyer});assert(ok.ok,JSON.stringify(ok));
@@ -76,8 +78,11 @@ function db0(){const db=new DatabaseSync(':memory:');
  assert.equal(st.upgradeValueDrops,18000000);assert.equal(st.upgradeShareUnits,6);assert.equal(st.recordedShareUnits,7);
  const row=db.prepare('SELECT * FROM estate_tycoon_orders WHERE order_id=?').get(s1.orderId);
  assert.equal(row.price_drops,18000000);assert.equal(row.share_delta,6);assert.equal(row.payment_tx,hash);
+ // A fresh settle kicks the upgrade-payout allocation once (instant 90/5/5 route, not the 15-min wake).
+ await tick();assert.deepEqual(kicks,[{orderId:s1.orderId,txHash:hash}]);
  // Replay: confirming again is idempotent; the same tx can't settle another order.
  assert.equal((await rt.confirm({orderId:s1.orderId,buyer})).alreadySettled,true);
+ await tick();assert.equal(kicks.length,1,'a replayed confirm does not re-kick');
  assert.throws(()=>rt.store.settle({orderId:s1.orderId,buyer,txHash:'E'.repeat(64),ledgerIndex:9,now}),/payment_hash_conflict/);
  // Owned items can't be re-bought singly or in a cart; dependants of cart items now unlock singly.
  assert.equal(rt.quote({propertyId:'trailer-01',itemId:'fire-pit',buyer}).alreadyUnlocked,true);

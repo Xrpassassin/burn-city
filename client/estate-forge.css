@@ -1,0 +1,39 @@
+/* BURN City Estates page — "Forge" component skin (presentation only).
+   Loaded after estate-theme.css + ui-forge.css. Every id, data attribute and control stays as-is;
+   this only changes panels, tabs, buttons and type to the shared Forge game-UI recipes. */
+header h1{font:italic 800 clamp(2rem,4.4vw,3.4rem)/1 var(--bc-font-display);text-transform:uppercase;letter-spacing:.01em;text-shadow:var(--bc-text-shadow),0 0 26px rgba(255,139,57,.28)}
+h2,h3{font-family:var(--bc-font-display);font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+h2{font-style:italic;display:flex;align-items:center;gap:10px}
+h2::before{content:"";width:6px;height:1.05em;background:var(--bc-ember-grad);transform:skewX(-14deg);border-radius:1px;flex:0 0 auto}
+/* panels: bevelled corners, thick coal outline, ember notch */
+.notice,article{
+  background:var(--fg-panel-bg);border:0;border-radius:var(--bc-panel-radius);
+  box-shadow:var(--fg-panel-shadow)
+}
+article[data-for-sale=true]{box-shadow:0 0 0 var(--bc-outline-w) var(--bc-success),var(--bc-shadow-panel)}
+/* chunky buttons with lip + press-in */
+button{
+  font-family:var(--bc-font-display);font-weight:800;font-size:16px;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--fg-btn-bg);border:0;border-radius:var(--bc-radius-md,10px);color:#fff;
+  box-shadow:var(--fg-btn-shadow);
+  transition:transform var(--bc-dur-press) var(--bc-ease-press),box-shadow var(--bc-dur-press),filter .15s
+}
+button:hover{background:var(--fg-btn-bg);filter:brightness(1.14);border:0}
+button:active{transform:translateY(3px);box-shadow:var(--fg-btn-shadow-press)}
+.grid article button,#refresh-portfolio,#estates-xaman-signin{background:var(--fg-pri-bg);color:#1d0d03;box-shadow:var(--fg-pri-shadow);text-shadow:0 1px 0 rgba(255,255,255,.3)}
+.grid article button:active,#refresh-portfolio:active,#estates-xaman-signin:active{box-shadow:var(--fg-pri-shadow-press)}
+button:disabled{filter:grayscale(.7);transform:none;box-shadow:var(--fg-btn-shadow)}
+/* tabs: game-mode selector */
+#estate-views{border:0;border-radius:var(--bc-panel-radius);background:linear-gradient(180deg,rgba(26,29,34,.98),rgba(12,14,17,.98));box-shadow:var(--fg-panel-shadow)}
+#estate-views button{box-shadow:none;background:transparent;color:var(--bc-text-muted);font-size:15px;font-style:italic;transform:skewX(-8deg)}
+#estate-views button[aria-selected=true]{background:var(--fg-pri-bg);color:#1d0d03;box-shadow:var(--fg-pri-shadow);text-shadow:0 1px 0 rgba(255,255,255,.3)}
+#estate-views button:active{transform:skewX(-8deg) translateY(2px)}
+/* numbers: tabular condensed */
+output,.owner-line,.bc-num{font-family:var(--bc-font-data);font-variant-numeric:tabular-nums}
+output{font-weight:800;color:var(--bc-gold)}
+.badge{display:inline-flex;align-items:center;gap:6px;font:800 13px/1 var(--bc-font-display);letter-spacing:.06em;text-transform:uppercase;
+  padding:5px 10px;border-radius:999px;background:rgba(61,214,140,.12);box-shadow:inset 0 0 0 1.5px currentColor}
+.bc-ico{width:1.1em;height:1.1em;vertical-align:-.15em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:700px),(pointer:coarse){#estate-views{-webkit-backdrop-filter:none;backdrop-filter:none}}
+@media(max-width:700px){#estate-views button{font-size:14px}}
+@media(prefers-reduced-motion:reduce){button,#estate-views button{transition:none}button:active{transform:none}#estate-views button:active{transform:skewX(-8deg)}}

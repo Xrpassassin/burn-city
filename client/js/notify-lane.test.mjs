@@ -53,6 +53,17 @@ import { createNotifyQueue, findLaneSlot, PRIORITY } from './notify-lane.mjs';
   assert.equal(d.x, 1280 - 16 - 300, 'desktop lane hugs the right edge');
   assert.ok(d.y + 40 <= 80 - 8 || d.y >= 128, 'and never overlaps the status row');
 }
+// --- HUD panels are no-go zones (follow-up: toast landed over the City recap on phones)
+{
+  const { HUD_PANELS } = await import('./notify-lane.mjs');
+  for (const id of ['#recap', '#info', '#music', '#keysBox', '#rPanel']) assert.ok(HUD_PANELS.includes(id), id + ' reserved');
+  // phone: HUD rows + recap panel (top 180..390) -> lane goes below the recap, never on it
+  const recap = { x: 12, y: 180, width: 366, height: 210 };
+  const s = findLaneSlot([{ x: 0, y: 0, width: 390, height: 170 }, recap], { vw: 390, vh: 844, w: 340, h: 48, align: 'center', top: 8, bottom: 844 * .62 });
+  assert.ok(s && s.y >= 390 + 8, 'lane slot below the recap panel');
+  // a recap that fills the lane band -> no slot (toast waits instead of covering it)
+  assert.equal(findLaneSlot([{ x: 0, y: 0, width: 390, height: 523 }], { vw: 390, vh: 844, w: 340, h: 48, align: 'center', top: 8, bottom: 844 * .62 }), null);
+}
 // --- wiring: every legacy surface goes through the lane
 const src = f => readFileSync(new URL(f, import.meta.url), 'utf8');
 const app = src('./app.js'), events = src('./events.js'), retain = src('./retain.js'), menu = src('./movement-games-menu.js'), fx2 = src('./fx2.js'), lane = src('./notify-lane.mjs');

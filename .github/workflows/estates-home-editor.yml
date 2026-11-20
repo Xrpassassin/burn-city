@@ -69,7 +69,9 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts
       - run: npm install --no-save --package-lock=false playwright@1.56.1
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Install Playwright browser (fails fast if the apt/browser download hangs)
+        timeout-minutes: 10
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Start isolated Estates test server
         run: |
           DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js >/tmp/estates-home-editor-qa.log 2>&1 &

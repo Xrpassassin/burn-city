@@ -3,35 +3,55 @@
 // Icons: Tabler Icons (MIT, (c) Paweł Kuna) — https://tabler.io/icons — credited in city-credits.html.
 const ICONS = {
 "alert-triangle": "<path d=\"M12 9v4\" /> <path d=\"M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z\" /> <path d=\"M12 16h.01\" />",
+"barrier-block": "<path d=\"M4 7m0 1a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v7a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z\" /> <path d=\"M7 16v4\" /> <path d=\"M7.5 16l9 -9\" /> <path d=\"M13.5 16l6.5 -6.5\" /> <path d=\"M4 13.5l6.5 -6.5\" /> <path d=\"M17 16v4\" /> <path d=\"M5 20h4\" /> <path d=\"M15 20h4\" /> <path d=\"M17 7v-2\" /> <path d=\"M7 7v-2\" />",
 "bolt": "<path d=\"M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11\" />",
+"bomb": "<path d=\"M15.349 5.349l3.301 3.301a1.2 1.2 0 0 1 0 1.698l-.972 .972a7.5 7.5 0 1 1 -5 -5l.972 -.972a1.2 1.2 0 0 1 1.698 0z\" /> <path d=\"M17 7l1.293 -1.293a2.414 2.414 0 0 0 .707 -1.707a1 1 0 0 1 1 -1h1\" /> <path d=\"M7 13a3 3 0 0 1 3 -3\" />",
+"building-bridge-2": "<path d=\"M6 7h12a2 2 0 0 1 2 2v9a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-2a4 4 0 0 0 -8 0v2a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-9a2 2 0 0 1 2 -2\" />",
 "building-castle": "<path d=\"M15 19v-2a3 3 0 0 0 -6 0v2a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1v-14h4v3h3v-3h4v3h3v-3h4v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\" /> <path d=\"M3 11l18 0\" />",
+"building-skyscraper": "<path d=\"M3 21l18 0\" /> <path d=\"M5 21v-14l8 -4v18\" /> <path d=\"M19 21v-10l-6 -4\" /> <path d=\"M9 9l0 .01\" /> <path d=\"M9 12l0 .01\" /> <path d=\"M9 15l0 .01\" /> <path d=\"M9 18l0 .01\" />",
+"calendar": "<path d=\"M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z\" /> <path d=\"M16 3v4\" /> <path d=\"M8 3v4\" /> <path d=\"M4 11h16\" /> <path d=\"M11 15h1\" /> <path d=\"M12 15v3\" />",
 "chart-line": "<path d=\"M4 19l16 0\" /> <path d=\"M4 15l4 -6l4 2l4 -5l4 4\" />",
 "check": "<path d=\"M5 12l5 5l10 -10\" />",
 "circle-check": "<path d=\"M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M9 12l2 2l4 -4\" />",
+"cloud-storm": "<path d=\"M7 18a4.6 4.4 0 0 1 0 -9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1\" /> <path d=\"M13 14l-2 4l3 0l-2 4\" />",
 "coin": "<path d=\"M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M14.8 9a2 2 0 0 0 -1.8 -1h-2a2 2 0 1 0 0 4h2a2 2 0 1 1 0 4h-2a2 2 0 0 1 -1.8 -1\" /> <path d=\"M12 7v10\" />",
 "compass": "<path d=\"M8 16l2 -6l6 -2l-2 6l-6 2\" /> <path d=\"M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M12 3l0 2\" /> <path d=\"M12 19l0 2\" /> <path d=\"M3 12l2 0\" /> <path d=\"M19 12l2 0\" />",
+"crane": "<path d=\"M6 21h6\" /> <path d=\"M9 21v-18l-6 6h18\" /> <path d=\"M9 3l10 6\" /> <path d=\"M17 9v4a2 2 0 1 1 -2 2\" />",
+"cup": "<path d=\"M5 11h14v-3h-14z\" /> <path d=\"M17.5 11l-1.5 10h-8l-1.5 -10\" /> <path d=\"M6 8v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1\" /> <path d=\"M15 5v-2\" />",
 "device-gamepad-2": "<path d=\"M12 5h3.5a5 5 0 0 1 0 10h-5.5l-4.015 4.227a2.3 2.3 0 0 1 -3.923 -2.035l1.634 -8.173a5 5 0 0 1 4.904 -4.019h3.4z\" /> <path d=\"M14 15l4.07 4.284a2.3 2.3 0 0 0 3.925 -2.023l-1.6 -8.232\" /> <path d=\"M8 9v2\" /> <path d=\"M7 10h2\" /> <path d=\"M14 10h2\" />",
 "dots": "<path d=\"M5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M19 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
 "eye": "<path d=\"M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\" /> <path d=\"M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6\" />",
+"fish-hook": "<path d=\"M16 9v6a5 5 0 0 1 -10 0v-4l3 3\" /> <path d=\"M16 7m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\" /> <path d=\"M16 5v-2\" />",
 "flag": "<path d=\"M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9z\" /> <path d=\"M5 21v-7\" />",
 "flame": "<path d=\"M12 10.941c2.333 -3.308 .167 -7.823 -1 -8.941c0 3.395 -2.235 5.299 -3.667 6.706c-1.43 1.408 -2.333 3.621 -2.333 5.588c0 3.704 3.134 6.706 7 6.706s7 -3.002 7 -6.706c0 -1.712 -1.232 -4.403 -2.333 -5.588c-2.084 3.353 -3.257 3.353 -4.667 2.235\" />",
 "gift": "<path d=\"M3 8m0 1a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1z\" /> <path d=\"M12 8l0 13\" /> <path d=\"M19 12v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-7\" /> <path d=\"M7.5 8a2.5 2.5 0 0 1 0 -5a4.8 8 0 0 1 4.5 5a4.8 8 0 0 1 4.5 -5a2.5 2.5 0 0 1 0 5\" />",
+"hammer": "<path d=\"M11.414 10l-7.383 7.418a2.091 2.091 0 0 0 0 2.967a2.11 2.11 0 0 0 2.976 0l7.407 -7.385\" /> <path d=\"M18.121 15.293l2.586 -2.586a1 1 0 0 0 0 -1.414l-7.586 -7.586a1 1 0 0 0 -1.414 0l-2.586 2.586a1 1 0 0 0 0 1.414l7.586 7.586a1 1 0 0 0 1.414 0z\" />",
+"heart": "<path d=\"M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572\" />",
+"helicopter": "<path d=\"M3 10l1 2h6\" /> <path d=\"M12 9a2 2 0 0 0 -2 2v3c0 1.1 .9 2 2 2h7a2 2 0 0 0 2 -2c0 -3.31 -3.13 -5 -7 -5h-2z\" /> <path d=\"M13 9l0 -3\" /> <path d=\"M5 6l15 0\" /> <path d=\"M15 9.1v3.9h5.5\" /> <path d=\"M15 19l0 -3\" /> <path d=\"M19 19l-8 0\" />",
 "help": "<path d=\"M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M12 17l0 .01\" /> <path d=\"M12 13.5a1.5 1.5 0 0 1 1 -1.5a2.6 2.6 0 1 0 -3 -4\" />",
 "home": "<path d=\"M5 12l-2 0l9 -9l9 9l-2 0\" /> <path d=\"M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7\" /> <path d=\"M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6\" />",
+"hourglass": "<path d=\"M6.5 7h11\" /> <path d=\"M6.5 17h11\" /> <path d=\"M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z\" /> <path d=\"M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1z\" />",
 "info-circle": "<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0\" /> <path d=\"M12 9h.01\" /> <path d=\"M11 12h1v4h1\" />",
 "link": "<path d=\"M9 15l6 -6\" /> <path d=\"M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464\" /> <path d=\"M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463\" />",
 "lock": "<path d=\"M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z\" /> <path d=\"M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0\" /> <path d=\"M8 11v-4a4 4 0 1 1 8 0v4\" />",
+"map-pin": "<path d=\"M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" /> <path d=\"M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z\" />",
 "message-circle": "<path d=\"M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1\" />",
+"motorbike": "<path d=\"M5 16m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0\" /> <path d=\"M19 16m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0\" /> <path d=\"M7.5 14h5l4 -4h-10.5m1.5 4l4 -4\" /> <path d=\"M13 6h2l1.5 3l2 4\" />",
 "music": "<path d=\"M3 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" /> <path d=\"M13 17a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" /> <path d=\"M9 17v-13h10v13\" /> <path d=\"M9 8h10\" />",
 "plane": "<path d=\"M16 10h4a2 2 0 0 1 0 4h-4l-4 7h-3l2 -7h-4l-2 2h-3l2 -4l-2 -4h3l2 2h4l-2 -7h3z\" />",
 "player-play": "<path d=\"M7 4v16l13 -8z\" />",
 "qrcode": "<path d=\"M4 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\" /> <path d=\"M7 17l0 .01\" /> <path d=\"M14 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\" /> <path d=\"M7 7l0 .01\" /> <path d=\"M4 14m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z\" /> <path d=\"M17 7l0 .01\" /> <path d=\"M14 14l3 0\" /> <path d=\"M20 14l0 .01\" /> <path d=\"M14 14l0 3\" /> <path d=\"M14 20l3 0\" /> <path d=\"M17 17l3 0\" /> <path d=\"M20 17l0 3\" />",
+"radio": "<path d=\"M14 3l-9.371 3.749a1 1 0 0 0 -.629 .928v11.323a1 1 0 0 0 1 1h14a1 1 0 0 0 1 -1v-11a1 1 0 0 0 -1 -1h-14.5\" /> <path d=\"M4 12h16\" /> <path d=\"M7 12v-2\" /> <path d=\"M17 16v.01\" /> <path d=\"M13 16v.01\" />",
 "rocket": "<path d=\"M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3\" /> <path d=\"M7 14a6 6 0 0 0 -3 6a6 6 0 0 0 6 -3\" /> <path d=\"M15 9m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
 "route": "<path d=\"M3 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0\" /> <path d=\"M19 7a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z\" /> <path d=\"M11 19h5.5a3.5 3.5 0 0 0 0 -7h-8a3.5 3.5 0 0 1 0 -7h4.5\" />",
 "sailboat": "<path d=\"M2 20a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1\" /> <path d=\"M4 18l-1 -3h18l-1 3\" /> <path d=\"M11 12h7l-7 -9v9\" /> <path d=\"M8 7l-2 5\" />",
 "settings": "<path d=\"M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z\" /> <path d=\"M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" />",
 "shopping-cart": "<path d=\"M6 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\" /> <path d=\"M17 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\" /> <path d=\"M17 17h-11v-14h-2\" /> <path d=\"M6 5l14 1l-1 7h-13\" />",
 "skateboarding": "<path d=\"M16 4a1 1 0 1 0 2 0a1 1 0 0 0 -2 0\" /> <path d=\"M5.5 15h3.5l.75 -1.5\" /> <path d=\"M14 19v-5l-2.5 -3l2.5 -4\" /> <path d=\"M8 8l3 -1h4l1 3h3\" /> <path d=\"M17.5 21a.5 .5 0 1 0 0 -1a.5 .5 0 0 0 0 1z\" fill=\"currentColor\" /> <path d=\"M3 18c0 .552 .895 1 2 1h14c1.105 0 2 -.448 2 -1\" /> <path d=\"M6.5 21a.5 .5 0 1 0 0 -1a.5 .5 0 0 0 0 1z\" fill=\"currentColor\" />",
+"skull": "<path d=\"M12 4c4.418 0 8 3.358 8 7.5c0 1.901 -.755 3.637 -2 4.96l0 2.54a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1v-2.54c-1.245 -1.322 -2 -3.058 -2 -4.96c0 -4.142 3.582 -7.5 8 -7.5z\" /> <path d=\"M10 17v3\" /> <path d=\"M14 17v3\" /> <path d=\"M9 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M15 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
+"sword": "<path d=\"M20 4v5l-9 7l-4 4l-3 -3l4 -4l7 -9z\" /> <path d=\"M6.5 11.5l6 6\" />",
+"tools": "<path d=\"M3 21h4l13 -13a1.5 1.5 0 0 0 -4 -4l-13 13v4\" /> <path d=\"M14.5 5.5l4 4\" /> <path d=\"M12 8l-5 -5l-4 4l5 5\" /> <path d=\"M7 8l-1.5 1.5\" /> <path d=\"M16 12l5 5l-4 4l-5 -5\" /> <path d=\"M16 17l-1.5 1.5\" />",
+"tornado": "<path d=\"M21 4l-18 0\" /> <path d=\"M13 16l-6 0\" /> <path d=\"M11 20l4 0\" /> <path d=\"M6 8l14 0\" /> <path d=\"M4 12l12 0\" />",
 "trophy": "<path d=\"M8 21l8 0\" /> <path d=\"M12 17l0 4\" /> <path d=\"M7 4l10 0\" /> <path d=\"M17 4v8a5 5 0 0 1 -10 0v-8\" /> <path d=\"M5 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\" /> <path d=\"M19 9m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0\" />",
 "volume": "<path d=\"M15 8a5 5 0 0 1 0 8\" /> <path d=\"M17.7 5a9 9 0 0 1 0 14\" /> <path d=\"M6 15h-2a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l3.5 -4.5a.8 .8 0 0 1 1.5 .5v14a.8 .8 0 0 1 -1.5 .5l-3.5 -4.5\" />",
 "volume-off": "<path d=\"M15 8a5 5 0 0 1 1.912 4.934m-1.377 2.602a5 5 0 0 1 -.535 .464\" /> <path d=\"M17.7 5a9 9 0 0 1 2.362 11.086m-1.676 2.299a9 9 0 0 1 -.686 .615\" /> <path d=\"M9.069 5.054l.431 -.554a.8 .8 0 0 1 1.5 .5v2m0 4v8a.8 .8 0 0 1 -1.5 .5l-3.5 -4.5h-2a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h2l1.294 -1.664\" /> <path d=\"M3 3l18 18\" />",
@@ -41,14 +61,16 @@ const ICONS = {
 "x": "<path d=\"M18 6l-12 12\" /> <path d=\"M6 6l12 12\" />"
 };
 // emoji / glyph -> icon (longest keys first so variation-selector forms win)
-export const EMOJI_ICON = {"◎": "compass", "🚶": "walk", "▶": "player-play", "🏠": "home", "🔗": "link", "🔇": "volume-off", "🔊": "volume", "♪": "music", "💬": "message-circle", "⋯": "dots", "🔥": "flame", "🪙": "coin", "🚀": "rocket", "✈️": "plane", "✈": "plane", "⛵": "sailboat", "🛹": "skateboarding", "🕸️": "world", "🕸": "world", "🎮": "device-gamepad-2", "✕": "x", "×": "x", "⇄": "route", "☰": "eye", "🏆": "trophy", "🎁": "gift", "⚡": "bolt", "⚙️": "settings", "⚙": "settings", "🛒": "shopping-cart", "👛": "wallet", "🔒": "lock", "📈": "chart-line", "⚑": "flag", "⚠️": "alert-triangle", "⚠": "alert-triangle", "✓": "check", "🏰": "building-castle", "🏘️": "building-castle", "🏘": "building-castle"};
+export const EMOJI_ICON = {"◎": "compass", "🚶": "walk", "▶": "player-play", "🏠": "home", "🔗": "link", "🔇": "volume-off", "🔊": "volume", "♪": "music", "💬": "message-circle", "⋯": "dots", "🔥": "flame", "🪙": "coin", "🚀": "rocket", "✈️": "plane", "✈": "plane", "⛵": "sailboat", "🛹": "skateboarding", "🕸️": "world", "🕸": "world", "🎮": "device-gamepad-2", "✕": "x", "×": "x", "⇄": "route", "☰": "eye", "🏆": "trophy", "🎁": "gift", "⚡": "bolt", "⚙️": "settings", "⚙": "settings", "🛒": "shopping-cart", "👛": "wallet", "🔒": "lock", "📈": "chart-line", "⚑": "flag", "⚠️": "alert-triangle", "⚠": "alert-triangle", "✓": "check", "🏰": "building-castle", "🏘️": "building-castle", "🏘": "building-castle", "🏙": "building-skyscraper", "🏗": "crane", "🎣": "fish-hook", "🌀": "tornado", "🌉": "building-bridge-2", "🚧": "barrier-block", "⛈": "cloud-storm", "🏍": "motorbike", "🧟": "skull", "💀": "skull", "☠": "skull", "🚁": "helicopter", "📻": "radio", "⚒": "tools", "🔨": "hammer", "🥤": "cup", "❤": "heart", "⏳": "hourglass", "🗡": "sword", "🗓": "calendar", "📍": "map-pin", "🧨": "bomb", "✅": "circle-check", "🏚": "home"};
 const KEYS = Object.keys(EMOJI_ICON).sort((a, b) => b.length - a.length);
 const RX = new RegExp('(' + KEYS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\uFE0F?', 'u');
 const NS = 'http://www.w3.org/2000/svg';
 // Where emoji are swapped for icons. Kept to chrome (buttons, chips, sheet titles), never to user text,
 // toasts or game content.
 export const ICON_ROOTS = ['#btns', '#more', '#bcMoveGamesOpen', '#bcMoveGamesPanel .bc-mg-card', '#rChip', '#gearBar', '#webBtn', '#tbtns',
-  '#hud .row.tl', '.jp-sheet h3', '#bcEstatesXaman .bc-xaman-close', '#bcEstatesLivePrompt', '#estate-views'];
+  '#hud .row.tl', '.jp-sheet h3', '#bcEstatesXaman .bc-xaman-close', '#bcEstatesLivePrompt', '#estate-views',
+  '#burnCount', '#guide .gbox', '#skGear .sg-card', '#skGearBtn', '#tSkate'];
+// Other pages (e.g. the arena menu) pass their own roots: <script type="module" src=".../ui-forge.mjs" data-forge-roots="#menu h2,#menu b">
 
 export function iconSvg(name, doc = document) {
   const svg = doc.createElementNS(NS, 'svg');
@@ -120,9 +142,15 @@ export const COUNT_ROOTS = ['#rChip', '.bc-ty-count', '.fg-count']; // only pure
 
 export function installForge(doc = document) {
   if (doc.__bcForge) return doc.__bcForge;
+  const custom = doc.querySelector('script[data-forge-roots]')?.dataset.forgeRoots;
+  const roots = custom ? custom.split(',').map(x => x.trim()).filter(Boolean) : ICON_ROOTS;
+  // base icon style for pages without ui-forge.css (zero specificity: the Forge sheet wins where loaded)
+  if (!doc.getElementById('bcIcoBase')) { const st = doc.createElement('style'); st.id = 'bcIcoBase';
+    st.textContent = ':where(.bc-ico){width:1.1em;height:1.1em;vertical-align:-.15em;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}';
+    doc.head.append(st); }
   let timer = 0;
   const flush = () => { timer = 0;
-    for (const sel of ICON_ROOTS) for (const el of doc.querySelectorAll(sel)) iconify(el, doc);
+    for (const sel of roots) for (const el of doc.querySelectorAll(sel)) iconify(el, doc);
     for (const sel of COUNT_ROOTS) for (const el of doc.querySelectorAll(sel)) watchCounts(el);
   };
   const schedule = () => { if (!timer) timer = setTimeout(flush, 120); }; // batched: at most ~8 passes/s, never per frame

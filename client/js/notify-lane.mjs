@@ -97,6 +97,14 @@ const RESERVED = [
   '#prompt', '#tip', '#tapTip', '#vHint', '#help', '#tourCap', '#chat', '#evbanner.show', '#rChip', '.alertPill',
   '#bcEstatesExit', '#bcEstatePropertyHint', '#bcEstatesWalkingGuidance', '[data-mobile-controls]', '#gearBar'
 ].join(',');
+// HUD panels the lane must never cover, whatever their size (the 45%-of-screen "full-screen layer"
+// exemption below does not apply to these): the daily City recap appears ~4s after load and used to
+// land under an already-placed toast; info/music/bag/keys/rewards panels and the tower/estate HUDs too.
+export const HUD_PANELS = [
+  '#recap', '#info', '#music', '#bagList', '#keysBox', '#keysBtn', '#rPanel', '#fPanel', '#fUI', '#banner',
+  '#perfHud', '#estateInteriorHud', '#bBar', '#webBtn', '#skGearBtn', '#skGear .sg-card', '#cityChat .cbody', '#rpBar'
+];
+const HUD_PANEL_SEL = HUD_PANELS.join(',');
 
 function visible(el) {
   if (!el || !el.isConnected) return false;
@@ -177,6 +185,12 @@ export function installNotifyLane(win = globalThis.window) {
       if (!visible(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width * r.height > .45 * win.innerWidth * win.innerHeight) continue; // full-screen layers (canvas, touch surface)
+      out.push({ x: r.left, y: r.top, width: r.width, height: r.height });
+    }
+    for (const el of doc.querySelectorAll(HUD_PANEL_SEL)) {
+      if (lane && lane.contains(el)) continue;
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
       out.push({ x: r.left, y: r.top, width: r.width, height: r.height });
     }
     return out;

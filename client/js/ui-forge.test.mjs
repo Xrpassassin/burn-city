@@ -39,3 +39,9 @@ assert.match(est, /prefers-reduced-motion:reduce/);
 // #669 lane logic is not overridden (style only: no display/visibility rules on the lane container)
 assert.ok(!/#bcNotifyLane\{[^}]*(display|visibility)\s*:/.test(css), 'lane visibility untouched');
 console.log('ui-forge tests ok');
+// follow-ups: leftover emoji surfaces + arena menu opt-in + desktop 44px top bar
+for (const r of ['#burnCount', '#guide .gbox', '#skGear .sg-card']) assert.ok(ICON_ROOTS.includes(r), r + ' iconified');
+for (const e of ['🏙', '🏗', '🎣', '🚧', '🏍', '🗡']) assert.ok(EMOJI_ICON[e], e + ' mapped');
+assert.match(read('../arena/index.html'), /<script type="module" src="\.\.\/js\/ui-forge\.mjs" data-forge-roots="#menu h2/);
+assert.match(css, /#btns #moreBtn\{min-height:44px!important;min-width:44px!important/);
+console.log('ui-forge follow-up tests ok');

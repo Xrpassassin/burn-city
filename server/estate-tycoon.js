@@ -25,7 +25,11 @@ const ITEMS=Object.freeze([
  // A prestige aircraft includes its own compact helipad. Restricted to upper property tiers.
  {id:'estate-helicopter',name:'Estate helicopter & private helipad',category:'aviation',priceXrp:60,scene:'helicopter',eligibleTiers:['family','mansion']}
 ].map(item=>Object.freeze({...item,priceDrops:item.priceXrp*1000000,shareUnitsDelta:item.priceXrp/3,requires:Object.freeze(item.requires||[]),eligibleTiers:Object.freeze(item.eligibleTiers||[])})));
+// Invariant (t440u): every upgrade costs a whole multiple of 3 XRP and earns exactly price/3 shares.
+for(const i of ITEMS)if(!Number.isSafeInteger(i.priceXrp)||i.priceXrp<=0||i.priceXrp%3!==0||i.priceDrops!==i.priceXrp*1000000||i.shareUnitsDelta!==i.priceXrp/3)
+ throw new Error('upgrade_price_not_multiple_of_3_xrp:'+i.id);
 const ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
+const payoutPolicy=()=>require('./estate-upgrade-payouts').enabled()?'active_for_distributions':'recorded_only_not_active_for_distributions';
 const WALLET=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const HASH=/^[A-Fa-f0-9]{64}$/;
 function itemCatalog(){return ITEMS.map(({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,eligibleTiers,scene})=>({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,eligibleTiers,scene}));}
@@ -57,19 +61,19 @@ function createEstateTycoonStore(db){
   return {propertyId,tier:property.tier,owned:!!ownership,baseValueDrops:baseDrops,
    upgradeValueDrops:extraDrops,recordedValueDrops:baseDrops+extraDrops,
    baseShareUnits:tier.shareUnits,upgradeShareUnits:extraUnits,
-   recordedShareUnits:tier.shareUnits+extraUnits,liveRewardShareUnits:ownership?.share_units??tier.shareUnits,
+   recordedShareUnits:tier.shareUnits+extraUnits,liveRewardShareUnits:(ownership?.share_units??tier.shareUnits)+(payoutPolicy()==='active_for_distributions'?extraUnits:0),
    unlockedItemIds:bought.map(x=>x.item_id),
    items:ITEMS.map(item=>({...item,unlocked:ownedIds.has(item.id),
     tierEligible:!item.eligibleTiers.length||item.eligibleTiers.includes(property.tier),
     prerequisitesMet:item.requires.every(id=>ownedIds.has(id))})),
-   sharePolicy:'recorded_only_not_active_for_distributions',
+   sharePolicy:payoutPolicy(),
    marketValueEstimated:false,rewardsGuaranteed:false};
  }
  function publicState(){return {catalog:itemCatalog(),properties:[...PROPERTY_BY_ID.keys()].map(id=>{
   const s=state(id);return {propertyId:id,tier:s.tier,owned:s.owned,unlockedItemIds:s.unlockedItemIds,
    upgradeValueDrops:s.upgradeValueDrops,recordedValueDrops:s.recordedValueDrops,
    recordedShareUnits:s.recordedShareUnits,sharePolicy:s.sharePolicy};
- }),sharePolicy:'recorded_only_not_active_for_distributions'};}
+ }),sharePolicy:payoutPolicy()};}
  function quote({propertyId,buyer,itemId}){
   const s=state(propertyId),item=ITEM_BY_ID.get(itemId);
   if(!item)throw new Error('unknown_upgrade_item');
@@ -133,7 +137,7 @@ function createEstateTycoonStore(db){
    const prestigeTable=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_cosmetic_upgrades'").get();
    if(prestigeTable&&db.prepare("SELECT 1 FROM estate_cosmetic_upgrades WHERE UPPER(payment_tx)=? AND status='settled'").get(txHash.toUpperCase()))throw new Error('payment_already_used');
    const s=state(r.property_id),item=ITEM_BY_ID.get(r.item_id);
-   if(!item||r.price_drops!==item.priceDrops||r.share_delta!==item.shareUnitsDelta||s.upgradeValueDrops!==r.before_upgrade_drops||
+   if(!item||r.price_drops!==item.priceDrops||r.price_drops%3000000!==0||r.share_delta*3000000!==r.price_drops||r.share_delta!==item.shareUnitsDelta||s.upgradeValueDrops!==r.before_upgrade_drops||
      s.unlockedItemIds.includes(r.item_id)||
      (item.eligibleTiers.length&&!item.eligibleTiers.includes(s.tier))||
      !item.requires.every(id=>s.unlockedItemIds.includes(id)))throw new Error('upgrade_state_changed');
@@ -149,7 +153,7 @@ function createEstateTycoonStore(db){
   return {properties:list,recordedShareUnits:list.reduce((n,p)=>n+p.recordedShareUnits,0),
    upgradeShareUnits:list.reduce((n,p)=>n+p.upgradeShareUnits,0),
    recordedValueDrops:list.reduce((n,p)=>n+p.recordedValueDrops,0),
-   sharePolicy:'recorded_only_not_active_for_distributions',rewardsGuaranteed:false};
+   sharePolicy:payoutPolicy(),rewardsGuaranteed:false};
  }
  return {state,publicState,quote,reserve,settle,get,ownerPortfolio,pendingRow,voidAbandoned};
 }

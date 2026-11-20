@@ -1,7 +1,7 @@
 'use strict';
 // Read-only reward accounting: caller must first independently validate XRPL payment,
 // issuer, destination, delivered_amount, and eligible Pollux source. Never signs or pays.
-const {propertyWeight}=require('./estate-economy');
+const {holdingWeight}=require('./estate-economy');
 const {splitImgAmount}=require('./estate-img-amount');
 const HASH=/^[A-F0-9]{64}$/;
 const ACCOUNT=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
@@ -63,7 +63,7 @@ function createImgHourlyRewardLedger(db,{treasury,imgIssuer,allowedSources}={}){
   if(!Array.isArray(holdings)||!holdings.length)throw new TypeError('holdings_required');
   const seen=new Set();
   const rows=holdings.map(h=>{
-   const propertyId=String(h.propertyId||''),owner=String(h.acct||''),weight=propertyWeight(propertyId);
+   const propertyId=String(h.propertyId||''),owner=String(h.acct||''),weight=holdingWeight(h);
    if(!ACCOUNT.test(owner)||!weight||seen.has(propertyId))throw new TypeError('invalid_or_duplicate_holding');
    seen.add(propertyId);return {propertyId,owner,weight};
   }).sort((a,b)=>a.propertyId.localeCompare(b.propertyId));

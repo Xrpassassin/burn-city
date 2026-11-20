@@ -111,7 +111,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    const r=records.get(p.propertyId),tycoon=tycoonRows.get(p.propertyId),card=make('article');card.dataset.ownedProperty=p.propertyId;
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
-   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+' from upgrades; not active payout weight)'));
+   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+(tycoon.sharePolicy==='active_for_distributions'?' from upgrades; included in payout weight)':' from upgrades; not active payout weight)')));
    const funding=s.capitalAllocations?.find(a=>a.property_id===p.propertyId)?.fundingState;
    const allocation=s.capitalAllocations?.find(a=>a.property_id===p.propertyId);if(allocation)card.append(field(allocation.policy_version===1?'Historic funding record':'Funding route',allocation.pool||'Funding record unavailable'));
    card.append(field('Pool funding',({awaiting_pool:'Awaiting IMG/RLUSD pool activation',invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review',legacy_retired_review:'Legacy route retired · prior funding under review'})[funding]||'Status unavailable'));

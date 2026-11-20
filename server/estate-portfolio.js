@@ -1,7 +1,8 @@
 'use strict';
 // Read-only reporting. Allocations are entitlements, never claims that a wallet
 // payment happened or that the current share will earn a future fixed amount.
-const {allocateProfit}=require('./estate-economy');
+const {allocateProfit,propertyWeight}=require('./estate-economy');
+const UP=require('./estate-upgrade-payouts');
 const N=require('bignumber.js');
 const DAY=86400000;
 function walletRewardsReceived(db,owner,exists){
@@ -30,9 +31,10 @@ function walletRewardsReceived(db,owner,exists){
 function readEstatePortfolio({db,owner,now=Date.now()}){
  if(!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(owner||'')||!Number.isSafeInteger(now)||now<0)throw Error('invalid_portfolio_request');
  const exists=name=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
- const totalShareUnits=db.prepare('SELECT COALESCE(SUM(share_units),0) n FROM estate_property_ownership').get().n;
+ const upNow=UP.upgradeUnitsAt(db,now),upTotal=[...upNow.values()].reduce((n,v)=>n+v,0);
+ const totalShareUnits=db.prepare('SELECT COALESCE(SUM(share_units),0) n FROM estate_property_ownership').get().n+upTotal;
  const owned=db.prepare('SELECT property_id,share_units,purchased_at FROM estate_property_ownership WHERE acct=? ORDER BY property_id').all(owner);
- const rows=new Map(owned.map(p=>[p.property_id,{propertyId:p.property_id,shareUnits:p.share_units,purchasedAt:p.purchased_at,imgAllocated24hUnits:'0',xrpAllocated24hDrops:'0'}]));
+ const rows=new Map(owned.map(p=>[p.property_id,{propertyId:p.property_id,shareUnits:p.share_units+(upNow.get(p.property_id)||0),upgradeShareUnits:upNow.get(p.property_id)||0,purchasedAt:p.purchased_at,imgAllocated24hUnits:'0',xrpAllocated24hDrops:'0'}]));
  const from=Math.max(0,now-DAY);
  const imgAvailable=exists('estate_img_hourly_allocations')&&exists('estate_img_reward_receipts');
  if(imgAvailable)for(const r of db.prepare(`SELECT a.property_id,a.amount_units FROM estate_img_hourly_allocations a JOIN estate_img_reward_receipts r ON r.tx_hash=a.tx_hash WHERE a.owner=? AND r.verified=1 AND r.received_at_ms>=? AND r.received_at_ms<=?`).all(owner,from,now)){
@@ -49,7 +51,8 @@ function readEstatePortfolio({db,owner,now=Date.now()}){
     if(amount>BigInt(Number.MAX_SAFE_INTEGER)||r.base_amount_drops===null){xrpAvailable=false;break;}
     // Reproduce the original property allocation before wallet aggregation.
     // Rolled-forward wallet fee credits must not be double-counted as new profit.
-    const allocations=allocateProfit(Number(amount),historical.all(r.realized_at_ms)).filter(p=>p.acct===owner);
+    const up=UP.upgradeUnitsAt(db,r.realized_at_ms);
+    const allocations=allocateProfit(Number(amount),historical.all(r.realized_at_ms).map(h=>({...h,weight:propertyWeight(h.propertyId)+(up.get(h.propertyId)||0)}))).filter(p=>p.acct===owner);
     if(allocations.reduce((n,p)=>n+BigInt(p.amountDrops),0n)!==BigInt(r.base_amount_drops)){xrpAvailable=false;break;}
     for(const a of allocations){const p=rows.get(a.propertyId);if(p)p.xrpAllocated24hDrops=(BigInt(p.xrpAllocated24hDrops)+BigInt(a.amountDrops)).toString();}
    }
@@ -58,7 +61,7 @@ function readEstatePortfolio({db,owner,now=Date.now()}){
  // Do not publish a partial reconstruction as a complete historical rate.
  if(!xrpAvailable)for(const p of rows.values())p.xrpAllocated24hDrops=null;
  const checkpoint=exists('estate_img_scan_watermarks')?db.prepare('SELECT scanned_through_ms,ledger_index FROM estate_img_scan_watermarks WHERE id=1').get():null;
- return {asOfMs:now,windowStartMs:from,windowHours:24,totalShareUnits,portfolioShareUnits:owned.reduce((n,p)=>n+p.share_units,0),
+ return {asOfMs:now,windowStartMs:from,windowHours:24,totalShareUnits,portfolioShareUnits:owned.reduce((n,p)=>n+p.share_units+(upNow.get(p.property_id)||0),0),upgradePayoutsEnabled:UP.enabled(),
   dataThroughMs:checkpoint?.scanned_through_ms||null,scannerCurrent:!!checkpoint&&now-checkpoint.scanned_through_ms<=60000,
   imgHistoryAvailable:imgAvailable,xrpHistoryAvailable:xrpAvailable,
   walletReceived:walletRewardsReceived(db,owner,exists),

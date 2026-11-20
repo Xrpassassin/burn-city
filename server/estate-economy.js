@@ -9,6 +9,16 @@ function propertyWeight(propertyId) {
   const property = PROPERTY_BY_ID.get(String(propertyId));
   return property ? (TIER_BY_ID.get(property.tier)?.shareUnits || 0) : 0;
 }
+// A holding may carry an explicit weight (base tier weight + verified upgrade payout shares, see
+// estate-upgrade-payouts.js). It can never be below the property's catalog tier weight.
+function holdingWeight(holding) {
+  const base = propertyWeight(String(holding?.propertyId || ''));
+  if (!base) return 0;
+  if (holding?.weight === undefined || holding?.weight === null) return base;
+  const w = Number(holding.weight);
+  if (!Number.isSafeInteger(w) || w < base) throw new TypeError('invalid_holding_weight');
+  return w;
+}
 // Allocate integer drops proportionally by owned property's relative share units.
 // Largest-remainder allocation ensures every distributable drop is assigned exactly once.
 function allocateProfit(distributableDrops, holdings) {
@@ -17,7 +27,7 @@ function allocateProfit(distributableDrops, holdings) {
   if (!Array.isArray(holdings)) throw new TypeError('holdings_must_be_array');
   const rows = holdings.map(h => {
     const propertyId = String(h.propertyId || '');
-    const weight = propertyWeight(propertyId);
+    const weight = holdingWeight(h);
     const acct = String(h.acct || '');
     if (!weight || !acct) throw new TypeError('invalid_property_holding');
     return { propertyId, acct, weight };
@@ -74,7 +84,7 @@ function buildWeeklySnapshot(input) {
   for (const h of holdings) {
     const propertyId = String(h?.propertyId || '');
     const acct = String(h?.acct || '');
-    const weight = propertyWeight(propertyId);
+    const weight = holdingWeight(h);
     if (!weight || !acct) throw new TypeError('invalid_property_holding');
     if (seen.has(propertyId)) throw new TypeError('duplicate_property_holding');
     seen.add(propertyId);
@@ -102,4 +112,4 @@ function buildWeeklySnapshot(input) {
   return { weekStart, sourceWallet, sourceLedgerIndex, realizedProfitDrops, feesDrops, realizedLossesDrops, reserveDrops, distributableDrops, totalEligibleWeight, ownershipCount: sortedHoldings.length, ownershipHash, verificationRef, status:'draft', createdAt:Number(input.createdAt) > 0 ? Number(input.createdAt) : Date.now(), allocations:finalAllocations };
 }
 
-module.exports = { CATALOG, TIER_BY_ID, PROPERTY_BY_ID, propertyWeight, allocateProfit, buildWeeklySnapshot, weekStartUtc };
+module.exports = { CATALOG, TIER_BY_ID, PROPERTY_BY_ID, propertyWeight, holdingWeight, allocateProfit, buildWeeklySnapshot, weekStartUtc };

@@ -1,6 +1,6 @@
 'use strict';
 // Pure accounting only. No custody, signing, transfers, or network access.
-const { propertyWeight } = require('./estate-economy');
+const { propertyWeight, holdingWeight } = require('./estate-economy');
 const XRPL_ADDRESS = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 function units(value, label) {
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) throw new TypeError(`${label} must be a decimal integer string`);
@@ -15,7 +15,7 @@ function allocateEpoch({ epochId, currency, distributableUnits, holdings } = {})
   for (const h of holdings) {
     if (!h || typeof h.propertyId !== 'string' || seen.has(h.propertyId)) throw new TypeError('invalid or duplicate property');
     seen.add(h.propertyId);
-    const weight = propertyWeight(h.propertyId);
+    const weight = holdingWeight(h);
     if (!Number.isSafeInteger(weight) || weight <= 0) throw new TypeError('unknown property');
     if (typeof h.acct !== 'string' || !XRPL_ADDRESS.test(h.acct)) throw new TypeError('invalid owner wallet');
     owners.set(h.acct, (owners.get(h.acct) || 0n) + BigInt(weight));

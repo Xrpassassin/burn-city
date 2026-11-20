@@ -179,7 +179,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   const s=current.state,items=current.catalog;
   const unlocked=new Set(s.unlockedItemIds);
   count.textContent=items.filter(i=>unlocked.has(i.id)).length+'/'+items.length+' installed';
-  meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?'Recorded upgrade units are not active payout weight yet. ':'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
+  meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?(s.sharePolicy==='active_for_distributions'?'Upgrade units earn payouts like property shares (1 per 3 XRP). ':'Recorded upgrade units are not active payout weight yet. '):'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
   const isOwner=!!s.ownerAuthorized;
   availability.dataset.tone=!s.owned||!isOwner?'off':!s.purchasesEnabled?'warn':'ok';
   availability.textContent=!s.owned?'This property must be purchased before upgrades can be bought.'

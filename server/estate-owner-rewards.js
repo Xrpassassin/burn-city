@@ -1,6 +1,6 @@
 'use strict';
 
-const { propertyWeight } = require('./estate-economy');
+const { holdingWeight } = require('./estate-economy');
 
 // Combined-owner model: all eligible properties belonging to one XRPL account
 // are combined before profit is allocated. Uses integer drops and largest remainder.
@@ -16,7 +16,7 @@ function allocateOwnerProfit(distributableDrops, holdings) {
   for (const holding of holdings) {
     const propertyId = String(holding?.propertyId || '');
     const acct = String(holding?.acct || '');
-    const weight = propertyWeight(propertyId);
+    const weight = holdingWeight(holding);
     if (!weight || !acct) throw new TypeError('invalid_property_holding');
     if (properties.has(propertyId)) throw new TypeError('duplicate_property_holding');
     properties.add(propertyId);

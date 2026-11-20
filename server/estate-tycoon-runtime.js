@@ -17,7 +17,7 @@ function instructionFor(r){
  return ('BURN City Estates '+what+'. Verify the XRP total and treasury address. Future payouts are not guaranteed.').slice(0,280);
 }
 const qrFor=uuid=>UUID.test(uuid||'')?'https://xumm.app/sign/'+uuid.toLowerCase()+'_q.png':null;
-function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>true,clock=Date.now}={}){
+function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>true,clock=Date.now,onSettled=null}={}){
  const store=createEstateTycoonStore(db);
  const configured=env.ESTATE_TYCOON_UPGRADES_ENABLED==='1'&&config?.DRY_RUN===false&&config?.NETWORK==='mainnet'&&
   !!config?.XUMM_KEY&&!!config?.XUMM_SECRET&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config?.ESTATE_TREASURY||'');
@@ -119,7 +119,13 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
     return {ok:false,pending:true,error:'tycoon_payment_pending'};
    throw e;
   }
-  return {ok:true,property:store.settle({orderId,buyer,txHash:proof.txHash,ledgerIndex:proof.ledgerIndex,now:clock()})};
+  const property=store.settle({orderId,buyer,txHash:proof.txHash,ledgerIndex:proof.ledgerIndex,now:clock()});
+  // Upgrade payouts (#664): hand the freshly settled upgrade to the estate capital service right away
+  // (same instant kick as an estate purchase) instead of waiting up to 15 min for its next wake.
+  // The kick only queues the idempotent route + 90/5/5 split keyed by the payment tx (DB only) and
+  // schedules the single-flight deposit pass; it never sends anything itself. Fresh settles only.
+  if(typeof onSettled==='function')setImmediate(()=>{try{onSettled({orderId,txHash:proof.txHash});}catch(e){console.error('[estate-tycoon] onSettled',e.message);}});
+  return {ok:true,property};
  }
  return {publicState:store.publicState,portfolio:store.ownerPortfolio,quote,start,confirm,enabled,purchaseStatus,store};
 }

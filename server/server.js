@@ -30,7 +30,7 @@ const estateResale=require('./estate-resale-market').createEstateResaleMarket(Pa
   xamanSdk:{payload:{create:(...a)=>Pay.sdk().payload.create(...a),get:(...a)=>Pay.sdk().payload.get(...a)}}});
 const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
-const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused,onSettled:()=>estateMonthly.kick()});
 const EstateAccess = require('./estate-access');
 const estateHome = require('./estate-home-interior').createEstateHomeInteriorStore({db:Pay.sdb,accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store});
 const estateFreeStyles = require('./estate-free-style').createEstateFreeStyleStore({db:Pay.sdb});

@@ -37,7 +37,7 @@ assert(host.includes('if(island.interiorActive){'),'private rooms bypass outdoor
 assert(host.indexOf('if(island.interiorActive){')<host.indexOf('if(board?.active){'),
  'interior control must run before outdoor motion and jump physics');
 assert(host.includes("island.tick(dt,f,s,run);"),'private rooms use the actual real-time host movement axis');
-assert(/island\.tick\(dt,f,s,run\);[^]*?poseMe\(dt,ml,run\)/.test(host)&&host.includes("poseWalker(avatar,P.walk,amp,t,run,L.groundSpeed)"),'private rooms animate walking continuously (shared walker + NFT Gas Mask Guy)');
+assert(/island\.tick\(dt,f,s,run\);[^]*?poseMe\(dt,ml,run\)/.test(host)&&/poseWalker\(avatar,P\.walk,amp,t,run,(?:L\.groundSpeed|sp)\b/.test(host),'private rooms animate walking continuously (shared walker + NFT Gas Mask Guy)');
 assert(host.indexOf('if(island.flightActive){')<host.indexOf('if(board?.active){'),
  'flight override must run before skateboard and gravity handling');
 assert(host.includes('avatar.visible=!P.fp&&!island.flightActive'),'flying player avatar remains hidden after host frame');

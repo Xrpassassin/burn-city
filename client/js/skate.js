@@ -337,7 +337,7 @@ function onQuarterTop(p) {
 function pose(dt) {
   const c = C(), av = c.avatar, t = performance.now() / 1000;
   const pushing = !st.air && !st.grind && st.vel.length() < PUSH_MAX - .2 && K() && (K().KeyW || K().ArrowUp || c.input.joy.y < -.3);
-  poseWalker(av, (st.pushT) * 7, pushing ? .45 : 0, t);
+  poseWalker(av, (st.pushT) * 7, pushing ? .45 : 0, t, false, 0, !!st.air);   // on the board: Gas Mask Guy stands (no walk cycle on a moving deck), Air pose off ramps
   const L = av.userData;
   if (L && L.legs && !pushing) { const cr = .35 + st.crouch * .5 + (st.air ? .35 : 0) + (st.grab > 0 ? .5 : 0); L.legs[0].rotation.x = cr * .6; L.legs[1].rotation.x = -cr * .3; if (L.arms) { L.arms[0].rotation.z = .9; L.arms[1].rotation.z = -.9; } }
   const bh = (board.children[0].userData.deckTop || .085) + .005;

@@ -1387,12 +1387,15 @@ let NET=null;const peers=new Map();window.__city={pedMesh:pedM,audio:()=>({AC,on
 function tlOn(){return !!(window.__wildsTravelLocked&&window.__wildsTravelLocked())}
 // Local player pose for every on-foot path (city, Estates island, home interiors): the shared
 // walker, plus an NFT holder's own Gas Mask Guy, which otherwise stayed frozen off the city
-// streets. `speed` is the measured ground speed so the Walk/Run clips step in time with movement.
-function poseMe(dt,amp,run){const L=avatar.userData,t=performance.now()/1000,q=L.lastPos||(L.lastPos={x:P.pos.x,z:P.pos.z});
+// streets. `speed` is the measured ground speed: it picks Walk/Run/Sprint and steps the feet by
+// distance travelled (no sliding; pushing into a wall = Idle). `air` (city/island gravity paths only)
+// plays the airborne pose; a short grace keeps curbs and steps from flashing it.
+function poseMe(dt,amp,run,air=false){const L=avatar.userData,t=performance.now()/1000,q=L.lastPos||(L.lastPos={x:P.pos.x,z:P.pos.z});
  const raw=dt>0?Math.hypot(P.pos.x-q.x,P.pos.z-q.z)/dt:0;q.x=P.pos.x;q.z=P.pos.z;
- const prev=L.groundSpeed||0;L.groundSpeed=raw>40?prev:prev+(raw-prev)*Math.min(1,dt*10); // ignore teleports
- poseWalker(avatar,P.walk,amp,t,run,L.groundSpeed);
- if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(t,amp>.05,!!P.climb,run,L.groundSpeed);}
+ const prev=L.groundSpeed||0;L.groundSpeed=raw>40?prev:prev+(raw-prev)*(1-Math.exp(-Math.max(0,dt)*12)); // ignore teleports
+ L.airT=air?(L.airT||0)+dt:0;const up=air&&(L.airT>.12||P.vel.y>2),sp=P.climb?1.6:L.groundSpeed;   // climbing steps at a walk
+ poseWalker(avatar,P.walk,amp,t,run,sp,up);
+ if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(t,amp>.05,!!P.climb,run,L.groundSpeed,up);}
 function setMode(m){if((tlOn()||window.__estatesIslandLive?.active)&&m!=='explore')return;const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'&&prev!==m){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
@@ -1591,7 +1594,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    P.vel.y-=MOTION.gravity*dt;P.pos.y+=P.vel.y*dt;if(P.pos.y<=0){P.pos.y=0;P.vel.y=0;P.onGround=true;}else P.onGround=false;
   }
   island.tick(dt,f,s,run,desiredDelta);if(boardHeading!==null)avatar.rotation.y=boardHeading;
-  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseMe(dt,ml,run);}
+  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseMe(dt,ml,run,!P.onGround);}
   avatar.position.copy(P.pos);avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;
  }
  if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run))return;
@@ -1609,9 +1612,9 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
- P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;poseMe(dt,Math.min(1,ml)*(P.onGround?1:.25),run);
+ P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;poseMe(dt,Math.min(1,ml)*(P.onGround?1:.25),run,!P.onGround&&!P.climb);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
- avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
+ avatar.position.copy(P.pos);avatar.position.y+=(L.defaultAvatar?.ready?0:Math.abs(Math.sin(P.walk))*.06*ml)+(P.climb?Math.sin(P.walk*1.4)*.05:0);/* the Gas Mask Guy clips carry their own pelvis bob */avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}
  else{const want=P.pos.clone().setY(P.pos.y+2.3).addScaledVector(dir,-exploreCamDistance);want.y=Math.max(want.y,P.pos.y+.6,.6);const estateCam=window.__estateCameraGuard&&window.__estateCameraGuard(want);C.position.lerp(estateCam||want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.6).addScaledVector(dir,4))}
  let best=null,bd=1e9;E.nodes.forEach(n=>{const d=Math.hypot(P.pos.x-n.pos.x,P.pos.z-n.pos.z);if(d<n.distR&&d<bd){bd=d;best=n}});const dn=best?best.name:'';

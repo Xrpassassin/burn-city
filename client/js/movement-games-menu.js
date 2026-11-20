@@ -56,7 +56,7 @@ panel.setAttribute('role','dialog');
 panel.setAttribute('aria-modal','true');
 panel.setAttribute('aria-labelledby','bcMoveGamesTitle');
 panel.innerHTML = `
- <section class="bc-mg-card">
+ <section class="bc-mg-card" data-notify-inline>
   <header class="bc-mg-head"><div><h2 id="bcMoveGamesTitle">MOVEMENT &amp; GAMES</h2><p class="bc-mg-sub">Choose how to travel or what to play. Everything in one place.</p></div><button class="bc-mg-close" type="button" aria-label="Close menu">×</button></header>
   <div class="bc-mg-tabs" role="tablist" aria-label="Menu category">
    <button class="bc-mg-tab" id="bcMgMovementTab" type="button" role="tab" aria-controls="bcMgMovement" aria-selected="true">⌁ Movement</button>
@@ -114,7 +114,7 @@ if(Q.has('nowilds'))panel.classList.add('no-wilds');
 const touch=()=>window.__city?!!window.__city.MOBILE:matchMedia('(pointer:coarse)').matches;
 const locked=()=>!!(window.__wildsTravelLocked&&window.__wildsTravelLocked())||document.body.classList.contains('wl-travel');
 // Hints go to a city toast (#help is rewritten by every mode change); #help is only a fallback before app.js is up.
-const say=t=>{if(window.__bcToast)window.__bcToast(t,'#ff9b4a');else{const h=document.querySelector('#help');if(h)h.textContent=t}};
+const say=(t,mustAct)=>{if(window.__bcToast)window.__bcToast(t,'#ff9b4a',{priority:mustAct?'critical':'normal'});else{const h=document.querySelector('#help');if(h)h.textContent=t}};
 const go=k=>{if(window.__setBurnMode)window.__setBurnMode(k)};
 // "Take me there": Explore at a real world spot (the same anchors boat.js / fish.js / wilds-gate.js use), facing the thing.
 const spots={
@@ -130,8 +130,8 @@ const MSG={
  wilds:[()=>'🌲 The Wilds gate is just ahead: walk through it to enter the forest.','🌲 The Wilds: walk north of town to the forest gate.'],
 };
 async function travel(k){
- if(window.__estatesIslandLive?.active){say('Return to BURN City before using city travel.');return}
- if(locked()){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.');return}
+ if(window.__estatesIslandLive?.active){say('Return to BURN City before using city travel.',true);return}
+ if(locked()){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.',true);return}
  let s=null;try{s=await spots[k]()}catch(_){}
  const ok=!!(s&&window.__walkTo&&window.__walkTo(s.x,s.z,s.face));
  if(!ok)go('explore');
@@ -169,10 +169,10 @@ panel.addEventListener('click',e=>{
  const game=e.target.closest('[data-game]');
  if(!move&&!game)return;
  const key=move?move.dataset.move:game.dataset.game;
- if(window.__estatesIslandLive?.active){close(false);if(key==='city')window.__estatesIslandLive.returnToCity?.();else say('Return to BURN City before using city travel or games.');return}
+ if(window.__estatesIslandLive?.active){close(false);if(key==='city')window.__estatesIslandLive.returnToCity?.();else say('Return to BURN City before using city travel or games.',true);return}
  close(false);   // every entry closes the panel first, even when it is refused
  if(key==='arena'){const pb=document.getElementById('playBtn');if(pb)pb.click();else location.href='arena/';return}
- if(locked()&&key!=='explore'){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.');return}
+ if(locked()&&key!=='explore'){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.',true);return}
  if(key==='fly'||key==='orbit'||key==='explore'){go(key);return}
  if(key==='tour'){document.querySelector('#tour')?.click();return}
  if(key==='city'){go('orbit');return}

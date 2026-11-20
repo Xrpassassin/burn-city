@@ -1,5 +1,6 @@
 // Retention: daily streak chip, daily zombie challenge, weekly BURN-coin hunt, shareable postcard. Safari-safe, no deps.
 import * as THREE from 'three';
+import { notify } from './notify-lane.mjs';
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev';
 const W = () => window.__city, LS = localStorage, T0 = Date.now();
 const tok = () => { try { return LS.bcToken || '' } catch (e) { return '' } };
@@ -22,8 +23,7 @@ const css = document.createElement('style'); css.textContent = `#rChip{position:
 const chipEl = document.createElement('button'); chipEl.id = 'rChip'; chipEl.setAttribute('aria-label', 'Streak, daily challenge, coin hunt, postcard'); document.body.append(chipEl);
 const chip = () => chipEl.textContent = `🔥 ${st.n} · 🪙 ${hunt.got.length}/5`; chip();
 const panel = document.createElement('div'); panel.id = 'rPanel'; document.body.append(panel);
-const toastEl = document.createElement('div'); toastEl.id = 'rToast'; document.body.append(toastEl);
-function toast(t) { toastEl.textContent = t; toastEl.style.display = 'block'; clearTimeout(toast.k); toast.k = setTimeout(() => toastEl.style.display = 'none', 3500) }
+function toast(t) { notify({ text: t, color: '#ffd27a', key: 'retain:' + t }); } // shared notification lane
 function fishToday() { const d = new Date().toISOString().slice(0, 10), f = J('bcFishDay', {}); return f.d === d ? f.n : 0 }
 async function skinRow() { const el = panel.querySelector('#rSkin'); if (!el || !tok()) return; try { const s = await (await fetch(SRV + '/api/shop', { headers: { authorization: 'Bearer ' + tok() } })).json(); if (!(s.owned || []).includes('drone_burncoin')) return; const on = LS.bcDroneSkin === 'drone_burncoin';
   el.innerHTML = `<button class="b" style="background:#3a2408;border-color:#ffb020">${on ? '✓ BURN Coin Drone equipped (tap to remove)' : '🪙 Equip BURN Coin Drone skin'}</button>`; el.firstChild.onclick = () => { if (on) delete LS.bcDroneSkin; else LS.bcDroneSkin = 'drone_burncoin'; dispatchEvent(new Event('bc-skin')); skinRow() } } catch (e) { } }

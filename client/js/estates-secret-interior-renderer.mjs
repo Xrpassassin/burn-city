@@ -189,9 +189,11 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   const k=.2+.8*(1-Math.pow(reveal,3));
   for(const lamp of illumination)if('intensity' in lamp&&powerOn)lamp.intensity=(lamp.userData?.onIntensity??1)*k;
  }
+ // Entrance light reveal advances every frame whichever camera (third or first person) is active.
+ function tickReveal(dt=1/60){if(active&&reveal>0){reveal=Math.max(0,reveal-Math.max(0,Math.min(.1,dt))/1.1);applyReveal();}}
  function tickCamera({camera,localPosition,yaw,dt=1/60}={}){
   if(!active||!camera?.position||!Number.isFinite(yaw))return false;
-  if(reveal>0){reveal=Math.max(0,reveal-Math.max(0,Math.min(.1,dt))/1.1);applyReveal();}
+  tickReveal(dt);
   const smooth=1-Math.exp(-Math.max(0,Math.min(.1,dt))*11);
   let distance=2.8;
   // Homes have interior walls: pull the camera in so it never sits behind a partition.
@@ -218,7 +220,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
  function hide(){root.visible=false;roomToken++;disposeRoom();models.dispose();}
  function dispose(){if(disposed)return false;disposed=true;hide();scene.remove(root);return true;}
  return {
-  root,origin,setRoom,hide,dispose,setPower,tickCamera,
+  root,origin,setRoom,hide,dispose,setPower,tickCamera,tickReveal,
   move:(position,delta)=>resolveSecretRoomMotion(position,delta,active),
   interaction:position=>secretRoomInteraction(active,position),
   get layout(){return active;},get powerOn(){return powerOn;},

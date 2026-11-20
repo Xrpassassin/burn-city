@@ -102,7 +102,7 @@ const RESERVED = [
 // land under an already-placed toast; info/music/bag/keys/rewards panels and the tower/estate HUDs too.
 export const HUD_PANELS = [
   '#recap', '#info', '#music', '#bagList', '#keysBox', '#keysBtn', '#rPanel', '#fPanel', '#fUI', '#banner',
-  '#perfHud', '#estateInteriorHud', '#bBar', '#webBtn', '#skGearBtn', '#skGear .sg-card', '#cityChat .cbody', '#rpBar'
+  '#perfHud', '#estateInteriorHud', '#bcFpReticle.on', '#bBar', '#webBtn', '#skGearBtn', '#skGear .sg-card', '#cityChat .cbody', '#rpBar'
 ];
 const HUD_PANEL_SEL = HUD_PANELS.join(',');
 

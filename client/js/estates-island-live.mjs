@@ -999,8 +999,10 @@ export async function installEstatesIslandLive({
   function animatePeers(dt){for(const peer of remotePeers.values()){
     const alpha=1-Math.exp(-Math.min(.1,Math.max(0,dt))*12),p=peer.mesh.position;
     const dx=peer.x-p.x,dz=peer.z-p.z,moving=Math.hypot(dx,dz)>.04;
-    p.x+=dx*alpha;p.y+=(peer.y-p.y)*alpha;p.z+=dz*alpha;peer.mesh.rotation.y=peer.r;
-    if(moving)peer.phase+=dt*9;poseWalker(peer.mesh,peer.phase,moving?.8:0,performance.now()/1000);
+    const step=Math.hypot(dx*alpha,dz*alpha);p.x+=dx*alpha;p.y+=(peer.y-p.y)*alpha;p.z+=dz*alpha;peer.mesh.rotation.y=peer.r;
+    // Smoothed ground speed keeps the Gas Mask Guy's steps in time with how fast the peer moves.
+    if(dt>0)peer.speed=(peer.speed||0)+(Math.min(40,step/dt)-(peer.speed||0))*Math.min(1,dt*10);
+    if(moving)peer.phase+=dt*9;poseWalker(peer.mesh,peer.phase,moving?.8:0,performance.now()/1000,(peer.speed||0)>7.5,peer.speed||0);
   }}
   function releaseLease() {
     stopPresence();

@@ -1,0 +1,230 @@
+/* ==========================================================================
+   BURN City "Forge" components (v9) — loaded LAST, presentation only.
+   Uses the tokens in burn-ui-tokens.css. Direction: chunky outlined panels
+   and buttons with a 3D lip + press-in (Clash/Fortnite feel), angled
+   tactical corners and condensed caps (Apex/Valorant), a disciplined HUD
+   (GTA) — in BURN colours: charcoal, ember, heat glow.
+   No DOM, game, payment or notification-logic changes live here.
+   ========================================================================== */
+
+/* ---------- 0. shared recipes ---------- */
+:root{
+  --fg-panel-bg:
+    linear-gradient(135deg,var(--bc-ember) 0 9px,transparent 9.5px) top left/18px 18px no-repeat,         /* ember corner notch */
+    linear-gradient(90deg,rgba(255,139,57,.5),rgba(255,139,57,0) 70%) top left/100% 2px no-repeat,        /* heat edge */
+    linear-gradient(180deg,rgba(30,33,38,.97) 0%,rgba(14,16,19,.97) 100%);
+  --fg-panel-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 0 0 1px rgba(255,139,57,.16),var(--bc-highlight),var(--bc-shadow-panel);
+  --fg-btn-bg:linear-gradient(180deg,#2c3037 0%,#1b1e23 100%);
+  --fg-btn-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),var(--bc-highlight),var(--bc-lip-coal);
+  --fg-btn-shadow-press:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 2px 4px rgba(0,0,0,.45),0 1px 0 #050607;
+  --fg-pri-bg:var(--bc-ember-grad);
+  --fg-pri-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 1px 0 rgba(255,236,210,.6),var(--bc-lip),0 0 18px rgba(255,107,26,.32);
+  --fg-pri-shadow-press:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 2px 5px rgba(120,30,0,.55),0 1px 0 var(--bc-ember-deep);
+}
+@keyframes fgPop{0%{opacity:0;transform:translateY(6px) scale(.94)}100%{opacity:1;transform:none}}
+@keyframes fgStripes{to{background-position:28px 0}}
+@keyframes fgCountPop{0%{transform:scale(1)}35%{transform:scale(1.22)}100%{transform:scale(1)}}
+@keyframes fgGlow{0%,100%{box-shadow:var(--fg-pri-shadow)}50%{box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 1px 0 rgba(255,236,210,.6),var(--bc-lip),0 0 28px rgba(255,140,40,.6)}}
+
+/* icons (Tabler, MIT — see city-credits.html), injected by js/ui-forge.mjs */
+.bc-ico{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.bc-ico+.bc-ico-sp{display:inline-block;width:.35em}
+
+/* ---------- 1. panels + sheets ---------- */
+#hud,#more,#info,#music,#recap,#bagList,#guide .gbox,#keysBox,#rPanel,#fPanel,#vMenu>div,#aegisModal .am-card,
+#bcMoveGamesPanel .bc-mg-card,.jp-sheet>div,#bcEstatesXaman .bc-xaman-card,#bcEstatesLivePrompt{
+  background:var(--fg-panel-bg)!important;
+  border:0!important;
+  border-radius:var(--bc-panel-radius)!important;
+  box-shadow:var(--fg-panel-shadow)!important;
+  -webkit-backdrop-filter:var(--bc-blur)!important;backdrop-filter:var(--bc-blur)!important;
+  color:var(--bc-text);font-family:var(--bc-font-ui)
+}
+#more.open,#bcMoveGamesPanel.on .bc-mg-card,.jp-sheet>div,#bcEstatesXaman .bc-xaman-card,#guide .gbox{animation:fgPop var(--bc-dur-pop) var(--bc-ease-pop) both}
+/* sheet + modal headers: condensed italic caps, ember underline */
+#bcMoveGamesPanel h2,#info h2,#music h2,#recap h3,#guide h3,#rPanel h3,#fPanel h3,#fPanel h2,.jp-sheet h3,#bcEstatesXaman h2,#aegisModal h2,#bcEstatesLivePrompt h2,#bcEstatesLivePrompt h3,#vMenu>div>b{
+  font-family:var(--bc-font-display)!important;font-style:italic;font-weight:800!important;text-transform:uppercase;
+  letter-spacing:var(--bc-track-display)!important;line-height:1.05!important;color:#fff!important;text-shadow:var(--bc-text-shadow);
+  padding-bottom:8px;background:linear-gradient(90deg,var(--bc-ember),rgba(255,139,57,0)) left bottom/72px 3px no-repeat
+}
+#bcMoveGamesPanel h2{font-size:26px!important;color:#fff!important}
+.jp-sheet h3,#bcEstatesXaman h2{font-size:24px!important}
+/* eyebrow / section labels */
+#bcMoveGamesPanel .bc-mg-sec,#hud details.sec>summary,#bcMoveGamesPanel [class*=-label]{font-family:var(--bc-font-display)!important;font-weight:700!important;letter-spacing:var(--bc-track-label)!important;text-transform:uppercase;color:var(--bc-ember)!important}
+/* modal backdrops: flat dim, no blur on phones */
+#bcMoveGamesPanel,.jp-sheet,#bcEstatesXaman,#aegisModal{background:rgba(4,5,7,.7)!important;-webkit-backdrop-filter:var(--bc-blur)!important;backdrop-filter:var(--bc-blur)!important}
+
+/* close buttons: square chunky X */
+#bcMoveGamesPanel .bc-mg-close,#bcEstatesXaman .bc-xaman-close,#info .x,#music .x,#recap .x,#rPanel .x,#fPanel .x,#bagList .bx,#aegisModal .am-x{
+  width:44px!important;height:44px!important;min-width:44px!important;padding:0!important;display:inline-flex!important;align-items:center;justify-content:center;
+  border:0!important;border-radius:var(--bc-radius-sm)!important;background:var(--fg-btn-bg)!important;color:#fff!important;font:800 20px/1 var(--bc-font-display)!important;
+  box-shadow:var(--fg-btn-shadow)!important;transition:transform var(--bc-dur-press) var(--bc-ease-press),box-shadow var(--bc-dur-press)
+}
+
+/* ---------- 2. buttons: chunky, outlined, 3D lip, press-in + pop ---------- */
+#btns>button,#btns .barLink,#btns #bcMoveGamesOpen,#tbtns button,#rChip,#guide button,#bcMoveGamesPanel .bc-mg-tab,
+#bcMoveGamesPanel .bc-mg-item,#bcMoveGamesPanel [data-mg],.jp-sheet button,#bcEstatesXaman .bc-xaman-open,#bcEstatesLivePrompt button,
+#aegisNews .an-actions button,#hud .row.tl button,#bcEstatesExit,#bcEstatesDirectoryButton,#gearBar button,#webBtn,.fg-btn{
+  font-family:var(--bc-font-display)!important;font-weight:700!important;letter-spacing:.03em!important;text-transform:uppercase;
+  border:0!important;border-radius:var(--bc-radius-sm)!important;
+  background:var(--fg-btn-bg)!important;color:var(--bc-text)!important;
+  box-shadow:var(--fg-btn-shadow)!important;text-shadow:0 1px 0 rgba(0,0,0,.5);
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+  transition:transform var(--bc-dur-press) var(--bc-ease-press),box-shadow var(--bc-dur-press) var(--bc-ease-press),filter var(--bc-motion-fast)!important;
+  touch-action:manipulation
+}
+#btns>button,#btns .barLink,#btns #bcMoveGamesOpen{font-size:15px!important;margin-bottom:4px}
+@media (hover:hover){
+  #btns>button:hover,#btns .barLink:hover,#btns #bcMoveGamesOpen:hover,#tbtns button:hover,#guide button:hover,#bcMoveGamesPanel .bc-mg-tab:hover,
+  #bcMoveGamesPanel .bc-mg-item:hover,.jp-sheet button:hover,#bcEstatesLivePrompt button:hover,#bcEstatesXaman .bc-xaman-open:hover,.fg-btn:hover,
+  #bcMoveGamesPanel .bc-mg-close:hover,#bcEstatesXaman .bc-xaman-close:hover{transform:translateY(-1px);filter:brightness(1.12)}
+}
+#btns>button:active,#btns .barLink:active,#btns #bcMoveGamesOpen:active,#tbtns button:active,#rChip:active,#guide button:active,#bcMoveGamesPanel .bc-mg-tab:active,
+#bcMoveGamesPanel .bc-mg-item:active,.jp-sheet button:active,#bcEstatesLivePrompt button:active,#bcEstatesXaman .bc-xaman-open:active,#aegisNews .an-actions button:active,.fg-btn:active,
+#bcMoveGamesPanel .bc-mg-close:active,#bcEstatesXaman .bc-xaman-close:active,#bcEstatesExit:active,#bcEstatesDirectoryButton:active,#gearBar button:active,#webBtn:active{
+  transform:translateY(3px)!important;box-shadow:var(--fg-btn-shadow-press)!important;filter:none}
+/* primary: ember with gold rim (Play, selected mode, confirm actions) */
+#btns #playBtn,#btns>button.on,#btns .seg button.on,#bcMoveGamesPanel .bc-mg-tab[aria-selected=true],#guide .gnext,#guide button.pri,#guide button:last-child,
+#bcEstatesLivePrompt button.primary,#bcEstatesXaman .bc-xaman-open,.fg-btn.primary{
+  background:var(--fg-pri-bg)!important;color:#2b0c00!important;text-shadow:0 1px 0 rgba(255,214,170,.55)!important;box-shadow:var(--fg-pri-shadow)!important}
+#btns #playBtn:active,#btns>button.on:active,#bcMoveGamesPanel .bc-mg-tab[aria-selected=true]:active,#guide .gnext:active,#bcEstatesLivePrompt button.primary:active,
+#bcEstatesXaman .bc-xaman-open:active,.fg-btn.primary:active{box-shadow:var(--fg-pri-shadow-press)!important}
+#btns #playBtn{font-style:italic;font-weight:800!important;font-size:16px!important}
+@media (prefers-reduced-motion:no-preference){#btns #playBtn{animation:fgGlow 2.8s ease-in-out infinite}}
+#btns #moreBtn{font-size:22px!important}
+#btns .seg{background:rgba(10,11,13,.82)!important;border:0!important;box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),var(--bc-highlight)!important;border-radius:var(--bc-radius-sm)!important}
+#btns .seg button{box-shadow:none!important;background:transparent!important;margin:0!important}
+#btns [data-kbd]::after{font-family:var(--bc-font-display)!important;font-size:11px!important;border-color:rgba(255,255,255,.18)!important}
+:is(#btns>button,#btns .barLink,#btns #bcMoveGamesOpen,#tbtns button,#guide button,.jp-sheet button,#bcEstatesLivePrompt button,#bcMoveGamesPanel button):focus-visible{
+  outline:3px solid var(--bc-focus)!important;outline-offset:3px}
+#btns .bc-ico,#bcMoveGamesOpen .bc-ico,#gearBar .bc-ico,#webBtn .bc-ico{width:18px;height:18px;margin-right:6px}
+#gearBar button,#webBtn{min-height:44px;font-size:15px!important;display:inline-flex!important;align-items:center}
+@media (max-width:640px){#btns .bc-ico,#bcMoveGamesOpen .bc-ico{margin-right:4px}#btns .barLink .bc-ico{margin-right:0}}
+
+/* ⋯ overflow menu: list rows with icon tiles */
+#more{padding:8px!important}
+#more button{font-family:var(--bc-font-ui)!important;border-radius:var(--bc-radius-sm)!important;gap:12px}
+#more button .bc-ico{width:20px;height:20px;padding:6px;border-radius:6px;background:rgba(255,139,57,.12);color:var(--bc-ember);box-shadow:inset 0 0 0 1px rgba(255,139,57,.3)}
+#more button::after{font-family:var(--bc-font-display)!important;font-weight:700!important;font-size:16px!important;letter-spacing:.03em;text-transform:uppercase}
+#more button:hover,#more button.on{background:rgba(255,139,57,.1)!important}
+#more .msep{background:linear-gradient(90deg,rgba(255,139,57,.4),transparent)!important;height:2px!important}
+
+/* ---------- 3. tabs ---------- */
+#bcMoveGamesPanel .bc-mg-tabs{gap:8px!important;padding:4px;border-radius:var(--bc-radius-sm);background:rgba(0,0,0,.35);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+#bcMoveGamesPanel .bc-mg-tab{min-height:44px;font-size:17px!important}
+#bcMoveGamesPanel .bc-mg-tab[aria-selected=false]{background:transparent!important;box-shadow:none!important;color:var(--bc-text-muted)!important}
+
+/* Movement & Games list rows */
+#bcMoveGamesPanel .bc-mg-item,#bcMoveGamesPanel [data-mg]{text-transform:none;text-align:left}
+#bcMoveGamesPanel .bc-mg-item b,#bcMoveGamesPanel [data-mg] b,#bcMoveGamesPanel .bc-mg-item strong{font-family:var(--bc-font-display)!important;font-size:18px;letter-spacing:.03em;text-transform:uppercase}
+#bcMoveGamesPanel .bc-mg-item small,#bcMoveGamesPanel .bc-mg-item span:not(.bc-ico){font-family:var(--bc-font-ui);text-transform:none;letter-spacing:0;font-weight:500;color:var(--bc-text-muted)}
+#bcMoveGamesPanel .bc-ico{width:24px;height:24px;color:var(--bc-ember)}
+
+/* ---------- 4. chips ---------- */
+#wchip,#live,#rChip{
+  font-family:var(--bc-font-display)!important;font-weight:700!important;font-size:14px!important;letter-spacing:.03em;
+  border:0!important;border-radius:6px 12px 6px 12px!important;
+  background:linear-gradient(90deg,var(--bc-ember) 0 3px,rgba(14,16,19,.9) 3px)!important;color:var(--bc-text)!important;
+  box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),var(--bc-highlight)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding-left:12px!important
+}
+#live{color:var(--bc-text-muted)!important}
+#rChip{min-height:44px;display:inline-flex!important;align-items:center;gap:4px;text-transform:none;font-size:16px!important;font-variant-numeric:tabular-nums}
+#rChip .bc-ico{width:18px;height:18px}
+#rChip .bc-ico[data-i=flame]{color:var(--bc-ember)}#rChip .bc-ico[data-i=coin]{color:var(--bc-gold)}
+.bc-ty-chips>*,.bc-ty-badge,#aegisNews .an-tag{font-family:var(--bc-font-display)!important;font-weight:700!important;letter-spacing:.06em!important;border-radius:4px 8px 4px 8px!important}
+
+/* ---------- 5. progress bars ---------- */
+#loader .bar,.fg-progress,progress{
+  height:12px!important;border-radius:3px!important;background:#07080a!important;overflow:hidden;
+  box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 2px 4px rgba(0,0,0,.6),0 0 0 3px rgba(255,139,57,.18)!important;border:0}
+#loader .bar i,.fg-progress>i{
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.18) 0 7px,transparent 7px 14px),var(--bc-ember-grad)!important;
+  box-shadow:0 0 14px rgba(255,107,26,.7),inset 0 1px 0 rgba(255,236,210,.55)!important;border-radius:2px}
+@media (prefers-reduced-motion:no-preference){#loader .bar i,.fg-progress>i{animation:fgStripes .8s linear infinite}}
+progress::-webkit-progress-bar{background:#07080a}progress::-webkit-progress-value{background:var(--bc-ember-grad)}progress::-moz-progress-bar{background:var(--bc-ember-grad)}
+
+/* ---------- 6. reward count-up ---------- */
+.fg-count-pop{display:inline-block;animation:fgCountPop var(--bc-dur-pop) var(--bc-ease-pop);color:var(--bc-gold)!important;text-shadow:0 0 12px rgba(255,197,77,.7)}
+
+/* ---------- 7. loading screen ---------- */
+#loader{background:
+  radial-gradient(ellipse 70% 45% at 50% 108%,rgba(255,91,20,.42),transparent 70%),
+  radial-gradient(ellipse at 50% 40%,#1c1410 0%,#0b0907 60%,#050404 100%)!important;gap:16px!important}
+#loader .lt{font:italic 800 clamp(40px,10vw,76px)/.9 var(--bc-font-display)!important;letter-spacing:.02em!important;color:#fff!important;
+  text-shadow:0 3px 0 #000,0 0 32px rgba(255,107,26,.75),0 0 2px #ffcf9e!important;-webkit-text-stroke:1px rgba(0,0,0,.4)}
+#loader .bar{width:min(380px,74vw)!important}
+#loader #ltxt{font:700 15px/1.2 var(--bc-font-display)!important;letter-spacing:var(--bc-track-label);text-transform:uppercase;color:var(--bc-ember)!important}
+#loader .lsrc{font-family:var(--bc-font-ui)!important;color:var(--bc-text-dim)!important}
+
+/* ---------- 8. welcome guide ---------- */
+#guide .gbox{padding:22px!important}
+#guide .gbox h3{font-size:26px!important}
+#guide .gbox p{font-family:var(--bc-font-ui);font-size:15px;line-height:1.5;color:var(--bc-text-muted)}
+#guide button{min-height:44px;padding:0 18px!important;font-size:16px!important}
+#guide .gdots i,#guide .dots i,#guide [class*=dot] i{border-radius:2px!important;width:14px!important;height:6px!important;transform:skewX(-20deg)}
+
+/* ---------- 9. toasts in the #669 lane (style only; queue/lane/quiet logic untouched) ---------- */
+#bcNotifyLane>.toast{
+  font:600 14px/1.35 var(--bc-font-ui)!important;color:var(--bc-text)!important;
+  background:linear-gradient(90deg,var(--c,var(--bc-ember)) 0 5px,rgba(16,18,22,.96) 5px)!important;
+  border:0!important;border-radius:4px 12px 4px 12px!important;padding:10px 14px 10px 16px!important;
+  box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),var(--bc-highlight),0 6px 18px rgba(0,0,0,.45)!important;
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+#bcNotifyLane>.toast b{font-family:var(--bc-font-display);font-weight:800;letter-spacing:.02em}
+#bcNotifyLane>.toast:not(.in){transform:translateY(-6px) scale(.96)!important}
+#bcNotifyLane>.toast.in{transition:opacity .2s,transform var(--bc-dur-pop) var(--bc-ease-pop)!important}
+.bc-inline-note{font-family:var(--bc-font-ui)!important;border:0!important;border-radius:4px 10px 4px 10px!important;
+  background:linear-gradient(90deg,var(--c,var(--bc-ember)) 0 4px,rgba(28,18,12,.96) 4px)!important;box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline)!important}
+
+/* ---------- 10. AEGIS ticker: still slim, top, tappable — just Forge type ---------- */
+#aegisNews{box-shadow:0 2px 0 rgba(0,0,0,.6)!important}
+#aegisNews .an-brand{font-family:var(--bc-font-display)!important;font-style:italic;font-weight:800!important;font-size:13px!important;letter-spacing:.08em!important}
+#aegisNews .an-item{font-family:var(--bc-font-display)!important;font-weight:600!important;font-size:14px!important;letter-spacing:.02em}
+#aegisNews .an-actions button{min-height:44px!important;font-size:14px!important}
+
+/* ---------- 11. touch controls ---------- */
+#joy{background:radial-gradient(circle,rgba(20,22,26,.35) 0 55%,rgba(255,139,57,.08) 56%)!important;box-shadow:0 0 0 var(--bc-outline-w) rgba(0,0,0,.5),inset 0 0 0 2px rgba(255,139,57,.35)!important;border:0!important}
+#knob{background:radial-gradient(circle at 40% 35%,#ffcf96,#ff8b39 45%,#c4400a)!important;box-shadow:0 0 0 2px rgba(0,0,0,.65),0 4px 0 rgba(0,0,0,.45),0 0 16px rgba(255,107,26,.5)!important}
+#tbtns button{border-radius:50%!important;font-size:18px!important;min-width:56px;min-height:56px}
+#tbtns #tUse{background:var(--fg-pri-bg)!important;color:#2b0c00!important;box-shadow:var(--fg-pri-shadow)!important;font-size:19px!important;font-weight:800!important}
+
+/* ---------- 12. HUD declutter ---------- */
+/* on foot / flying: market-weather + live-feed chips belong to the overview, not to gameplay */
+body.mExplore #status,body.mFly #status{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+/* the long keyboard hint fades back once you know it */
+@media (hover:hover){body.mExplore #help{opacity:.55;transition:opacity var(--bc-motion-panel)}body.mExplore #help:hover{opacity:1}}
+#hud .hdr .brand{font-family:var(--bc-font-display)!important;font-style:italic;font-weight:800!important;font-size:16px!important;letter-spacing:.06em!important}
+#hud #tot b,#hud #burnCount b,#hud .kpi b{font-family:var(--bc-font-display);font-weight:800;font-size:1.12em;color:#fff}
+
+/* ---------- 13. Xaman sign-in / QR ---------- */
+#bcEstatesXaman .bc-xaman-card{padding:22px!important}
+#bcEstatesXaman .bc-xaman-qr{border-radius:6px!important;box-shadow:0 0 0 3px var(--bc-ember),0 0 0 5px #000,0 0 24px rgba(255,107,26,.35)!important;background:#fff}
+#bcEstatesXaman .bc-xaman-status{font-family:var(--bc-font-display);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--bc-ember)!important}
+#bcEstatesXaman .bc-xaman-open{min-height:48px;display:inline-flex;align-items:center;justify-content:center;padding:0 22px;font-size:18px!important;text-decoration:none}
+
+/* ---------- 14. jetpack shop ---------- */
+.jp-sheet>div{padding:22px!important}
+.jp-sheet button{min-height:44px!important;padding:0 18px!important;font-size:16px!important}
+.jp-sheet a{font-family:var(--bc-font-display);font-weight:700;color:var(--bc-ember)}
+
+/* ---------- 15. Estates (in-game island prompt + Tycoon shop/cart) ---------- */
+#bcEstatesLivePrompt button{min-height:44px!important;font-size:15px!important}
+.bc-tycoon>summary{font-family:var(--bc-font-display)!important;font-weight:800!important;font-style:italic;text-transform:uppercase;letter-spacing:.04em;font-size:18px!important}
+.bc-ty-item{border:0!important;border-radius:4px 12px 4px 12px!important;box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),inset 0 0 0 1px rgba(255,139,57,.14),var(--bc-highlight)!important}
+.bc-ty-price,.bc-ty-cart-sum b,.bc-ty-count{font-family:var(--bc-font-display)!important;font-weight:800!important;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.bc-ty-price{color:var(--bc-gold)!important}
+.bc-ty-acts button,.bc-ty-cart button,.bc-ty-order button{font-family:var(--bc-font-display)!important;font-weight:700!important;text-transform:uppercase;letter-spacing:.03em;
+  border:0!important;border-radius:var(--bc-radius-sm)!important;min-height:44px;box-shadow:var(--fg-btn-shadow)!important;transition:transform var(--bc-dur-press),box-shadow var(--bc-dur-press)}
+.bc-ty-acts button:active,.bc-ty-cart button:active,.bc-ty-order button:active{transform:translateY(3px);box-shadow:var(--fg-btn-shadow-press)!important}
+.bc-ty-cart{border-radius:4px 12px 4px 12px!important;box-shadow:0 0 0 var(--bc-outline-w) var(--bc-outline),0 0 0 4px rgba(255,139,57,.22),var(--bc-highlight)!important}
+
+/* ---------- 16. phones: keep it light ---------- */
+@media (max-width:640px){
+  #btns>button,#btns .barLink,#btns #bcMoveGamesOpen{font-size:14px!important}
+  #bcMoveGamesPanel h2{font-size:23px!important}
+}
+@media (prefers-reduced-motion:reduce){
+  #more.open,#bcMoveGamesPanel.on .bc-mg-card,.jp-sheet>div,#bcEstatesXaman .bc-xaman-card,#guide .gbox,.fg-count-pop{animation:none!important}
+  #btns>button,#tbtns button,#bcMoveGamesPanel button,.jp-sheet button,#guide button{transition:none!important}
+}

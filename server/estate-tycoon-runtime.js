@@ -1,7 +1,7 @@
 'use strict';
 // Authenticated opt-in Xaman flow for tycoon upgrades. Nothing is signed here.
 const crypto=require('node:crypto');
-const {createEstateTycoonStore}=require('./estate-tycoon');
+const {createEstateTycoonStore,cartKey,orderItems}=require('./estate-tycoon');
 const {verifyEstateSalePayment}=require('./estate-sale-payment-verifier');
 const MEMO='burncity/estates/tycoon';
 const ABANDON_GRACE_MS=5*60000;
@@ -10,6 +10,12 @@ const hex=s=>Buffer.from(s,'utf8').toString('hex').toUpperCase();
 // 'tycoon_'+40 hex = 47 chars, so the payload identifier is just the 40 hex chars (lossless).
 const xamanIdentifier=orderId=>String(orderId).replace(/^tycoon_/,'');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// One Payment for the exact total; the instruction lists what the single signature buys.
+function instructionFor(r){
+ let items;try{items=orderItems(r.item_id);}catch{items=[];}
+ const what=items.length>1?items.length+' upgrades in one payment ('+items.map(i=>i.name+' '+i.priceXrp).join(', ')+' XRP)':'tycoon upgrade';
+ return ('BURN City Estates '+what+'. Verify the XRP total and treasury address. Future payouts are not guaranteed.').slice(0,280);
+}
 const qrFor=uuid=>UUID.test(uuid||'')?'https://xumm.app/sign/'+uuid.toLowerCase()+'_q.png':null;
 function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>true,clock=Date.now}={}){
  const store=createEstateTycoonStore(db);
@@ -18,9 +24,13 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  const purchaseStatus=()=>!configured?'not_activated':paused()?'treasury_paused':'available';
  const enabled=()=>purchaseStatus()==='available';
  const gate=()=>!configured?{ok:false,error:'tycoon_purchases_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
- function quote({propertyId,buyer,itemId}){
-  try{return {ok:true,...store.quote({propertyId,buyer,itemId}),purchasesEnabled:enabled(),purchaseStatus:purchaseStatus()};}
-  catch(e){if(['unknown_property','unknown_upgrade_item'].includes(e.message))return {ok:false,error:e.message};throw e;}
+ // A cart arrives as itemIds (2+ distinct catalogue ids for one property); it is priced and keyed
+ // server-side. A single id (itemId or a one-element itemIds) keeps the original single-item flow.
+ const CLIENT_ERRORS=['unknown_property','unknown_upgrade_item','invalid_upgrade_cart'];
+ const resolveItem=({itemId,itemIds})=>Array.isArray(itemIds)?cartKey(itemIds.map(String)):itemId;
+ function quote({propertyId,buyer,itemId,itemIds}){
+  try{return {ok:true,...store.quote({propertyId,buyer,itemId:resolveItem({itemId,itemIds})}),purchasesEnabled:enabled(),purchaseStatus:purchaseStatus()};}
+  catch(e){if(CLIENT_ERRORS.includes(e.message))return {ok:false,error:e.message};throw e;}
  }
  // An expired request that was never paid would otherwise hold the property's single pending
  // slot forever. Release it only with positive evidence that nothing can still be paid:
@@ -55,12 +65,13 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
    return typeof p?.meta?.uuid==='string'&&p.meta.uuid?p:undefined;}
   catch(e){return /\bError code 404\b/.test(String(e?.message))?null:undefined;}
  }
- async function start({propertyId,buyer,itemId}){
+ async function start({propertyId,buyer,itemId,itemIds}){
   const blocked=gate();if(blocked)return blocked;
+  try{itemId=resolveItem({itemId,itemIds});}catch(e){if(CLIENT_ERRORS.includes(e.message))return {ok:false,error:e.message};throw e;}
   const held=store.pendingRow(propertyId);
   if(held&&held.buyer===buyer)await releaseAbandoned(held);
   let r;try{r=store.reserve({propertyId,buyer,itemId,orderId:'tycoon_'+crypto.randomBytes(20).toString('hex'),now:clock()});}
-  catch(e){if(['property_owner_required','unknown_property','unknown_upgrade_item','upgrade_already_owned','upgrade_prerequisites_missing','upgrade_tier_restricted','another_upgrade_pending'].includes(e.message))return {ok:false,error:e.message};throw e;}
+  catch(e){if(['property_owner_required','unknown_property','unknown_upgrade_item','invalid_upgrade_cart','upgrade_already_owned','upgrade_prerequisites_missing','upgrade_tier_restricted','another_upgrade_pending'].includes(e.message))return {ok:false,error:e.message};throw e;}
   if(clock()>r.expires_at-60000)return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};
   if(r.payload_uuid){
    const p=await pay.sdk().payload.get(r.payload_uuid);
@@ -76,7 +87,7 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
     TransactionType:'Payment',Account:buyer,Destination:config.ESTATE_TREASURY,Amount:String(r.price_drops),
     Memos:[{Memo:{MemoType:hex(MEMO),MemoData:hex(r.order_id)}}]
    },options:{submit:true,expire:Math.max(1,Math.floor((r.expires_at-clock())/60000))},
-   custom_meta:{identifier:xamanIdentifier(r.order_id),instruction:'BURN City Estates tycoon upgrade. Verify XRP price and treasury address. Shares recorded only; future payouts are not guaranteed.'}});
+   custom_meta:{identifier:xamanIdentifier(r.order_id),instruction:instructionFor(r)}});
    if(typeof p?.uuid!=='string'||!p.uuid||typeof p?.next?.always!=='string')throw Error('invalid_payload');
    db.prepare("UPDATE estate_tycoon_orders SET payload_state='bound',payload_uuid=? WHERE order_id=? AND payload_state='creating'").run(p.uuid,r.order_id);
    if(clock()>r.expires_at)return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};

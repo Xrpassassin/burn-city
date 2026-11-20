@@ -113,7 +113,7 @@ export function installNotifyLane(win = globalThis.window) {
   const doc = win.document, now = () => win.performance.now();
   const queue = createNotifyQueue();
   const shown = new Set();
-  let lane = null, lastShow = -Infinity, quietUntil = 0, wasQuiet = false, banner = null;
+  let lane = null, lastPlace = -Infinity, lastShow = -Infinity, quietUntil = 0, wasQuiet = false, banner = null;
   const touches = new Set(); let lastTouch = -Infinity;
 
   const style = doc.createElement('style');
@@ -280,7 +280,8 @@ export function installNotifyLane(win = globalThis.window) {
       if (quiet && shown.size) {
         for (const node of [...shown]) if (node.dataset.priority !== 'critical') { node._resume = true; clearTimeout(node._t); }
         lane.classList.remove('on');
-      } else if (shown.size) {
+      } else if (shown.size && (t - lastPlace > 500 || !lane.classList.contains('on'))) {
+        lastPlace = t; // re-check for newly appeared buttons/prompts twice a second, not every tick
         if (place()) for (const node of shown) if (node._resume) { node._resume = false; arm(node, 2500); }
       }
     }

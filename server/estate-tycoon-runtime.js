@@ -6,6 +6,11 @@ const {verifyEstateSalePayment}=require('./estate-sale-payment-verifier');
 const MEMO='burncity/estates/tycoon';
 const ABANDON_GRACE_MS=5*60000;
 const hex=s=>Buffer.from(s,'utf8').toString('hex').toUpperCase();
+// Xaman rejects custom_meta.identifier longer than 40 chars (HTTP 413). Order ids are
+// 'tycoon_'+40 hex = 47 chars, so the payload identifier is just the 40 hex chars (lossless).
+const xamanIdentifier=orderId=>String(orderId).replace(/^tycoon_/,'');
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const qrFor=uuid=>UUID.test(uuid||'')?'https://xumm.app/sign/'+uuid.toLowerCase()+'_q.png':null;
 function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>true,clock=Date.now}={}){
  const store=createEstateTycoonStore(db);
  const configured=env.ESTATE_TYCOON_UPGRADES_ENABLED==='1'&&config?.DRY_RUN===false&&config?.NETWORK==='mainnet'&&
@@ -22,8 +27,19 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  // either no Xaman payload was ever created, or Xaman reports it expired/cancelled unsigned.
  // 'creating' (ambiguous remote create) and anything signed stay held for manual review.
  async function releaseAbandoned(r){
-  if(!r||r.status!=='reserved'||clock()<=r.expires_at+ABANDON_GRACE_MS||r.payload_state==='creating')return false;
+  if(!r||r.status!=='reserved'||clock()<=r.expires_at+ABANDON_GRACE_MS)return false;
   let reason='payload_never_created';
+  if(r.payload_state==='creating'){
+   // An ambiguous create. Ask Xaman by our custom identifier: a definitive 404 proves no
+   // payable request exists; a found payload is bound (if signed, confirm can settle it).
+   const found=await lookupByIdentifier(r);
+   if(found===undefined)return false;
+   if(found){
+    db.prepare("UPDATE estate_tycoon_orders SET payload_state='bound',payload_uuid=? WHERE order_id=? AND payload_state='creating'").run(found.meta.uuid,r.order_id);
+    r={...r,payload_state:'bound',payload_uuid:found.meta.uuid};
+   }else db.prepare("UPDATE estate_tycoon_orders SET payload_state='none' WHERE order_id=? AND payload_state='creating'").run(r.order_id);
+   if(!found)r={...r,payload_state:'none'};
+  }
   if(r.payload_state==='bound'){
    let p;try{p=await pay.sdk().payload.get(r.payload_uuid);}catch{return false;}
    const m=p?.meta||{};
@@ -32,6 +48,12 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
    reason='payload_unsigned_expired';
   }else if(r.payload_state!=='none')return false;
   return store.voidAbandoned({orderId:r.order_id,now:clock(),graceMs:ABANDON_GRACE_MS,reason});
+ }
+ // undefined = unknown (network/other error: keep holding), null = definitively not found.
+ async function lookupByIdentifier(r){
+  try{const p=await pay.sdk().payload.get('ci/'+xamanIdentifier(r.order_id),true);
+   return typeof p?.meta?.uuid==='string'&&p.meta.uuid?p:undefined;}
+  catch(e){return /\bError code 404\b/.test(String(e?.message))?null:undefined;}
  }
  async function start({propertyId,buyer,itemId}){
   const blocked=gate();if(blocked)return blocked;
@@ -43,7 +65,7 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
   if(r.payload_uuid){
    const p=await pay.sdk().payload.get(r.payload_uuid);
    if(typeof p?.next?.always!=='string')return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};
-   return {ok:true,orderId:r.order_id,deeplink:p.next.always,reused:true};
+   return {ok:true,orderId:r.order_id,deeplink:p.next.always,qr:qrFor(r.payload_uuid),reused:true};
   }
   // Persist creation claim before external call: ambiguous timeouts may have created a
   // payable payload; hold rather than creating duplicates.
@@ -54,14 +76,14 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
     TransactionType:'Payment',Account:buyer,Destination:config.ESTATE_TREASURY,Amount:String(r.price_drops),
     Memos:[{Memo:{MemoType:hex(MEMO),MemoData:hex(r.order_id)}}]
    },options:{submit:true,expire:Math.max(1,Math.floor((r.expires_at-clock())/60000))},
-   custom_meta:{identifier:r.order_id,instruction:'BURN City Estates tycoon upgrade. Verify XRP price and treasury address. Shares recorded only; future payouts are not guaranteed.'}});
+   custom_meta:{identifier:xamanIdentifier(r.order_id),instruction:'BURN City Estates tycoon upgrade. Verify XRP price and treasury address. Shares recorded only; future payouts are not guaranteed.'}});
    if(typeof p?.uuid!=='string'||!p.uuid||typeof p?.next?.always!=='string')throw Error('invalid_payload');
    db.prepare("UPDATE estate_tycoon_orders SET payload_state='bound',payload_uuid=? WHERE order_id=? AND payload_state='creating'").run(p.uuid,r.order_id);
    if(clock()>r.expires_at)return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};
    if(store.quote({propertyId,buyer,itemId}).ownerAuthorized!==true)return {ok:false,error:'property_owner_changed',orderId:r.order_id};
    if(paused())return {ok:false,error:'estate_treasury_paused',orderId:r.order_id};
-   return {ok:true,orderId:r.order_id,deeplink:p.next.always};
-  }catch{return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};}
+   return {ok:true,orderId:r.order_id,deeplink:p.next.always,qr:qrFor(p.uuid)};
+  }catch(e){console.warn('[estate-tycoon] Xaman payload create failed for',xamanIdentifier(r.order_id)+':',String(e?.message||e).slice(0,160));return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};}
  }
  async function confirm({orderId,buyer}){
   if(!configured)return {ok:false,error:'tycoon_purchases_disabled'};
@@ -90,4 +112,4 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  }
  return {publicState:store.publicState,portfolio:store.ownerPortfolio,quote,start,confirm,enabled,purchaseStatus,store};
 }
-module.exports={createEstateTycoonRuntime};
+module.exports={createEstateTycoonRuntime,xamanIdentifier};

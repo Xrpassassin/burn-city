@@ -22,6 +22,10 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const fmtN = x => x == null ? '—' : x >= 1e12 ? (x / 1e12).toFixed(2) + 'T' : x >= 1e9 ? (x / 1e9).toFixed(2) + 'B' : x >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'k' : x >= 1 ? x.toFixed(1) : x.toPrecision(3);
 const pctS = x => x == null ? '—' : (x >= 10 ? x.toFixed(1) : x >= 1 ? x.toFixed(2) : x.toFixed(3)) + '%';
 const STALE_MS = 6 * 3600e3;
+// Historical project snapshot: visual fallback, never a fresh verified audit.
+const BURN_ORIGINAL = 1_000_000_000_000_000;
+const BURN_LAST_REPORTED_OUTSTANDING = 34_843_974_557_394.52;
+const BURN_MANUAL_FRACTION = (BURN_ORIGINAL - BURN_LAST_REPORTED_OUTSTANDING) / BURN_ORIGINAL;
 
 // fixture: every acceptance case, mapped onto real bridges/tokens so it renders in the real city
 function fixture(bridges, N) {
@@ -115,6 +119,7 @@ export function initAmmLock(c) {
     if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
     const supply = verifiedSupplyFraction(o?.supply_reconciliation,N[k]?.key);
     if(supply!==null && fresh(o))return {st:'verified',o:{...o,burned:o.supply_reconciliation.burned,burned_pct:supply*100},f:supply,net:true};
+    if(k==='BURN')return {st:'manual',o,f:BURN_MANUAL_FRACTION,net:true};
     // IMM and XRPyro use a separately validated launch-vs-outstanding snapshot.
     // No legacy holder ratio or market supply is eligible to scale the singularity.
     const ecosystem = verifiedEcosystemSupplyFraction(o?.supply_reconciliation,k);
@@ -149,7 +154,7 @@ export function initAmmLock(c) {
     // partial/unknown and reported-only percentages never look gold.
     bridges.forEach(publishLock);
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified' || v.st === 'estimated', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = k==='BURN' && v.f>0 ? 36 + 12 * Math.sqrt(v.f) : blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified' || v.st === 'estimated', _v);
       if(on) { const slot=visibleSingularities++;
         _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);
         // BURN purple, IMM turquoise, XRPyro ember-orange; one batched shader and one singularity per token.
@@ -174,7 +179,7 @@ export function initAmmLock(c) {
   apply(); load(); if (!TEST) setInterval(load, 10 * 60e3);
 
   // ---- cards (reuse #info styling: table rows, .dim) ----
-  const badge = (s, stale) => s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'estimated' ? '<b style="color:#ffd27a">◐ ESTIMATED (launch minus supply)</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
+  const badge = (s, stale) => s === 'manual' ? '<b style="color:#ffd27a">◐ HISTORICAL SNAPSHOT (not live verified)</b>' : s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'estimated' ? '<b style="color:#ffd27a">◐ ESTIMATED (launch minus supply)</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
   const CLS = { permanent: ['#ffc64a', 'permanently locked'], time_locked: ['#ff9d3c', 'time-locked'], held: ['#8fd8ff', 'held (keys exist)'], unknown: ['#c9c9d6', 'unverified'], burned: ['#b98cff', 'black hole'], designated: ['#d9a7ff', 'sent to designated address'] };
   const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified supply reduction · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
   function poolHTML(p) {
@@ -192,6 +197,7 @@ export function initAmmLock(c) {
   function tokHTML(k) {
     const v = tokOf(k), o = v.o, stale = o && !fresh(o), n = N[k]; const rows = [['Burn status', badge(v.st, stale)]];
     if(!st.data?.fixture){
+      if(k==='BURN' && v.st==='manual')return '<div class="amml"><h3>BURN black hole — historical visual estimate</h3><p><b>'+ (BURN_MANUAL_FRACTION*100).toFixed(4) +'% net supply reduction (historical snapshot)</b></p><p>Original issuance: 1,000,000,000,000,000 BURN. Last reported outstanding: 34,843,974,557,394.52 BURN (November 3, 2026). Not a live verified reading or complete issuer-return audit. The giant black hole remains visible during verification outages.</p></div>';
       const supplyCard = supplyReconciliationCard({record:fresh(o)?o?.supply_reconciliation:null,tokenKey:n?.key,tokenName:k});
       if(supplyCard)return supplyCard;
       const ecosystemCard = ecosystemSupplyCard({record:fresh(o)?o?.supply_reconciliation:null,tokenName:k});

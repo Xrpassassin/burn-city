@@ -4,6 +4,7 @@
 // Phone-first: every prop is an InstancedMesh (one draw call per material, untextured materials are baked into
 // one vertex-colour material), small textures, distance culling, fewer birds on phones. Disable with ?props=0.
 import * as THREE from 'three';
+import { createPiratePartyBarge } from './pirate-party-barge.mjs';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { propBudget, layoutShops, doorStep, pigeonHomes, pigeonStep, flyPos, duckPos, hash } from './cityprops-core.mjs';
@@ -88,7 +89,7 @@ async function init() {
   const PP = kit(part(pig, 'perch'), birds.length, 'pigeon', grp), PU = kit(part(pig, 'flapUp'), birds.length, 'pigeon', grp), PD = kit(part(pig, 'flapDown'), birds.length, 'pigeon', grp);
 
   // --- lake: ducks + the moored fisherman's boat (waits for the fishing dock to exist)
-  let ducks = [], DK = null, BT = null, boatAt = null;
+  let ducks = [], DK = null, BT = null, boatAt = null, partyBarge = null;
   const lake = () => {
     const e = window.__estate, f = window.__fishWorld; if (!e || !e.inLake || !f || !f.dock) return false;
     const { base, dir, side } = f.dock, yaw = Math.atan2(dir.x, dir.z);
@@ -100,7 +101,14 @@ async function init() {
       if (!water(p.x, p.z, r + 1) || ducks.some(d => Math.hypot(d.x - p.x, d.z - p.z) < 3)) continue;
       ducks.push({ x: p.x, z: p.z, r, w: (hash(i, 4) > .5 ? 1 : -1) * (.12 + hash(i, 5) * .1), ph: hash(i, 6) * 6.283 }); k++;
     }
-    DK = kit(part(duck, 'body'), ducks.length, 'duck', grp); return true;
+    DK = kit(part(duck, 'body'), ducks.length, 'duck', grp);
+    partyBarge = createPiratePartyBarge({
+      scene: grp, lake: e, shoreAt: f.shoreAt, decks: window.__decks,
+      colliders: c.colliders, low: c.MOBILE || c.TIER === 'low',
+    });
+    if (partyBarge) (window.__interactors ||= []).push(partyBarge.interact);
+    P.partyBarge = partyBarge;
+    return true;
   };
   let lakeTry = 0;
 
@@ -113,7 +121,7 @@ async function init() {
     return d;
   };
   function tick() {
-    requestAnimationFrame(tick); if (window.__cityPaused) return;
+    requestAnimationFrame(tick); if (window.__cityPaused) { partyBarge?.update(0, pp, false); return; }
     const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; T += dt;
     cam.getWorldPosition(pp);
     // doors
@@ -132,6 +140,7 @@ async function init() {
     PP.commit(np); PU.commit(nu); PD.commit(nd);
     for (const k of [PP, PU, PD]) k.cull(pp, B.cullBirds);
     // lake
+    if (partyBarge) partyBarge.update(dt, pp, c.getMode() === 'explore' && !window.__estatesIslandLive?.active && !window.__burnTowerOpen);
     if (!DK && lakeTry < 120 && (T > lakeTry * .5)) { lakeTry++; try { lake(); } catch (e) { lakeTry = 999; console.warn('props: lake', e); } }
     if (DK) { ducks.forEach((d, i) => { const p = duckPos(d, T); DK.set(i, place(p.x, WATER - .08 + p.bob, p.z, p.yaw + DUCK_YAW, 1.4)); }); DK.commit(ducks.length); DK.cull(pp, B.cullLake); }
     if (BT && boatAt) { BT.set(0, place(boatAt.x, WATER - .1 + Math.sin(T * 1.1) * .03, boatAt.z, boatAt.yaw + Math.sin(T * .3) * .04, 1, 1, 1, Math.sin(T * 1.3) * .025)); BT.commit(1); BT.cull(pp, B.cullLake); }

@@ -63,7 +63,7 @@ let near = null;
 function board() { if (!near) return; B.cur = near; B.active = true; B.pos.copy(near.m.position) }
 function leave() { const d = nearDock(); if (!d) return; const c = W(), b = B.cur; B.active = false; b.v = 0; c.P.pos.copy(d.base).addScaledVector(window.__fishWorld.dock.dir, 3).setY(1.2); c.P.vel.set(0, 0, 0); B.cur = null }
 const nearDock = () => docks.find(d => { const p = B.pos; for (let k = 0; k <= 4; k++) { const q = d.base.clone().lerp(d.tip, k / 4); if (Math.hypot(q.x - p.x, q.z - p.z) < 9) return true } return false });
-const inside = (x, z) => window.__estate.inLake(x, z);
+const inside = (x, z) => window.__estate.inLake(x, z) && !window.__cityProps?.partyBarge?.blocksBoat(x, z);
 // called from updExplore while active: f throttle, s steer
 B.drive = (dt, f, s) => { const b = B.cur, c = W(), t = performance.now() / 1000; const power = b.boat?.speed || 1; b.v += f * 14 * power * dt; b.v *= Math.pow(0.55, dt); b.v = Math.max(-4, Math.min(14 * power, b.v));
   b.h -= s * dt * (0.4 + Math.min(1.4, Math.abs(b.v) * 0.18)) * Math.sign(b.v || 1);

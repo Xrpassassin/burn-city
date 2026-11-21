@@ -204,7 +204,14 @@ function build() {
   rod = { rg, rm, seg, tip, line, lg, fm, swing: 0, lift: 0, pull: 0, drops, dv: new Float32Array(NDp * 3), ring, from: new THREE.Vector3(), r: 0 };
   window.__fishWorld = { dock, shopPos, shoreAt };
   const decks = window.__decks = window.__decks || []; decks.push({ base, dir, side, v0: -3, v1: 21.6, hw: 2.1, h: 1.2 });
-  window.__deckAt = (x, z) => { for (const k of decks) { const dx = x - k.base.x, dz = z - k.base.z, v = dx * k.dir.x + dz * k.dir.z, u = dx * k.side.x + dz * k.side.z; if (v > k.v0 && v < k.v1 && Math.abs(u) < k.hw) return k.h } return null };
+  window.__deckAt = (x, z) => {
+    for (const deck of decks) {
+      const dx = x - deck.base.x, dz = z - deck.base.z;
+      const v = dx * deck.dir.x + dz * deck.dir.z, u = dx * deck.side.x + dz * deck.side.z;
+      if (v > deck.v0 && v < deck.v1 && Math.abs(u) < deck.hw) return deck.heightAt ? deck.heightAt(v) : deck.h;
+    }
+    return null;
+  };
 }
 // ---------- UI ----------
 const css = document.createElement('style'); css.textContent = `#fBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));display:none;gap:8px;z-index:31}#fBar button,#fUI button{font:700 15px system-ui;padding:11px 16px;border-radius:12px;border:1px solid #7dffb066;background:#0b1a12e6;color:#dfffe9}

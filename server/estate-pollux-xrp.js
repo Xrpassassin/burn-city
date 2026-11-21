@@ -29,7 +29,7 @@ function memoCount(tx, test) {
   }).length;
 }
 
-function matchesPoolReward(tx, pool, asset) {
+function matchesPoolReward(tx, pool, asset, { allowNativeImgFloor = false } = {}) {
   return (tx.Memos || []).filter(({ Memo }) => {
     const hex = Memo?.MemoData;
     if (!/^(?:[A-Fa-f0-9]{2})+$/.test(hex || '') || hex.length > 8192) return false;
@@ -37,9 +37,14 @@ function matchesPoolReward(tx, pool, asset) {
       const memo = JSON.parse(Buffer.from(hex, 'hex').toString('utf8'));
       if (memo.rewardAsset !== asset || typeof memo.roundId !== 'string' || !memo.roundId) return false;
       if (memo.payoutType === 'lp') return memo.poolAccount === pool;
-      return pool === 'rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ' && memo.payoutType === 'lp_floor' && memo.floorToken === 'IMG' &&
-        memo.pools?.length === 1 && memo.pools[0] === 'PLX/IMG' &&
-        memo.floorKey === 'IMG:rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
+      if (pool !== 'rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ' || memo.payoutType !== 'lp_floor' ||
+          !Array.isArray(memo.pools) || memo.pools.length !== 1 || memo.pools[0] !== 'PLX/IMG' ||
+          memo.floorKey !== 'IMG:rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd') return false;
+      if (memo.floorToken === 'IMG') return true;
+      // Pollux's direct IMG floor omits the XRP fallback's floorToken.
+      return allowNativeImgFloor && asset === 'IMG' && memo.floorToken === undefined &&
+        (memo.poolAccount === undefined || memo.poolAccount === pool) &&
+        /^PLX-FLOOR-\d{4}-\d{2}-\d{2}T\d{2}:00Z$/.test(memo.roundId);
     } catch {
       return false;
     }

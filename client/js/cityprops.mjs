@@ -105,8 +105,33 @@ async function init() {
     partyBarge = createPiratePartyBarge({
       scene: grp, lake: e, shoreAt: f.shoreAt, decks: window.__decks,
       colliders: c.colliders, low: c.MOBILE || c.TIER === 'low',
+      announce: text => window.__bcToast?.(text, '#ffc381', { key: 'blacktide-toast' }),
     });
-    if (partyBarge) (window.__interactors ||= []).push(partyBarge.interact);
+    if (partyBarge) {
+      (window.__interactors ||= []).push(partyBarge.interact);
+      const { x, z } = partyBarge.site;
+      (window.__mmHooks ||= []).push((ctx, scale, width) => {
+        const clamp = value => Math.max(-width / 2 + 7, Math.min(width / 2 - 7, value));
+        ctx.save();
+        ctx.translate(clamp(x * scale), clamp(z * scale));
+        ctx.fillStyle = '#111b26';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffc381';
+        ctx.lineWidth = 1.15;
+        ctx.beginPath();
+        ctx.arc(0, -2.5, 1, 0, Math.PI * 2);
+        ctx.moveTo(0, -1.5);
+        ctx.lineTo(0, 3.4);
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(2, 0);
+        ctx.moveTo(-3.2, .7);
+        ctx.quadraticCurveTo(0, 5.7, 3.2, .7);
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
     P.partyBarge = partyBarge;
     return true;
   };

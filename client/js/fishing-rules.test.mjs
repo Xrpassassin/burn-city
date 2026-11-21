@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, feedingSpotBonus, xpForCatch, anglerProgress, rodUnlockLevel, BOATS, boatById, canBoatCatch } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, feedingSpotBonus, xpForCatch, anglerProgress, rodUnlockLevel, BOATS, boatById, canBoatCatch, SPECIES, SHOP, eligibleSpecies, fishRequirements, roll } from './fishing-rules.mjs';
 
 const starterXp = xpForCatch({ r: 0, kg: 0.2 });
 assert.equal(starterXp, 10, 'common catches grant a modest base XP amount');
@@ -28,6 +28,34 @@ assert.equal(canBoatCatch('bass', { kg: 100, meta: { deep: 1 } }, true), false, 
 assert.equal(canBoatCatch('abyss', { kg: 800, meta: { deep: 1, boat: 4 } }, true), true);
 assert.equal(canBoatCatch('offshore', { kg: 10, meta: { boat: 4 } }, true), false, 'species boat-tier requirement is respected');
 
+
+const ids = (rod, bait, water) => eligibleSpecies(rod, bait, water).map(fish => fish[0]);
+const basin = { onBoat: true, boatId: 'abyss', deep: true, night: true, weather: 'storm' };
+assert.ok(ids('legend', 'burnfly', basin).includes('alligatorgar'));
+assert.ok(!ids('pro', 'burnfly', basin).includes('alligatorgar'));
+assert.ok(!ids('legend', 'glow', basin).includes('alligatorgar'));
+for (const missing of [{ deep: false }, { onBoat: false }, { boatId: 'offshore' }, { weather: 'bull' }]) {
+  assert.ok(!ids('legend', 'burnfly', { ...basin, ...missing }).includes('alligatorgar'));
+}
+assert.ok(ids('legend', 'glow', basin).includes('oarfish'));
+assert.ok(!ids('legend', 'glow', { ...basin, night: false }).includes('oarfish'));
+assert.ok(ids('pro', 'shrimp', { ...basin, boatId: 'offshore' }).includes('grouper'));
+assert.ok(!ids('pro', 'shrimp', { ...basin, boatId: 'bass' }).includes('grouper'));
+assert.ok(ids('carbon', 'glow').includes('char'));
+assert.ok(!ids('basic', 'glow').includes('char'));
+assert.ok(!ids('carbon', 'worm').includes('char'));
+assert.deepEqual(fishRequirements(SPECIES.find(s => s[0] === 'alligatorgar')),
+  ['Ember Legend Rod', 'Burn Fly', 'Abyssal Hunter', 'marked deep basin', 'storm weather']);
+
+const reachable = new Set();
+for (const [bait] of SHOP.baits) {
+  for (const weather of ['', 'storm', 'bull']) {
+    for (const fish of eligibleSpecies('legend', bait, { ...basin, weather })) reachable.add(fish[0]);
+  }
+}
+assert.deepEqual([...reachable].sort(), SPECIES.map(fish => fish[0]).sort(), 'every journal species is catchable');
+assert.equal(new Set(SPECIES.map(s => s[0])).size, SPECIES.length, 'journal IDs are unique');
+assert.equal(roll('basic', 'worm', {}, () => 0).id, 'minnow', 'starter catches are still available');
 
 assert.equal(feedingSpotBonus(0), 1.28, 'a cast directly on a feeding school gets the activity bonus');
 assert.equal(feedingSpotBonus(9), 1.28, 'the hotspot edge is included');
@@ -78,4 +106,4 @@ assert.equal(progressBoard.items.find(a => a.id === 'daily-target').unlocked, tr
 assert.equal(progressBoard.items.find(a => a.id === 'daily-variety').unlocked, true);
 assert.equal(progressBoard.items.find(a => a.id === 'daily-heavy').unlocked, true);
 assert.equal(challengeBoard([], '2026-10-22').target !== challengeTarget, true, 'featured species rotates by UTC day');
-console.log('Fishing rules, angler progression, boats, journal, and daily challenges: 57 assertions passed');
+console.log('Fishing rules, angler progression, boats, journal, and daily challenges: all assertions passed');

@@ -145,7 +145,7 @@ has(city, /distanceToSquared\(p\.g\.position\)<85\*85/, 'streams detailed peer a
 has(city, /\?4:8/, 'caps simultaneous detailed NFT models more tightly on mobile');
 has(city, /activeNftModels>=nftModelCap\(\)/, 'enforces the detailed peer model budget');
 has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model budget when peers leave or go out of range');
-has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
+has(city, /if\(p\.boat\)window\.__boat\.removeBoat\(p\.boat\)/, 'cleans up models when boat peers disconnect');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
 has(sw, /const VERSION = 'bc-v\d+-/, 'service-worker cache version is set (number moves with every merge)');
 has(picker, /metaVersion: 2/, 'refreshes previously selected local NFTs to the expanded metadata schema');

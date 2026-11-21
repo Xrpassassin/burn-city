@@ -97,6 +97,28 @@ function mainsail() {
   return sail;
 }
 
+// Soft additive light pool on the deck (used instead of real lights on phones).
+let poolTexture = null;
+function glowPool(color, radius, x, z) {
+  if (!poolTexture) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255,255,255,.85)');
+    gradient.addColorStop(.45, 'rgba(255,255,255,.32)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    poolTexture = new THREE.CanvasTexture(canvas);
+  }
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: poolTexture, color, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  mesh.position.set(x, BARGE_DECK_Y + .1, z);
+  mesh.renderOrder = 2;
+  return mesh;
+}
+
 function buildPier(group, berth) {
   const pier = new THREE.Group();
   pier.name = 'Blacktide boarding pier';
@@ -180,7 +202,7 @@ function buildShip(root) {
     for (const z of [-2, 1, 4, 7]) block(partyLights[(z + 2) % 2], .6, .06, .6, x, 3.83, z);
   }
   pieces.build();
-  for (const x of [-11.52, 11.52]) {
+  for (const x of [-11.6, 11.6]) {
     sign(root, 'BLACKTIDE', x, 2.48, -2, Math.sign(x) * Math.PI / 2, 7);
   }
   sign(root, 'EMBER BAR', 9.7, 6.1, -8, -Math.PI / 2, 5);
@@ -216,13 +238,16 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
   group.add(root);
   buildShip(root);
   buildPier(group, berth);
-  const barLight = new THREE.PointLight(0xffc381, low ? 92 : 74, 23, 1.7);
-  barLight.position.set(low ? 3 : 6, 9.25, -8);
-  root.add(barLight);
-  if (!low) {
+  if (low) {
+    // Phones: no extra real-time light. A PointLight here would join every lit material's shader
+    // city-wide (one recompile when the lake loads, plus per-pixel cost everywhere), so fake the pools.
+    root.add(glowPool(0xffc381, 5.5, 6, -8), glowPool(0xadabff, 4.5, 0, 4));
+  } else {
+    const barLight = new THREE.PointLight(0xffc381, 74, 23, 1.7);
+    barLight.position.set(6, 9.25, -8);
     const danceLight = new THREE.PointLight(0xadabff, 68, 17, 1.7);
     danceLight.position.set(0, 8.8, 4);
-    root.add(danceLight);
+    root.add(barLight, danceLight);
   }
   scene.add(group);
   decks.push(...berth.decks);

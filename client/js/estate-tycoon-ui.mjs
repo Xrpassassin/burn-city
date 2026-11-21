@@ -232,7 +232,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   const s=current.state,items=current.catalog;
   const unlocked=new Set(s.unlockedItemIds);
   count.textContent=items.filter(i=>unlocked.has(i.id)).length+'/'+items.length+' installed';
-  meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?(s.sharePolicy==='active_for_distributions'?'Upgrade units earn payouts like property shares (1 per 3 XRP). ':'Recorded upgrade units are not active payout weight yet. '):'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
+  meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?(s.sharePolicy==='active_for_distributions'?'Upgrade shares count toward hourly payout weight, like property shares (1 share per 3 XRP). ':'Upgrade units are not counted in payout weight while upgrade payouts are switched off. '):'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
   const isOwner=!!s.ownerAuthorized;
   availability.dataset.tone=!s.owned||!isOwner?'off':!s.purchasesEnabled?'warn':'ok';
   availability.textContent=!s.owned?'This property must be purchased before upgrades can be bought.'
@@ -269,7 +269,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
     if(cartIds.has(item.id))row.dataset.inCart='';
     const acts=el('div','bc-ty-acts');
     const info=el('div'),chips=el('div','bc-ty-chips');
-    chips.append(el('span','bc-ty-price',item.priceXrp+' XRP'),el('span',null,'+'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')));
+    chips.append(el('span','bc-ty-price',item.priceXrp+' XRP'),el('span',null,'+'+item.shareUnitsDelta+(s.sharePolicy==='active_for_distributions'?' payout share':' recorded share')+(item.shareUnitsDelta===1?'':'s')));
     const viaCart=missing.length&&missing.every(id=>cartIds.has(id));
     const badge=owned?'✓ Installed':!tierEligible?'Family / Mansion only':viaCart?'With '+missing.map(itemName).join(', ')+' in cart':missing.length?'Needs '+missing.map(itemName).join(', '):'';
     if(badge)chips.append(el('span','bc-ty-badge',badge));

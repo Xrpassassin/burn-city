@@ -9,7 +9,7 @@ const material = (color, emissive = 0) => new THREE.MeshStandardMaterial({
   color, roughness: .8, emissive, emissiveIntensity: emissive ? .65 : 0,
 });
 const wood = material(0x38251c), oak = material(0x966339), gold = material(0xdca156);
-const sail = material(0x4b2439), lamp = material(0xffb75c, 0xff8d27), iron = material(0x211a22);
+const lamp = material(0xffb75c, 0xff8d27), iron = material(0x211a22);
 const partyLights = [material(0xff3e9c, 0xff1463), material(0x27cdfc, 0x07a1ed)];
 const coats = [material(0x572e30), material(0x283f48), material(0x3d392a)];
 const skin = material(0xb58b68);
@@ -53,6 +53,72 @@ function sign(group, text, x, y, z, yaw, width = 6) {
   group.add(mesh);
 }
 
+function mainsail() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#64283b';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.strokeStyle = '#d3a574';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(10, 10, 236, 236);
+  ctx.lineWidth = 11;
+  ctx.lineCap = 'round';
+  for (const k of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(83, 145 + k * 31);
+    ctx.lineTo(173, 145 - k * 31);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#f0cc9f';
+  ctx.beginPath();
+  ctx.ellipse(128, 104, 41, 38, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(106, 117, 44, 32);
+  ctx.fillStyle = '#422035';
+  for (const x of [113, 143]) {
+    ctx.beginPath();
+    ctx.ellipse(x, 108, 8, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.PlaneGeometry(14.5, 11, 10, 8);
+  const vertices = mesh.attributes.position;
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i) / 7.25, y = vertices.getY(i) / 5.5;
+    vertices.setZ(i, -1.9 * (1 - x * x) * (1 - .78 * y * y));
+  }
+  mesh.computeVertexNormals();
+  const sail = new THREE.Mesh(mesh, new THREE.MeshStandardMaterial({
+    map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: .26, roughness: .95, side: THREE.DoubleSide,
+  }));
+  sail.position.set(0, 16, 9.48);
+  return sail;
+}
+
+// Soft additive light pool on the deck (used instead of real lights on phones).
+let poolTexture = null;
+function glowPool(color, radius, x, z) {
+  if (!poolTexture) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255,255,255,.85)');
+    gradient.addColorStop(.45, 'rgba(255,255,255,.32)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+    poolTexture = new THREE.CanvasTexture(canvas);
+  }
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: poolTexture, color, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  mesh.position.set(x, BARGE_DECK_Y + .1, z);
+  mesh.renderOrder = 2;
+  return mesh;
+}
+
 function buildPier(group, berth) {
   const pier = new THREE.Group();
   pier.name = 'Blacktide boarding pier';
@@ -74,8 +140,13 @@ function buildPier(group, berth) {
       pieces.add(lamp, geometry(.32, .35, .32, x, h + .4, z));
     }
   }
+  for (const x of [-2.25, 2.25]) {
+    pieces.add(wood, geometry(.26, 4.15, .26, x, 2.075, -2.5));
+    pieces.add(lamp, geometry(.36, .4, .36, x, 4.15, -2.5));
+  }
+  pieces.add(oak, geometry(5.15, .18, .22, 0, 3.1, -2.5));
   pieces.build();
-  sign(pier, 'BLACKTIDE PARTY BARGE', 0, 3.6, -2.5, Math.PI, 5.5);
+  sign(pier, 'BLACKTIDE PARTY BARGE', 0, 3.55, -2.64, Math.PI, 5.5);
 }
 
 function buildShip(root) {
@@ -90,8 +161,8 @@ function buildShip(root) {
   shape.lineTo(-7.8, -25.5);
   shape.lineTo(-11.5, -22);
   shape.closePath();
-  const hull = new THREE.ExtrudeGeometry(shape, { depth: 3.6, bevelEnabled: false });
-  // The hull runs up from the waterline to the deck.
+  const hull = new THREE.ExtrudeGeometry(shape, { depth: BARGE_DECK_Y - .35, bevelEnabled: false });
+  // Leave the hull cap below the planks to avoid coplanar faces.
   const hullMesh = new THREE.Mesh(hull, wood);
   hullMesh.rotation.x = -Math.PI / 2;
   hullMesh.position.y = .2;
@@ -105,8 +176,8 @@ function buildShip(root) {
   for (const x of [-7, 7]) block(oak, 8, .75, .38, x, 4.18, -22);
   block(oak, 22.3, .75, .38, 0, 4.18, 22);
   block(oak, .9, 22, .9, 0, 13.9, 10);
-  block(gold, 16, .32, .35, 0, 21.8, 10);
-  block(sail, 14.5, 11, .25, 0, 16, 10);
+  block(gold, 16, .32, .35, 0, 21.8, 9.45);
+  root.add(mainsail());
   block(iron, 4.5, 2, .14, 2.2, 24.1, 10);
   block(oak, .42, 1.5, .42, 0, 4.55, 21.4);
   pieces.add(gold, new THREE.TorusGeometry(.72, .075, 8, 20).translate(0, 5.22, 21.2));
@@ -131,7 +202,9 @@ function buildShip(root) {
     for (const z of [-2, 1, 4, 7]) block(partyLights[(z + 2) % 2], .6, .06, .6, x, 3.83, z);
   }
   pieces.build();
-  sign(root, 'BLACKTIDE', 0, 16, 9.82, Math.PI, 9);
+  for (const x of [-11.6, 11.6]) {
+    sign(root, 'BLACKTIDE', x, 2.48, -2, Math.sign(x) * Math.PI / 2, 7);
+  }
   sign(root, 'EMBER BAR', 9.7, 6.1, -8, -Math.PI / 2, 5);
 }
 
@@ -152,7 +225,7 @@ function makePirate(coat, phase, x, z) {
   return { root, phase };
 }
 
-export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders, low }) {
+export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders, low, announce }) {
   const { dir, side, inLake } = lake;
   const berth = findPartyBargeBerth({ shoreAt, inLake, dir, side, decks, colliders });
   if (!berth) return null;
@@ -165,6 +238,17 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
   group.add(root);
   buildShip(root);
   buildPier(group, berth);
+  if (low) {
+    // Phones: no extra real-time light. A PointLight here would join every lit material's shader
+    // city-wide (one recompile when the lake loads, plus per-pixel cost everywhere), so fake the pools.
+    root.add(glowPool(0xffc381, 5.5, 6, -8), glowPool(0xadabff, 4.5, 0, 4));
+  } else {
+    const barLight = new THREE.PointLight(0xffc381, 74, 23, 1.7);
+    barLight.position.set(6, 9.25, -8);
+    const danceLight = new THREE.PointLight(0xadabff, 68, 17, 1.7);
+    danceLight.position.set(0, 8.8, 4);
+    root.add(barLight, danceLight);
+  }
   scene.add(group);
   decks.push(...berth.decks);
 
@@ -211,6 +295,14 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
   audio.loop = true;
   audio.preload = 'none';
   let music = false;
+  function playMusic() {
+    audio.play().catch(error => {
+      if (error.name !== 'AbortError') music = false;
+    });
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) audio.pause();
+  });
   let elapsed = 0;
   let cheer = 0;
   const bar = root.localToWorld(new THREE.Vector3(5.7, BARGE_DECK_Y, -8));
@@ -218,7 +310,14 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
   function interact(pos) {
     if (Math.abs(pos.y - BARGE_DECK_Y) > 1.25) return null;
     const barDistance = Math.hypot(pos.x - bar.x, pos.z - bar.z);
-    if (barDistance < 2.7) return { d: barDistance, label: 'Toast with the bartender', act: () => { cheer = 1.5; } };
+    if (barDistance < 2.7) return {
+      d: barDistance, label: 'Toast with the bartender',
+      act: () => {
+        if (cheer > 0) return;
+        cheer = 1.5;
+        announce?.('Bartender · To fair winds and full mugs!');
+      },
+    };
     const danceDistance = Math.hypot(pos.x - danceFloor.x, pos.z - danceFloor.z);
     if (danceDistance < 2.7) return {
       d: danceDistance, label: music ? 'Stop party music' : 'Play party music',
@@ -227,7 +326,7 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
         if (!music) audio.pause();
         else {
           audio.volume = .2;
-          audio.play().catch(() => { music = false; });
+          playMusic();
         }
       },
     };
@@ -239,9 +338,9 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
     cheer = Math.max(0, cheer - dt);
     const distance = Math.hypot(camera.x - site.x, camera.z - site.z);
     if (music) {
-      audio.volume = active ? .22 * Math.max(0, 1 - distance / 48) : 0;
+      audio.volume = active && !document.hidden ? .22 * Math.max(0, 1 - distance / 48) : 0;
       if (audio.volume === 0 && !audio.paused) audio.pause();
-      if (audio.volume > 0 && audio.paused) audio.play().catch(() => { music = false; });
+      if (audio.volume > 0 && audio.paused) playMusic();
     }
     if (distance > 145) return;
     loadCharacters();

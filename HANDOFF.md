@@ -835,3 +835,11 @@ From the Nov 20, 2026 white-box audit (arena XSS, `?citysrv=` token leak, token-
   5. Burn jobs: `img-burn.js` / `burn.js` must prove a submitted tx failed (payq `verifyExpired` style) before re-owing, and persist the hash before submit; add a reference-price bound to the AMM quote.
   6. Fishing / Blacktide server-side trust: `cast` trusts client `onBoat`/`deep`/`weather`, `importGuest` grants any listed rod, Blacktide buy/sell has no dock check.
   7. CSP: drop `'unsafe-inline'` over time; pin GoatCounter `count.v4.js` with SRI; `/api/buy` should use `Object.hasOwn(items, item)`.
+
+## Blacktide party barge (#681, #682)
+- Files: `client/js/pirate-party-barge.mjs` (ship, pier, crowd, bartender/Blackbeard GLTFs from `assets/bar/`, music), `client/js/pirate-party-barge-layout.mjs` (berth search, walkable decks incl. sloped pier via `heightAt`, `partyBargeBlocksBoat`), test `pirate-party-barge-layout.test.mjs`.
+- Hooks: created in `cityprops.mjs` lake init → `window.__cityProps.partyBarge`; pushes `interact` to `window.__interactors`, a minimap anchor to `__mmHooks`, decks to `window.__decks` (read by `fish.js` `__deckAt`), and `boat.js` `inside()` refuses water the hull or pier covers. Toast copy goes through `window.__bcToast`.
+- Lighting: desktop adds two PointLights (bar, dance floor). Phones/low tier add NO real-time light (it would recompile and shade every lit material city-wide); they get additive `glowPool` decals instead. Keep it that way.
+- Music: `music/burn-city-lives.mp3`, distance-faded, paused when the tab is hidden or the city is paused/in Estates/Tower.
+- Both modules are in the SW precache (cityprops imports the barge statically, so offline would break props without them).
+- Known gaps: no multiplayer presence for the crowd/toast (local only); party music is per client.

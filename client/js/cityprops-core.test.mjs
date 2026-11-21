@@ -1,3 +1,4 @@
+import './pirate-party-barge-layout.test.mjs';
 import assert from 'node:assert/strict';
 import { propBudget, shopLocal, layoutShops, doorStep, pigeonHomes, pigeonStep, flyPos, duckPos, SPOOK, FLY_TIME, REST } from './cityprops-core.mjs';
 const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);

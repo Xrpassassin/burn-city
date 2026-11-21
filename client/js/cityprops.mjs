@@ -102,7 +102,11 @@ async function init() {
       ducks.push({ x: p.x, z: p.z, r, w: (hash(i, 4) > .5 ? 1 : -1) * (.12 + hash(i, 5) * .1), ph: hash(i, 6) * 6.283 }); k++;
     }
     DK = kit(part(duck, 'body'), ducks.length, 'duck', grp);
-    partyBarge = createPiratePartyBarge({scene:grp,inLake:e.inLake.bind(e),origin:base,low:c.TIER==='low',waterY:.22});
+    partyBarge = createPiratePartyBarge({
+      scene: grp, lake: e, shoreAt: f.shoreAt, decks: window.__decks,
+      colliders: c.colliders, low: c.MOBILE || c.TIER === 'low',
+    });
+    if (partyBarge) (window.__interactors ||= []).push(partyBarge.interact);
     P.partyBarge = partyBarge;
     return true;
   };
@@ -117,7 +121,7 @@ async function init() {
     return d;
   };
   function tick() {
-    requestAnimationFrame(tick); if (window.__cityPaused) return;
+    requestAnimationFrame(tick); if (window.__cityPaused) { partyBarge?.update(0, pp, false); return; }
     const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; T += dt;
     cam.getWorldPosition(pp);
     // doors
@@ -136,7 +140,7 @@ async function init() {
     PP.commit(np); PU.commit(nu); PD.commit(nd);
     for (const k of [PP, PU, PD]) k.cull(pp, B.cullBirds);
     // lake
-    if (partyBarge) partyBarge.update(dt);
+    if (partyBarge) partyBarge.update(dt, pp, c.getMode() === 'explore' && !window.__estatesIslandLive?.active && !window.__burnTowerOpen);
     if (!DK && lakeTry < 120 && (T > lakeTry * .5)) { lakeTry++; try { lake(); } catch (e) { lakeTry = 999; console.warn('props: lake', e); } }
     if (DK) { ducks.forEach((d, i) => { const p = duckPos(d, T); DK.set(i, place(p.x, WATER - .08 + p.bob, p.z, p.yaw + DUCK_YAW, 1.4)); }); DK.commit(ducks.length); DK.cull(pp, B.cullLake); }
     if (BT && boatAt) { BT.set(0, place(boatAt.x, WATER - .1 + Math.sin(T * 1.1) * .03, boatAt.z, boatAt.yaw + Math.sin(T * .3) * .04, 1, 1, 1, Math.sin(T * 1.3) * .025)); BT.commit(1); BT.cull(pp, B.cullLake); }

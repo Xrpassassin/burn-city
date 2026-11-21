@@ -83,7 +83,7 @@ async function nftAvatar(acct, id, ledger) {   // only NFTs the account actually
 const channelOk = c => c === 'global' || (typeof c === 'string' && /^[A-Z0-9]{2,12}$/.test(c));
 
 // ---- HTTP handler. Returns true if it handled the request. ----
-async function handle(req, res, url, { json, body, who, ledger, signinReady }) {
+async function handle(req, res, url, { json, body, who, ledger, signinReady, adminOk }) {
   const p = url.pathname; if (!p.startsWith('/social/') && !p.startsWith('/admin/social')) return false;
   const M = req.method, ip = req.headers['fly-client-ip'] || req.socket.remoteAddress;
   if (rate('ip:' + ip, 180, 60e3)) return json(res, 429, { error: 'slow_down' }), true;
@@ -93,7 +93,8 @@ async function handle(req, res, url, { json, body, who, ledger, signinReady }) {
 
   // admin moderation
   if (parts[0] === 'admin') {
-    if (!C.ADMIN_TOKEN || req.headers['x-admin-token'] !== C.ADMIN_TOKEN) return json(res, 403, { error: 'forbidden' }), true;
+    // same check as every other admin route: constant-time compare + 10 bad tries / 15 min lockout per IP (server.js adminOk)
+    if (typeof adminOk !== 'function' || !adminOk(req, ip)) return json(res, 403, { error: 'forbidden' }), true;
     if (parts[2] === 'reports') return json(res, 200, { reports: q(`SELECT * FROM reports WHERE resolved=0 ORDER BY id DESC LIMIT 200`).all() }), true;
     if (M !== 'POST') return json(res, 405, { error: 'post' }), true;
     const b = await body();

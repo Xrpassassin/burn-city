@@ -22,7 +22,8 @@ textarea,input{width:100%;background:#0b060f;color:#ffe2c4;border:1px solid #ff7
 <section id="profile" hidden></section>
 </main>
 <script type="module">
-const API = new URLSearchParams(location.search).get('api') || 'https://burn-city-game.fly.dev';
+import { trustedServer, safeXamanUrl } from '../js/trusted-server.mjs';
+const API = trustedServer(new URLSearchParams(location.search).get('api'));   // ?api= only via the shared allowlist
 const $ = id => document.getElementById(id);
 const E = (tag, props = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
 const ICON = { flame: '🔥', skull: '💀', bear: '🐻', rocket: '🚀', diamond: '💎', robot: '🤖', zombie: '🧟', cycle: '🏍️', crown: '👑', alien: '👽', dragon: '🐉', bolt: '⚡' };
@@ -96,8 +97,9 @@ function ui() { $('signin').hidden = !!token; $('meBtn').hidden = !token; $('meB
 $('meBtn').onclick = () => setTab('me');
 $('signin').onclick = async () => {
   try { const s = await (await fetch(API + '/api/signin', { method: 'POST' })).json(); if (!s.xaman) return say('Sign-in is coming soon.');
-    $('qr').replaceChildren(E('img', { src: s.xaman.qr, alt: 'XAMAN sign-in QR' }), E('div', { class: 'note', text: 'Scan with XAMAN (or tap Open XAMAN on your phone).' }), E('a', { href: s.xaman.deeplink, text: 'Open XAMAN', target: '_blank', rel: 'noopener' }));
-    if (/iPhone|iPad|Android/i.test(navigator.userAgent)) location.href = s.xaman.deeplink;
+    const qrSrc = safeXamanUrl(s.xaman.qr), dl = safeXamanUrl(s.xaman.deeplink); if (!qrSrc && !dl) return say('Sign-in is unavailable right now.');   // xaman.app / xumm.app https only
+    $('qr').replaceChildren(qrSrc ? E('img', { src: qrSrc, alt: 'XAMAN sign-in QR' }) : null, E('div', { class: 'note', text: 'Scan with XAMAN (or tap Open XAMAN on your phone).' }), dl ? E('a', { href: dl, text: 'Open XAMAN', target: '_blank', rel: 'noopener' }) : null);
+    if (dl && /iPhone|iPad|Android/i.test(navigator.userAgent)) location.href = dl;
     for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000)); const v = await (await fetch(API + '/api/signin/finish', { method: 'POST', body: JSON.stringify({ sid: s.sid }) })).json();
       if (v.ok) { token = localStorage.bcToken = v.token; acct = localStorage.bcAcct = v.account; $('qr').replaceChildren(); say('Signed in ✓ Welcome back!'); ui(); setTab(tab); return; } }
     say('Sign-in timed out.'); } catch (e) { say('Sign-in failed, try again.'); }

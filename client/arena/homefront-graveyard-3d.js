@@ -4,6 +4,7 @@ import { createHomefrontSurfaces, worldSurfaceUVs } from './homefront-surface-ma
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
+import { trustedServer } from '../js/trusted-server.mjs';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { inPineCrossing, nearestPineCreek, pineAmbienceAt, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
@@ -97,8 +98,8 @@ function boot(host) {
     if (sfx.has('attack')) sfx.play('attack', { pos: [landmark.x, terrainElevation(landmark.x, landmark.z) + 1.1, landmark.z], v: 1.1, ref: 4, max: 36, roll: 1.2 });
   });
   window.addEventListener('pagehide', () => { zombieAudio.stop(); stopFieldAudio(); stopRoverMotor(); }, { once: true });
-  const API = new URLSearchParams(location.search).get('api') ||
-    (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+  const API = trustedServer(new URLSearchParams(location.search).get('api'),   // ?api= only via the shared allowlist
+    /fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => getGuestToken() || localStorage.getItem('bcToken') || '';
   const homefrontFetch = (path, options) => fetchHomefront(API, path, options);
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';

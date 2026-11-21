@@ -1,6 +1,6 @@
 // XAMAN sign-in (identity = XRPL account) + cosmetic purchases verified on the ledger.
 // Playing is free; nothing here gates gameplay. Sales never fund prizes.
-const crypto = require('crypto'), xrpl = require('xrpl'), C = require('./config'), S = require('./store'), { items } = require('./shop');
+const crypto = require('crypto'), xrpl = require('xrpl'), C = require('./config'), S = require('./store'), { items } = require('./shop'), Claims = require('./treasury-tx-claims');
 
 // Ownership lives in SQLite on the /data volume (DATA_DIR/shop.db), keyed by the XRPL account that SIGNED the payment.
 const { DatabaseSync } = require('node:sqlite'), sdb = new DatabaseSync(require('path').join(C.DATA_DIR, 'shop.db'));
@@ -70,11 +70,13 @@ async function verify(sid, txHash) {
   if (tx.TransactionType !== 'Payment') return { ok: false, reason: 'not_payment' };
   if (meta.TransactionResult !== 'tesSUCCESS') return { ok: false, reason: 'tx_failed' };
   if (tx.Destination !== C.TREASURY) return { ok: false, reason: 'wrong_destination' };
+  if (tx.DestinationTag !== undefined) return { ok: false, reason: 'wrong_destination_tag' };   // shop sessions have no tag; a tagged payment belongs to another product
   if (tx.Account !== s.account) return { ok: false, reason: 'wrong_sender' };     // item goes to the signed-in account that paid
   const d = meta.delivered_amount;                 // delivered_amount defeats partial-payment tricks
   if (typeof d !== 'string' || +d < items[s.item].drops) return { ok: false, reason: 'wrong_amount' };
-  if (!(tx.Memos || []).some(m => Buffer.from(m.Memo.MemoData || '', 'hex').toString() === sid)) return { ok: false, reason: 'memo_mismatch' };
+  if (!Claims.exactlyOneMemo(tx, 'burncity/shop', sid)) return { ok: false, reason: 'memo_mismatch' };   // exactly one memo: burncity/shop + this sid
   if (s.done) return { ok: true, item: s.item };
+  if (!Claims.claim(txHash, 'shop', sid).ok) return { ok: false, reason: 'replay' };   // one tx settles one product, ever (shared across shop/ranked/ember/jetpack)
   if (sdb.prepare('INSERT OR IGNORE INTO used_tx VALUES(?,?,?)').run(txHash, sid, Date.now()).changes !== 1) return sdb.prepare('SELECT sid FROM used_tx WHERE hash=?').get(txHash)?.sid === sid ? { ok: true, item: s.item } : { ok: false, reason: 'replay' };   // atomic: a hash is used once, ever
   const burnDrops = Math.floor(+d * C.BURN_SHARE);
   S.append('sales.jsonl', { t: Date.now(), sid, txHash, account: tx.Account, item: s.item, drops: +d, burnDrops });

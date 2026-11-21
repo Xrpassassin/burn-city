@@ -18,9 +18,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mountDefaultPlayerAvatar } from './default-player-avatar.mjs';
 import * as NftPick from './nftpick.js';
 import * as EmberBar from './ember-bar.mjs';
+import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
 
 const Q = new URLSearchParams(location.search);
-const SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev';
+const SRV = trustedServer(Q.get('citysrv'));
 const TOUCH = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent) || matchMedia('(pointer:coarse)').matches;
 // Aegis map: put the approved live map URL here (or set window.BURN_CITY_AEGIS_MAP_URL before this module loads).
 // Empty = the Sanctum display says "not connected". Never point this at an unapproved URL.

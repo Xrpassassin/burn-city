@@ -2,7 +2,9 @@
 // so the city (js/app.js) can import it directly.
 // Free to play. Optional XAMAN sign-in (needed only for the leaderboard and cosmetics).
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-function openXaman(x, onQr) { onQr?.(x); if (/iPhone|Android/i.test(navigator.userAgent)) location.href = x.deeplink; }
+import { safeXamanUrl } from '../js/trusted-server.mjs';
+// Only ever navigate to an https xaman.app / xumm.app deeplink (never javascript:, never an open redirect).
+function openXaman(x, onQr) { onQr?.(x); const dl = safeXamanUrl(x?.deeplink); if (dl && /iPhone|Android/i.test(navigator.userAgent)) location.href = dl; }
 export async function signIn(api, { onQr } = {}) {
   const s = await (await fetch(api + '/api/signin', { method: 'POST' })).json(); if (!s.xaman) throw new Error('XAMAN not configured');
   openXaman(s.xaman, onQr);

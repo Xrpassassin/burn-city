@@ -15,7 +15,7 @@
 // Gate: on by default (owner-approved); EMBER_BAR_PAYMENTS=0 turns paid checkout off (order/claim return 409). Collecting an
 // already-paid drink keeps working with the flag off. Nothing in this module sends XRP or reads a wallet seed.
 'use strict';
-const crypto = require('crypto'), path = require('path'), C = require('./config');
+const crypto = require('crypto'), path = require('path'), C = require('./config'), Claims = require('./treasury-tx-claims');
 
 const ADDR = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const PRICE_DROPS = 1000000;                         // fixed: 1 XRP. Not configurable from the client or env.
@@ -110,7 +110,7 @@ function checkTx(r, ord, hash) {
   if (!meta || typeof meta !== 'object' || meta.TransactionResult !== 'tesSUCCESS') return fail('tx_failed');
   if (tx.Destination !== ord.destination) return fail('wrong_destination');
   if (tx.DestinationTag !== ord.tag) return fail('wrong_destination_tag');
-  if (!(Array.isArray(tx.Memos) && tx.Memos.some(m => unhex(m?.Memo?.MemoData) === ord.id))) return fail('memo_mismatch');
+  if (!Claims.exactlyOneMemo(tx, 'burncity/ember-bar', ord.id, { typeOptional: true })) return fail('memo_mismatch');   // exactly one memo
   if (tx.Account !== ord.acct) return fail('wrong_sender');
   if ((Number(tx.Flags) & 0x00020000) !== 0) return fail('partial_payment');                 // tfPartialPayment
   const sent = tx.DeliverMax ?? tx.Amount, delivered = meta.delivered_amount ?? meta.DeliveredAmount;
@@ -151,6 +151,7 @@ async function claim(acct, orderId, txHash, { now = Date.now(), cfg = config() }
   try {
     ord = d.prepare('SELECT * FROM eb_orders WHERE id=?').get(orderId);
     if (ord.status === 'paid') result = ord.hash === hash ? { status: 200, body: { paid: true, already: true } } : { status: 409, body: { error: 'order_already_paid' } };
+    else if (!Claims.claim(hash, 'ember-bar', ord.id).ok) result = { status: 409, body: { error: 'replay' } };   // already settled another product
     else if (d.prepare('INSERT OR IGNORE INTO eb_used_tx(hash,ord,acct,drops,t) VALUES(?,?,?,?,?)').run(hash, ord.id, acct, chk.drops, now).changes !== 1) result = { status: 409, body: { error: 'replay' } };
     else { d.prepare("UPDATE eb_orders SET status='paid', hash=?, paid=? WHERE id=? AND status IN ('open','expired','declined')").run(hash, now, ord.id); result = { status: 200, body: { paid: true } }; }
     d.exec('COMMIT');

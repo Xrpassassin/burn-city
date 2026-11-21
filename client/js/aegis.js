@@ -19,6 +19,7 @@
 // Test hook (?aegistest or ?debug=1): window.__aegis.force('CRITICAL' | 0..2 | null = back to the feed), .tOff (clock offset ms), .ops.
 import * as THREE from 'three';
 import { updateAegisNewsFeed, publishAegisHeadline, clearAegisNews } from './aegis-news.mjs';
+import { trustedServer } from './trusted-server.mjs';
 
 const API = 'https://api.xrpl.fun/v1/aegis/city';
 const Q = new URLSearchParams(location.search), $ = id => document.getElementById(id);
@@ -96,17 +97,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && en
 // Our server lists them (YouTube Data API behind a server-side key, or a curated fallback); the Pyramid faces show the top streams
 // across categories as thumbnails, the cam modal plays one (the only iframe, only inside the modal). /api/cams down = AEGIS cams as before.
 const DEFAULT_SRV = 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
-function serverOrigin() {
-  const raw = Q.get('citysrv');
-  if (!raw) return DEFAULT_SRV;
-  try {
-    const u = new URL(raw, location.origin);
-    const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
-    const allowed = u.origin === location.origin || u.hostname === 'burn-city-game.fly.dev' || local;
-    if (!allowed || (u.protocol !== 'https:' && !(local && u.protocol === 'http:'))) return DEFAULT_SRV;
-    return u.origin;
-  } catch { return DEFAULT_SRV; }
-}
+function serverOrigin() { return trustedServer(Q.get('citysrv'), DEFAULT_SRV); }   // shared allowlist: js/trusted-server.js
 const SRV = serverOrigin();
 const LC = A.live = { cats: [], top: [], source: null, ok: 0, fails: 0 };
 const nfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(n | 0);

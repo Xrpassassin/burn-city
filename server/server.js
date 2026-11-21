@@ -74,18 +74,24 @@ setInterval(() => { const t = Date.now(); for (const [k, a] of gates) if (!a.som
 const hits = new Map();   // naive per-IP rate limit for the API
 function limited(ip) { const n = Date.now(), h = hits.get(ip) || []; const r = h.filter(t => n - t < 60e3); r.push(n); hits.set(ip, r); return r.length > 30; }
 
+// Security headers for every static page/asset (JSON API responses use SEC above). No page of ours is iframed
+// (the only iframes are external YouTube / Aegis embeds inside our pages), so framing is denied outright.
+const STATIC_SEC = { 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin',
+  'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" };
+const CLIENT_DIR = path.join(__dirname, '..', 'client');
+const inClient = f => f === CLIENT_DIR || f.startsWith(CLIENT_DIR + path.sep);   // base + separator: a sibling like ../clientX never matches
 function serveStatic(req, res, url) {   // static site files: served before the API rate limits (a page load pulls ~100 modules)
   if (req.method !== 'GET' && req.method !== 'HEAD') return false; if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin/')) return false;
   if (url.pathname === '/data.js' && Eco.serve(req, res)) return true;
   try {
     // serve the demo client for local testing
-    let f = path.join(__dirname, '..', 'client', decodeURIComponent(url.pathname).slice(1));
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isFile()) {
+    let f = path.join(CLIENT_DIR, decodeURIComponent(url.pathname).slice(1));
+    if (inClient(f) && fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { ...STATIC_SEC, location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
+    if (inClient(f) && fs.existsSync(f) && fs.statSync(f).isFile()) {
       const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
       // app code/html/css/json always revalidate (ETag -> cheap 304) so a deploy reaches every player on their next load; vendor libs, images and audio cache for a day
       const st = fs.statSync(f), etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, ext = path.extname(f).toLowerCase(), fresh = /\/vendor\//.test(f) || /^\.(png|jpe?g|webp|gif|svg|ico|mp3|m4a|ogg|woff2?)$/.test(ext);
-      const hdr = { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': fresh ? 'public, max-age=86400' : 'no-cache', etag };
+      const hdr = { ...STATIC_SEC, 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': fresh ? 'public, max-age=86400' : 'no-cache', etag };
       if (req.headers['if-none-match'] === etag) { res.writeHead(304, hdr); res.end(); return true; }
       // byte ranges for audio/video: iOS Safari will not play an <audio> source that can't seek by range
       const rg = /^\.(mp3|m4a|ogg|wav|mp4)$/.test(ext) && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || ''); if (/^\.(mp3|m4a|ogg|wav|mp4)$/.test(ext)) hdr['accept-ranges'] = 'bytes';
@@ -151,7 +157,7 @@ const server = http.createServer(async (req, res) => {
       try { return json(res, 200, await Nft.mine(u.acct, Nft.mainLedger)); } catch (e) { console.error('nft mine', e.message); return json(res, 200, { error: 'ledger_unavailable', nfts: [] }); } }
     if (url.pathname === '/api/nft/select' && req.method === 'POST') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { error: 'slow_down' });
       try { return json(res, 200, await Nft.select(u.acct, (await body()).id ?? null, Nft.mainLedger)); } catch (e) { console.error('nft select', e.message); return json(res, 200, { error: 'ledger_unavailable' }); } }
-    if (await Social.handle(req, res, url, { json, body, who, ledger: Pay.ledger, signinReady: !!C.XUMM_KEY })) return;
+    if (await Social.handle(req, res, url, { json, body, who, ledger: Pay.ledger, signinReady: !!C.XUMM_KEY, adminOk })) return;
     if (limited(ip)) return json(res, 429, { error: 'slow_down' });
     if (url.pathname === '/api/shop') { const u = who(); return json(res, 200, { items: Object.entries(items).filter(([, i]) => !i.reward).map(([id, i]) => ({ id, ...i, xrp: i.drops / 1e6 })), rewards: Object.entries(items).filter(([, i]) => i.reward).map(([id, i]) => ({ id, ...i })), owned: u ? Pay.owned(u.acct) : [], burnShare: C.BURN_SHARE, cosmeticOnly: true, available: !!(C.XUMM_KEY && C.TREASURY), note: (C.XUMM_KEY && C.TREASURY) ? null : 'coming_soon' }); }
     if (url.pathname === '/api/tron/lobbies') return json(res, 200, { lobbies: rooms.tron.filter(x => x.tl && !x.tl.ranked && x.tl.state === 'lobby' && x.players.size).map(x => ({ id: x.tl.id, cfg: x.tl.cfg, players: x.players.size, teams: x.tl.cfg.teams ? Array.from({ length: x.tl.cfg.teams }, (_, i) => [...x.players.values()].filter(p => p.team === i + 1).length) : null })) });

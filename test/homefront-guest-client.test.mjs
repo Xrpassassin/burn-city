@@ -61,8 +61,8 @@ try {
   assert(html.includes('endGuest();location.reload()'),
     'wallet sign-in resets the entire guest renderer before loading wallet progress');
   const net=readFileSync('client/arena/net.js','utf8');
-  assert(net.includes("location.href = x.deeplink"),
-    'shared Xaman helper retains one mobile deep-link opener');
+  assert((net.match(/location\.href = /g)||[]).length===1&&net.includes('safeXamanUrl(x?.deeplink)'),
+    'shared Xaman helper retains one mobile deep-link opener (xaman.app / xumm.app links only)');
   assert(!html.includes('location.href=x.deeplink'),
     'Homefront QR callback must not trigger a second mobile Xaman redirect');
   const scene=readFileSync('client/arena/homefront-graveyard-3d.js','utf8');

@@ -18,9 +18,9 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  const polluxXrp=polluxXrpModule.createPolluxXrpRewards({
   db,client,treasury,pool:V.IMG_PLX_POOL,source:V.POLLUX_SOURCE,send,lookup,paused,now,
   availableDrops:async account=>await spendableDrops(account)-BigInt(require('./estate-liquidity-runtime').estateCashReserve(db))+polluxXrpModule.xrpRewardReserve(db),
-  options:{payoutAsset:v4?.polluxPayoutAsset,includeBase:v4?.polluxIncludeHolderBase,minPayoutDrops:v4?.polluxMinPayoutDrops,minSwapDrops:v4?.polluxMinSwapDrops,
+  options:{payoutAsset:v4?.polluxPayoutAsset,noLineXrp:v4?.polluxNoTrustlineXrp!==false,includeBase:v4?.polluxIncludeHolderBase,minPayoutDrops:v4?.polluxMinPayoutDrops,minSwapDrops:v4?.polluxMinSwapDrops,
    batchMs:v4?Number(v4.polluxBatchHours)*3600000:undefined},
-  img:{quote:(...a)=>pxImgQuote(...a),convert:(...a)=>pxImgConvert(...a),pay:(...a)=>pxImgPay(...a)}
+  img:{quote:(...a)=>pxImgQuote(...a),convert:(...a)=>pxImgConvert(...a),pay:(...a)=>pxImgPay(...a),line:(...a)=>pxImgLine(...a)}
  });
  // ---- IMG-mode helpers for Pollux XRP rewards (ESTATE_POLLUX_PAYOUT_ASSET=img) ----
  // One-shot XRP->IMG self-swap at the IMG/XRP AMM (rippled's default path, no Paths, no partial
@@ -57,6 +57,19 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   if(spend<=0n||spend>spendMax+fee||!d||d.currency!==IMG.currency||d.issuer!==IMG.issuer||value(d.value).lt(V.micro(minUnits))||fee<1n||fee>100n)
    throw Error('pollux_img_swap_proof');
   return {hash:r.hash||(r.tx_json||r).hash,imgUnits:BigInt(V.fx(d.value).times(1e6).toFixed(0)).toString(),spentDrops:spend.toString()};
+ }
+ // A payout owner's IMG trust line on VALIDATED ledger state: {ok, headroomUnits} (micro-IMG the line can
+ // still receive). Throws when the answer is not a validated, unambiguous account_lines result; the caller
+ // then skips the owner for this pass (no XRP payment, no swap share).
+ async function pxImgLine(owner){
+  const r=(await client.request({command:'account_lines',account:owner,peer:IMG.issuer,ledger_index:'validated'})).result;
+  if(r?.validated!==true||r.account!==owner||!Array.isArray(r.lines))throw Error('pollux_img_line_unverified');
+  const l=r.lines.find(x=>x?.currency===IMG.currency&&x.account===IMG.issuer);
+  if(!l){if(r.marker!=null)throw Error('pollux_img_line_unverified');return {ok:false,headroomUnits:0n};}
+  if(l.freeze===true||l.freeze_peer===true)return {ok:false,headroomUnits:0n};
+  const room=value(String(l.limit)).minus(value(String(l.balance)));
+  const units=room.gt(0)?BigInt(room.times(1e6).integerValue(N.ROUND_DOWN).toFixed(0)):0n;
+  return {ok:units>0n,headroomUnits:units};
  }
  async function pxImgPay(step,owner,units){
   const o=await pxSend(step,{TransactionType:'Payment',Destination:owner,Amount:iou(IMG,V.micro(units))},{v4:true,polluxBurn:true,holders:new Set([owner])});

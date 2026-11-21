@@ -18,7 +18,8 @@ const IMG={currency:'IMG',issuer:P.IMG_ISSUER},RL={currency:P.RLUSD_HEX,issuer:P
 const ZERO='rrrrrrrrrrrrrrrrrrrrBZbvji';
 const key=a=>typeof a==='string'||a.currency==='XRP'?'XRP':a.currency+'.'+a.issuer;
 function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
- const pools={},bal={XRP:200e6},paid={},submits=[],txs=new Map(),history=[];
+ const pools={},bal={XRP:200e6},paid={},submits=[],txs=new Map(),history=[],lineCalls=[];
+ const lines={err:new Set(),stale:new Set(),limit:new Map()}; // owner IMG trust-line view (account_lines)
  let closeTime=Date.UTC(2026,10,16,8)/1000-946684800;let seq=9000,acctSeq=1;
  const addPool=(acct,a,b,ra,rb,lp,lpc)=>{pools[[key(a),key(b)].sort().join('|')]={acct,a,b,r:{[key(a)]:ra,[key(b)]:rb},lp,lpc};};
  addPool(P.IMG_RLUSD_POOL,IMG,RL,38052,61.45,1525,'03'+'A'.repeat(38));
@@ -37,7 +38,7 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
    else{p.r.XRP+=xin;p.r[k]-=out;bal.XRP-=Number(tx.SendMax);bal[k]=b(k)+out;}
   }else if(tx.TransactionType==='Payment'){
    const k=key(tx.Amount),amt=Number(typeof tx.Amount==='string'?tx.Amount:tx.Amount.value);
-   if(noTrust.has(tx.Destination))result='tecPATH_DRY';else if(amt>b(k)+1e-9)result='tecUNFUNDED_PAYMENT';
+   if(noTrust.has(tx.Destination)&&typeof tx.Amount==='object')result='tecPATH_DRY';else if(amt>b(k)+1e-9)result='tecUNFUNDED_PAYMENT';
    else{bal[k]-=amt;paid[tx.Destination]=(paid[tx.Destination]||0)+amt;}
   }else if(tx.TransactionType==='AMMDeposit'){
    const p=pool(tx.Asset,tx.Asset2);const amts=[tx.Amount,tx.Amount2].map(a=>typeof a==='string'?['XRP',Number(a)/1e6]:[key(a),Number(a.value)]);
@@ -61,7 +62,11 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
     case 'ledger':return {result:{ledger_index:seq,validated:true,ledger:{close_time:closeTime}}};
     case 'account_tx':return {result:{account:treasury,validated:true,ledger_index_min:q.ledger_index_min,ledger_index_max:q.ledger_index_max,
      transactions:history.filter(r=>r.ledger_index>=q.ledger_index_min&&r.ledger_index<=q.ledger_index_max).toReversed()}};
-    case 'account_lines':{const p=Object.values(pools).find(x=>x.acct===q.peer);return {result:{lines:p?[{currency:p.lpc,balance:String(b(p.lpc+'.'+p.acct))}]:[]}};}
+    case 'account_lines':{
+     if(q.peer===P.IMG_ISSUER){lineCalls.push(q.account);if(lines.err.has(q.account))throw Error('rpc_timeout');
+      const show=!noTrust.has(q.account)||lines.stale.has(q.account);
+      return {result:{validated:q.ledger_index==='validated',account:q.account,lines:show?[{account:P.IMG_ISSUER,currency:'IMG',balance:'0',limit:lines.limit.get(q.account)||'1000000000'}]:[]}};}
+     const p=Object.values(pools).find(x=>x.acct===q.peer);return {result:{lines:p?[{currency:p.lpc,balance:String(b(p.lpc+'.'+p.acct))}]:[]}};}
     case 'submit':{const tx=xrpl.decode(q.tx_blob),hash=xrpl.hashes.hashSignedTx(q.tx_blob);seq++;const {result,nodes}=apply(tx);submits.push({type:tx.TransactionType,tx,result});
      txs.set(hash,{...tx,hash,validated:true,meta:{TransactionResult:result,AffectedNodes:nodes,delivered_amount:tx.Amount}});return {result:{engine_result:result.startsWith('tes')?'tesSUCCESS':result}};}
     case 'tx':{const t=txs.get(String(q.transaction).toUpperCase());if(!t){const e=Error('txnNotFound');e.data={error:'txnNotFound'};throw e;}return {result:structuredClone(t)};}
@@ -76,7 +81,7 @@ function makeLedger({noTrust=new Set(),plxPoolImg=3911,plxPoolPlx=34026}={}){
   history.push({hash,ledger_index:seq,validated:true,tx_json:{TransactionType:'Payment',Account:source,Destination:destination,date:date/1000-946684800,
    Memos:[{Memo:{MemoData:Buffer.from(JSON.stringify(memo)).toString('hex')}}]},meta:{TransactionResult:'tesSUCCESS',delivered_amount:drops}});
  }
- return {client,bal,paid,submits,pools,pool,incoming,setClose:ms=>{closeTime=ms/1000-946684800;seq++;}};
+ return {client,bal,paid,submits,pools,pool,incoming,lines,lineCalls,setClose:ms=>{closeTime=ms/1000-946684800;seq++;}};
 }
 function setup({env={},t0=Date.UTC(2026,10,16,2,0),ledger={}}={}){
  const db=new DatabaseSync(':memory:');
@@ -291,17 +296,93 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
   // Hours with no rewards: nothing happens.
   n=s.L.submits.length;await s.hour(h,{lp:null,base:null});assert.equal(s.L.submits.length,n);
  }
- // tec (owner without an IMG line): held, then rolled into the owner's next hourly batch.
- {
-  const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
-  s.noTrust.add(B);await s.hour(0,{lp:'6000',base:null});
-  const held=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(held.state,'held');assert(held.img_units>0);
-  assert.equal(s.ex.polluxRewards(A).xrp.imgPayments[0].state,'paid');
-  s.noTrust.delete(B);await s.hour(1,{lp:'6000',base:null});
-  const again=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(again.state,'paid');assert(again.img_units>held.img_units,'held IMG rolled into the next batch');
-  assert.equal(s.ex.polluxRewards(B).xrp.imgPayments.filter(p=>p.state==='held').length,0);
- }
- // tec on the conversion (pool moved): batch failed, credit and burn share released, retried next hour. Base ignored by default.
+ // No IMG trust line (ESTATE_POLLUX_NO_TRUSTLINE_XRP, default on): checked on validated account_lines before the
+// swap; such owners are paid their closed XRP credit natively, never also swapped; the burn reservation is unchanged.
+const xrpTo=(s,acct)=>s.L.submits.filter(x=>x.tx.Destination===acct&&typeof x.tx.Amount==='string'&&x.result==='tesSUCCESS');
+const imgTo=(s,acct)=>s.L.submits.filter(x=>x.tx.Destination===acct&&typeof x.tx.Amount==='object'&&x.result==='tesSUCCESS');
+const batches=s=>s.db.prepare('SELECT * FROM estate_pollux_img_batches ORDER BY id').all();
+const sharesOf=(s,acct)=>s.db.prepare('SELECT * FROM estate_pollux_img_shares WHERE owner=? ORDER BY batch_id').all(acct);
+{
+ // Mixed owners in one batch: A (line) -> IMG, B (no line) -> native XRP; nothing double-paid or double-counted.
+ const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
+ assert.equal(V.v4Config({}).polluxNoTrustlineXrp,true,'fallback defaults on');
+ s.noTrust.add(B);await s.hour(0,{lp:'6000',base:null});
+ assert.deepEqual([...new Set(s.L.lineCalls)].sort(),[A,B].sort(),'every ready owner checked on validated account_lines');
+ assert.equal(imgTo(s,A).length,1);assert.equal(imgTo(s,B).length,0);
+ assert.equal(xrpTo(s,B).length,1,'B paid in XRP');assert.equal(xrpTo(s,A).length,0);
+ assert.equal(sharesOf(s,B).length,0,'B never enters the swap');
+ const pay=s.db.prepare('SELECT * FROM estate_pollux_xrp_payments WHERE owner=?').all(B);
+ assert.equal(pay.length,1);assert.equal(pay[0].state,'paid');assert.equal(Number(xrpTo(s,B)[0].tx.Amount),pay[0].amount_drops);
+ const earnedB=s.db.prepare('SELECT SUM(drops) d FROM estate_pollux_xrp_allocations WHERE owner=?').get(B).d;
+ assert.equal(pay[0].gross_drops,earnedB,'whole closed credit paid');assert.equal(s.ex.polluxRewards(B).xrp.pendingDrops,'0');
+ const b0=batches(s);assert.equal(b0.length,1);
+ assert.equal(b0[0].burn_drops,String(6000*322/10000|0),'3.22% burn reservation rides the swap unchanged');
+ assert.equal(Number(b0[0].convert_drops),Number(s.db.prepare("SELECT convert_drops c FROM estate_pollux_img_shares WHERE owner=?").get(A).c)+Number(b0[0].burn_drops),'swap = A + burn only');
+ assert.equal(X.xrpRewardReserve(s.db),BigInt(s.ex.polluxRewards(A).xrp.pendingDrops),'XRP-paid credit counted as spent');
+ // Same hour again: idempotent, nothing new.
+ const n=s.L.submits.length;await s.ex.runPolluxXrp();await s.ex.runPolluxXrp();assert.equal(s.L.submits.length,n,'no duplicate payment');
+ // Next hours: exactly one XRP payment per hour for B; one IMG payment per hour for A.
+ await s.hour(1,{lp:'6000',base:null});await s.hour(2,{lp:'6000',base:null});
+ assert.equal(xrpTo(s,B).length,3);assert.equal(imgTo(s,A).length,3);assert.equal(sharesOf(s,B).length,0);
+ const spent=s.db.prepare('SELECT SUM(spent_drops) d FROM estate_pollux_xrp_payments WHERE owner=?').get(B).d;
+ assert.equal(spent,s.db.prepare('SELECT SUM(drops) d FROM estate_pollux_xrp_allocations WHERE owner=?').get(B).d,'paid + fees = earned, exactly once');
+ // Flag off reproduces the old behaviour and the identical burn reservation.
+ const o=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100',ESTATE_POLLUX_NO_TRUSTLINE_XRP:'0'});
+ o.noTrust.add(B);await o.hour(0,{lp:'6000',base:null});
+ assert.equal(o.L.lineCalls.length,0,'flag off: no trust-line check');assert.equal(xrpTo(o,B).length,0);
+ assert.equal(sharesOf(o,B)[0].state,'held','flag off: tec -> held (old behaviour)');
+ assert.equal(batches(o)[0].burn_drops,b0[0].burn_drops,'burn identical with the flag on or off');
+}
+{
+ // Trust-line check failures are fail-safe: the owner is skipped (no XRP, no swap share), credit intact, retried later.
+ const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
+ s.noTrust.add(B);s.L.lines.err.add(B);await s.hour(0,{lp:'6000',base:null});
+ assert.equal(xrpTo(s,B).length,0);assert.equal(sharesOf(s,B).length,0);assert.equal(imgTo(s,A).length,1,'others still paid');
+ const pend=BigInt(s.ex.polluxRewards(B).xrp.pendingDrops);assert(pend>=100n,'credit untouched');
+ s.L.lines.err.clear();await s.hour(1,{lp:'6000',base:null});
+ assert.equal(xrpTo(s,B).length,1,'retried next hour, once');
+ assert.equal(BigInt(xrpTo(s,B)[0].tx.Amount)+BigInt(s.db.prepare('SELECT fee_drops f FROM estate_pollux_xrp_payments WHERE owner=?').get(B).f),
+  BigInt(s.db.prepare('SELECT SUM(drops) d FROM estate_pollux_xrp_allocations WHERE owner=?').get(B).d),'both hours paid together, never twice');
+ // An unvalidated answer is not trusted either.
+ const u=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
+ const req=u.L.client.request.bind(u.L.client);u.L.client.request=async q=>q.command==='account_lines'&&q.account===B?{result:{account:B,lines:[]}}:req(q);
+ u.noTrust.add(B);await u.hour(0,{lp:'6000',base:null});
+ assert.equal(xrpTo(u,B).length,0);assert.equal(sharesOf(u,B).length,0);
+ // A line too small for the expected IMG is treated as missing.
+ const t=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});t.L.lines.limit.set(B,'0.000001');
+ await t.hour(0,{lp:'6000',base:null});
+ assert.equal(xrpTo(t,B).length,1);assert.equal(sharesOf(t,B).length,0);assert.equal(imgTo(t,A).length,1);
+}
+{
+ // Crash after the XRP payment was submitted (network error on submit): the journaled row is resumed with the
+ // same signed tx on the next pass; never a second row or a second payment.
+ const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});s.noTrust.add(B);
+ const req=s.L.client.request.bind(s.L.client);let cut=false;
+ s.L.client.request=async q=>{const r=await req(q);if(q.command==='submit'&&!cut){const tx=xrpl.decode(q.tx_blob);if(tx.Destination===B&&typeof tx.Amount==='string'){cut=true;throw Error('socket hang up');}}return r;};
+ await assert.rejects(s.hour(0,{lp:'6000',base:null}));
+ assert.equal(s.db.prepare("SELECT COUNT(*) n FROM estate_pollux_xrp_payments WHERE owner=? AND state='pending'").get(B).n,1);
+ await s.ex.runPolluxXrp();await s.ex.runPolluxXrp();
+ assert.equal(s.L.submits.filter(x=>x.tx.Destination===B).length,1,'submitted exactly once');
+ const rows=s.db.prepare('SELECT * FROM estate_pollux_xrp_payments WHERE owner=?').all(B);assert.equal(rows.length,1);assert.equal(rows[0].state,'paid');
+ assert.equal(imgTo(s,A).length,1,'A still paid IMG once');
+}
+{
+ // Line removed between the check and the payment: tec -> held (old behaviour). Next hour the check routes the
+ // new credit to XRP while the held IMG stays held (never converted back); once a line is added it is paid in IMG.
+ const s=imgSetup({ESTATE_POLLUX_MIN_PAYOUT_DROPS:'100'});
+ s.noTrust.add(B);s.L.lines.stale.add(B);await s.hour(0,{lp:'6000',base:null});
+ const held=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(held.state,'held');assert(held.img_units>0);
+ assert.equal(s.ex.polluxRewards(A).xrp.imgPayments[0].state,'paid');assert.equal(xrpTo(s,B).length,0);
+ s.L.lines.stale.delete(B);await s.hour(1,{lp:'6000',base:null});
+ assert.equal(xrpTo(s,B).length,1,'new credit paid in XRP');
+ const hs=sharesOf(s,B);assert.equal(hs.length,1);assert.equal(hs[0].state,'held','held IMG preserved, not rolled or converted');
+ const p1=s.db.prepare('SELECT gross_drops g FROM estate_pollux_xrp_payments WHERE owner=?').get(B).g;
+ assert(p1<hs[0].gross_drops*2,'XRP covers only the new hour, not the held IMG');
+ s.noTrust.delete(B);await s.hour(2,{lp:'6000',base:null});
+ const again=s.ex.polluxRewards(B).xrp.imgPayments[0];assert.equal(again.state,'paid');assert(again.img_units>held.img_units,'held IMG carried into the IMG payment');
+ assert.equal(s.ex.polluxRewards(B).xrp.imgPayments.filter(p=>p.state==='held').length,0);assert.equal(xrpTo(s,B).length,1);
+}
+// tec on the conversion (pool moved): batch failed, credit and burn share released, retried next hour. Base ignored by default.
  {
   const s=imgSetup({});
   const sub=s.L.client.request.bind(s.L.client);let moved=false;
@@ -353,5 +434,5 @@ const H='F'.repeat(64),OLD='E'.repeat(64),TR='D'.repeat(64);
   assert.equal(w.find(h=>h.propertyId==='starter-05').weight,25+12,'36 XRP of upgrades = 12 more payout shares');
   process.env.ESTATE_UPGRADE_PAYOUTS_ENABLED=prevUp||'';
  }
- console.log('Estates policy v4: off by default, 90/5/5 split with folds, IMG/PLX + IMG/XRP two-sided deposits, no withdrawals, Pollux hourly IMG with 3.22% burn, XRP fallback and burn batching, carry, idempotency, reserve, harvest skipped');
+ console.log('Estates policy v4: off by default, 90/5/5 split with folds, IMG/PLX + IMG/XRP two-sided deposits, no withdrawals, Pollux hourly IMG with 3.22% burn, no-trustline XRP payouts, XRP fallback and burn batching, carry, idempotency, reserve, harvest skipped');
 })().catch(e=>{console.error(e);process.exit(1);});

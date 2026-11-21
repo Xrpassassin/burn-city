@@ -98,6 +98,9 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
   const minPayout = Number.isSafeInteger(options.minPayoutDrops) ? options.minPayoutDrops : (mode === 'img' ? IMG_MIN_PAYOUT : MIN_PAYOUT);
   const batchMs = Number.isSafeInteger(options.batchMs) ? options.batchMs : (mode === 'img' ? HOUR : 0);
   const minSwap = Number.isSafeInteger(options.minSwapDrops) ? options.minSwapDrops : IMG_MIN_PAYOUT;
+  // IMG mode: owners without a usable IMG trust line (validated account_lines) are paid their closed XRP
+  // credit in native XRP instead of joining the swap (ESTATE_POLLUX_NO_TRUSTLINE_XRP, default on).
+  const noLineXrp = mode === 'img' && options.noLineXrp !== false && typeof img?.line === 'function';
   if (mode === 'img' && !img) throw Error('pollux_img_mode_requires_swap');
   db.exec(`
     CREATE TABLE IF NOT EXISTS estate_pollux_xrp_burn_credit (
@@ -334,6 +337,69 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
     `).all(closedThrough, minPayout, limit);
   }
 
+  function heldImgUnits(owner) {
+    return BigInt(db.prepare("SELECT COALESCE(SUM(CAST(img_units AS INTEGER)+CAST(carry_units AS INTEGER)),0) AS u FROM estate_pollux_img_shares WHERE owner=? AND state='held'").get(owner).u);
+  }
+  // Split the ready owners by their validated IMG trust line. An owner whose line cannot be verified
+  // (RPC error, unvalidated or ambiguous answer) is skipped this pass: no XRP payment and no swap
+  // share, so the credit simply stays unspent and is retried. A line that exists but cannot take the
+  // expected IMG (estimated from the quote with a 10% cushion, plus any held IMG) is treated as missing.
+  async function routeByTrustLine(candidates, burnDrops) {
+    const lines = new Map();
+    for (const x of candidates) {
+      let l = null;
+      try { l = await img.line(x.owner); } catch { l = null; }
+      if (l && typeof l.ok === 'boolean' && typeof l.headroomUnits === 'bigint') lines.set(x.owner, l);
+    }
+    const xrp = [];
+    let imgShares = [];
+    for (const x of candidates) {
+      const l = lines.get(x.owner);
+      if (!l) continue;
+      (l.ok ? imgShares : xrp).push(x);
+    }
+    let quote = null;
+    for (let round = 0; round < 3; round++) {
+      const total = imgShares.reduce((n, x) => n + x.convert, 0) + burnDrops;
+      // Burn-only batches are allowed so XRP-routed hours still convert the reserved burn as before.
+      if (total < minSwap || (!imgShares.length && !burnDrops)) { quote = null; break; }
+      quote = await img.quote(total);
+      if (!quote) break;
+      const min = BigInt(quote.minImgUnits);
+      const short = imgShares.filter(x => min * BigInt(x.convert) * 11n / (10n * BigInt(total)) + heldImgUnits(x.owner) + 1n > lines.get(x.owner).headroomUnits);
+      if (!short.length) break;
+      xrp.push(...short);
+      imgShares = imgShares.filter(x => !short.includes(x));
+      quote = null;
+    }
+    return { xrp, img:imgShares, quote };
+  }
+  // Native XRP payout of the closed credit (same journaled rows + settle() proof checks as native mode).
+  // The row is written before any signing; restarts resume it via the pending loop, never a second row.
+  async function payNativeFallback(owners, limit) {
+    for (const { owner, gross } of owners) {
+      if (paused() || limit <= 0) return limit;
+      if (gross < minPayout) continue;
+      const last = db.prepare('SELECT MAX(created_ms) AS at FROM estate_pollux_xrp_payments WHERE owner=?').get(owner).at;
+      if (last != null && Math.floor(last / batchMs) === Math.floor(now() / batchMs)) continue;
+      let id;
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        // Re-check inside the transaction: still ready, nothing active, same credit.
+        const row = readyCredits(Number.MAX_SAFE_INTEGER, 500).find(r => r.owner === owner);
+        const fresh = db.prepare(`SELECT SUM(a.drops) - COALESCE((SELECT SUM(p.spent_drops) FROM estate_pollux_xrp_payments p WHERE p.owner=a.owner),0) - ${sharedSql} AS credit
+          FROM estate_pollux_xrp_allocations a WHERE a.owner=? GROUP BY a.owner`).get(owner);
+        if (!row || !fresh || Number(fresh.credit) < gross) { db.exec('ROLLBACK'); continue; }
+        id = db.prepare("INSERT INTO estate_pollux_xrp_payments(owner,gross_drops,amount_drops,fee_drops,state,created_ms) VALUES(?,?,?,?,'pending',?)")
+          .run(owner, gross, gross, 0, now()).lastInsertRowid;
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      limit--;
+      await settle(db.prepare('SELECT * FROM estate_pollux_xrp_payments WHERE id=?').get(id));
+    }
+    return limit;
+  }
+
   // IMG mode: once per batch window, convert every owner's closed XRP credit (minus the XRP fee of
   // their IMG payment) to IMG in ONE capped self-swap, split the delivered IMG pro rata by the XRP
   // each owner contributed, and pay it. The 3.22% burn was already reserved at receipt time and is
@@ -346,14 +412,27 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
       if (last != null && Math.floor(last / batchMs) === Math.floor(now() / batchMs)) return;
       const ready = readyCredits(closedThrough, 500);
       if (!ready.length) return;
-      const shares = ready.map(({ owner, credit }) => ({ owner, gross:Number(credit), fee:IMG_FEE, convert:Number(credit) - IMG_FEE }));
+      let shares = ready.map(({ owner, credit }) => ({ owner, gross:Number(credit), fee:IMG_FEE, convert:Number(credit) - IMG_FEE }));
       // The 3.22% reserved at receipt rides along in the same swap; its IMG is ledgered and HELD
-      // until the accrued burn crosses the burn threshold (runPolluxBurns).
+      // until the accrued burn crosses the burn threshold (runPolluxBurns). XRP-routed owners do not
+      // change it: their credit is already net of the burn reserved at receipt.
       const burnDrops = Number(xrpBurnAvailable(db));
+      let quote = null;
+      if (noLineXrp) {
+        const routed = await routeByTrustLine(shares, burnDrops);
+        if (!routed) return;
+        limit = await payNativeFallback(routed.xrp, limit);
+        if (limit <= 0 || paused()) return;
+        shares = routed.img;
+        quote = routed.quote;
+        if (!quote) return; // no economic IMG swap this pass: IMG-route credit keeps accruing
+      } else {
+        const total = shares.reduce((n, x) => n + x.convert, 0) + burnDrops;
+        if (total < minSwap) return; // uneconomic swap: credits keep accruing
+        quote = await img.quote(total);
+        if (!quote) return; // too small or too much price impact: credit keeps accruing
+      }
       const total = shares.reduce((n, x) => n + x.convert, 0) + burnDrops;
-      if (total < minSwap) return; // uneconomic swap: credits keep accruing
-      const quote = await img.quote(total);
-      if (!quote) return; // too small or too much price impact: credit keeps accruing
       db.exec('BEGIN IMMEDIATE');
       try {
         const id = db.prepare("INSERT INTO estate_pollux_img_batches(created_ms,convert_drops,spend_max,min_img_units,burn_drops,state) VALUES(?,?,?,?,?,'quoted')")
@@ -419,7 +498,7 @@ function createPolluxXrpRewards({ db, client, treasury, pool, source, send, look
       const imgPaid = db.prepare("SELECT COALESCE(SUM(CAST(img_units AS INTEGER)+CAST(carry_units AS INTEGER)),0) AS u FROM estate_pollux_img_shares WHERE state='paid'").get().u;
       return { throughMs, ledgerIndex, receivedDrops:String(received), receivedByKind:kinds, paidDrops:String(paid), burnPendingDrops:String(xrpBurnAvailable(db)),
         paymentCounts:Object.fromEntries(states.map(row=>[row.state,row.count])),
-        payoutAsset:mode, includeHolderBase:includeBase, batchHours:batchMs / HOUR, minPayoutDrops:String(minPayout), minSwapDrops:String(minSwap),
+        payoutAsset:mode, noTrustlineXrp:noLineXrp, includeHolderBase:includeBase, batchHours:batchMs / HOUR, minPayoutDrops:String(minPayout), minSwapDrops:String(minSwap),
         imgBatches:Object.fromEntries(batches.map(b => [b.state, { count:b.n, xrpDrops:String(b.drops), imgUnits:String(b.units) }])), imgPaidUnits:String(imgPaid) };
 
     }

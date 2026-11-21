@@ -4,28 +4,18 @@ import {nearbyEstatesFishingSpot} from './estates-lake-fishing-adapter.mjs';
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, xpForCatch, anglerProgress, rodUnlockLevel, BOATS as BOAT_CATALOG, feedingSpotBonus } from './fishing-rules.mjs';
+import { resolveFightTap, journalAchievements, challengeBoard, xpForCatch, anglerProgress, rodUnlockLevel, BOATS, boatById, feedingSpotBonus, SPECIES, SHOP, gearTier as tier, roll, fishRequirements } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-// Declared before the guest-profile normalization below reads it (a later `const` here was a TDZ ReferenceError for new guests).
-const BOATS = BOAT_CATALOG;
-const boatById = id => BOATS.find(b => b.id === id) || BOATS[0];
-const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1,"boat":2}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1,"boat":3}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1,"boat":4}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1,"boat":3}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull","boat":4}],["sunfish","Copper Sunfish",0,[0.1,0.8],5,{}],["goldentrout","Gilded Trout",2,[1,7],65,{"night":1,"boat":2}],["swordfish","Bluewater Swordfish",3,[30,120],220,{"deep":1,"boat":3}],["anglerfish","Abyssal Lanternfish",4,[5,80],700,{"deep":1,"night":1,"boat":4}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
+const RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
 const Q = new URLSearchParams(location.search), SRV = trustedServer(Q.get('citysrv')), LS = localStorage;
 const tok = () => { try { return LS.bcToken || '' } catch (e) { return '' } };
 const api = (p, b) => fetch(SRV + '/api/fish/' + p, { method: b ? 'POST' : 'GET', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok() }, body: b ? JSON.stringify(b) : undefined }).then(r => r.json());
 const W = () => window.__city, $ = id => document.getElementById(id);
-const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
-function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
-  const boat = boatById(ctx.boatId || 'skiff'), capacity = ctx.onBoat ? boat.capacityKg : 9;
-  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 0) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
-  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = Math.random() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
-  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(Math.random(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
-  return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) } }
 const night = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6 };
 const weather = () => { const t = ($('wchip')?.textContent || '').toLowerCase(); return /storm|crash/.test(t) ? 'storm' : /green|rainbow|gold/.test(t) ? 'bull' : '' };
 const isAboard = () => !!(window.__boat && window.__boat.active);
-const isDeep = () => { const b = window.__boat, e = window.__estate, boat = boatById(prof.selectedBoat); if (!b?.active || !e || boat.depth < 1) return false; const p = b.pos, center=e.deepC||e.lakeC; return Math.hypot(p.x - center.x, p.z - center.z) < e.D * .38 };
+const isDeep = () => Boolean(window.__boat?.getDeepWater());
 let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { return null } })() || { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
 prof.boats = [...new Set(['skiff', ...(Array.isArray(prof.boats) ? prof.boats.filter(id => BOATS.some(b => b.id === id)) : [])])];
 if (!prof.boats.includes(prof.selectedBoat)) prof.selectedBoat = 'skiff';
@@ -34,15 +24,31 @@ const saveLocal = () => { LS.bcFish = JSON.stringify(prof) };
 let bait = 'worm';
 // ---------- world: dock + shop on the city shore ----------
 let dock = null, shopPos = null, bobber = null, rod = null, feedingSpots = [];
-// ---------- low-poly fish model: shared geometry, one textured material per species ----------
-// look: [back colour, belly colour, pattern: 0 plain | 1 stripes | 2 spots | 3 lateral glow line | 4 patches, accent]
-const LOOK = { sunfish: ['#f2a43a', '#fff0b8', 4, '#d94b2b'], goldentrout: ['#b68c20', '#f7e7ad', 2, '#fff4a3'], swordfish: ['#163c79', '#d8f1ff', 1, '#43d5ff'], anglerfish: ['#20163c', '#7764a6', 3, '#aaff55'], minnow: ['#8a9aa8', '#e8eef2', 0], bluegill: ['#2f7f86', '#ff9a3c', 1, '#1d4d5a'], perch: ['#9aa63a', '#f0e6b0', 1, '#3a4a1a'], carp: ['#a8823c', '#f0d890', 0], shiner: ['#c8d4e0', '#ffffff', 0],
-  dace: ['#7a8a96', '#dfe6ea', 0], trout: ['#3a9a6a', '#f4e8d0', 3, '#ff4fd8'], bass: ['#3c6a2c', '#e8e4c0', 1, '#1e3a14'], catfish: ['#4a4a52', '#c8c0b0', 0], pike: ['#4a6a2a', '#e8e4a8', 2, '#d8e090'],
-  eel: ['#3a3a2a', '#8a8a5a', 0], gar: ['#6a7a5a', '#dad8b8', 2, '#2a3020'], koi: ['#ffffff', '#ffffff', 4, '#ff8a10'], cod: ['#8a7a5a', '#efe8d8', 2, '#5a4a30'], sturgeon: ['#5a5a62', '#c8c8c8', 0],
-  snapper: ['#e0402a', '#ffc0a8', 0], salmon: ['#8a9aa8', '#ff9a80', 2, '#2a3040'], leviathan: ['#2a1a5a', '#7a5aff', 3, '#ff3a00'], marlin: ['#1a3a8a', '#e8f0ff', 1, '#5ad8ff'], whaleshark: ['#3a4a5a', '#e0e4e8', 2, '#f0f4f8'] };
+// Fallback skin palette for species without a custom painter.
+// Palette order is back, belly, pattern (plain, stripes, spots, lateral line, patches), accent.
+const LOOK = {
+  smelt: ['#768ea1', '#e3f1ff', 0], pumpkinseed: ['#287c83', '#ffc463', 2, '#e34f21'],
+  crappie: ['#45534d', '#e9e0c3', 2, '#182b24'], walleye: ['#696c36', '#ebdfad', 4, '#a48743'],
+  char: ['#304f75', '#ffe7bd', 2, '#ff7755'], burbot: ['#584b36', '#c1a784', 4, '#33261a'],
+  redfish: ['#a45133', '#f3cc9e', 1, '#5d3640'], muskie: ['#343b32', '#b5a778', 1, '#161d1d'],
+  grouper: ['#48332a', '#a98672', 4, '#6c443d'], tuna: ['#154b83', '#ceebef', 3, '#44b9d4'],
+  oarfish: ['#8195ba', '#d9eaf5', 3, '#e55d8c'], alligatorgar: ['#394343', '#9a9c6f', 2, '#4b7068']
+};
 // ---------- fish models: per-species body shape, fins and hand-painted skin (shared geometry + material per species) ----------
 // shape: L length, H height, W width, pk where the body is deepest (0 nose..1 tail), nz nose bluntness, tl tail type, d dorsal style, plus extras
 const SHAPE = {
+  smelt: { L: .85, H: .16, W: .12, pk: .38, nz: .7, tl: 'fork', d: 'one' },
+  pumpkinseed: { L: .72, H: .5, W: .19, pk: .43, nz: .5, tl: 'round', d: 'spiny' },
+  crappie: { L: .91, H: .43, W: .18, pk: .43, nz: .55, tl: 'fork', d: 'spiny' },
+  walleye: { L: 1.24, H: .28, W: .17, pk: .42, nz: .7, tl: 'fork', d: 'spiny' },
+  char: { L: 1.28, H: .27, W: .18, pk: .42, nz: .63, tl: 'fork', d: 'one', ad: 1 },
+  burbot: { L: 1.56, H: .26, W: .2, pk: .23, nz: .47, tl: 'round', d: 'ridge', bar: 1 },
+  redfish: { L: 1.42, H: .32, W: .22, pk: .38, nz: .55, tl: 'round', d: 'spiny' },
+  muskie: { L: 1.85, H: .22, W: .18, pk: .34, nz: .84, tl: 'fork', d: 'rear' },
+  grouper: { L: 1.55, H: .47, W: .32, pk: .36, nz: .35, tl: 'round', d: 'spiny' },
+  tuna: { L: 1.82, H: .34, W: .27, pk: .36, nz: .68, tl: 'lunate', d: 'one' },
+  oarfish: { L: 2.52, H: .19, W: .1, pk: .19, nz: .51, tl: 'deep', d: 'ridge' },
+  alligatorgar: { L: 2.06, H: .29, W: .26, pk: .38, nz: .76, tl: 'round', d: 'rear', snout: .36, teeth: 1 },
   sunfish: { L: .75, H: .48, W: .2, pk: .42, nz: .4, tl: 'round', d: 'spiny' }, goldentrout: { L: 1.15, H: .28, W: .16, pk: .4, nz: .7, tl: 'fork', d: 'one', ad: 1 }, swordfish: { L: 1.9, H: .24, W: .2, pk: .35, nz: .9, tl: 'lunate', d: 'sail', bill: .9 }, anglerfish: { L: 1.15, H: .42, W: .28, pk: .35, nz: .3, tl: 'deep', d: 'ridge', teeth: 1 }, minnow: { L: 1, H: .22, W: .14, pk: .38, nz: .7, tl: 'fork', d: 'one' }, shiner: { L: 1, H: .24, W: .12, pk: .4, nz: .7, tl: 'fork', d: 'one' }, dace: { L: 1, H: .22, W: .13, pk: .38, nz: .75, tl: 'fork', d: 'one' },
   bluegill: { L: .8, H: .42, W: .13, pk: .42, nz: .45, tl: 'square', d: 'spiny' }, perch: { L: 1, H: .3, W: .16, pk: .38, nz: .6, tl: 'square', d: 'two' }, carp: { L: 1.05, H: .34, W: .2, pk: .4, nz: .5, tl: 'fork', d: 'long', bar: 2 },
   trout: { L: 1.1, H: .26, W: .16, pk: .4, nz: .65, tl: 'square', d: 'one', ad: 1 }, bass: { L: 1.05, H: .32, W: .19, pk: .38, nz: .55, tl: 'square', d: 'two', mouth: 1 },
@@ -117,7 +123,15 @@ function fishGeo(id) { if (FG[id]) return FG[id]; const S = SHAPE[id] || SHAPE.m
 const EYEG = new THREE.SphereGeometry(1, 10, 8), PUPG = new THREE.SphereGeometry(.55, 8, 6), PUPM = new THREE.MeshBasicMaterial({ color: 0x050505 });
 const IRIS = { koi: '#c8a040', pike: '#d8c040', bass: '#a06020', snapper: '#ffcc40', leviathan: '#ff3a00', catfish: '#202020' };
 function fishMat(id, r) { if (FM[id]) return FM[id]; const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128; const x = cv.getContext('2d'), side = document.createElement('canvas'); side.width = 256; side.height = 64; const y = side.getContext('2d');
-  (SKIN[id] || SKIN.minnow)(y);
+  if (SKIN[id]) SKIN[id](y);
+  else if (LOOK[id]) {
+    const [back, belly, pattern, accent] = LOOK[id];
+    grad(y, [back, back, belly]);
+    if (pattern === 1) bars(y, 6, accent, 34, 215, 10, 39, 8);
+    if (pattern === 2) dots(y, 70, accent, 3, 42, 1, 3, 30, 235);
+    if (pattern === 3) band(y, accent, 26, 3);
+    if (pattern === 4) dots(y, 36, accent, 8, 41, 3, 7, 35, 220);
+  } else SKIN.minnow(y);
   const sc = SCALY[id] ?? 1; if (sc) { y.strokeStyle = `rgba(0,0,0,${.13 * sc})`; y.lineWidth = .8; for (let row = 0; row < 12; row++) for (let i = 0; i < 44; i++) { y.beginPath(); y.arc(14 + i * 5.6 + (row % 2) * 2.8, row * 5.4, 3.4, .2 * Math.PI, .8 * Math.PI); y.stroke() } y.fillStyle = `rgba(255,255,255,${.06 * sc})`; for (let i = 0; i < 300; i++) y.fillRect(rnd(10, 250), rnd(0, 60), 1.5, 1) }
   if (id === 'carp' || id === 'koi') { y.strokeStyle = 'rgba(60,40,10,.35)'; y.lineWidth = 1; for (let row = 0; row < 7; row++) for (let i = 0; i < 24; i++) { y.beginPath(); y.arc(20 + i * 10 + (row % 2) * 5, row * 9, 6, .15 * Math.PI, .85 * Math.PI); y.stroke() } }
   if (id === 'sturgeon') { y.fillStyle = '#e8ecef'; for (let i = 0; i < 14; i++) { y.beginPath(); y.moveTo(30 + i * 15, 18); y.lineTo(34 + i * 15, 14); y.lineTo(38 + i * 15, 18); y.lineTo(34 + i * 15, 22); y.fill() } }
@@ -231,11 +245,11 @@ async function castAt(pow) {
   const spotDistance = feedingSpots.reduce((best, s) => Math.min(best, Math.hypot(tgt.x - s.p.x, tgt.z - s.p.z)), Infinity);
   const activityBonus = feedingSpotBonus(spotDistance, 9), activeFeeding = activityBonus > 1;
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
-  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}${activeFeeding ? '<b style=color:#71ffd0>🐟 Feeding frenzy! Faster bite · wider reel zone</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
+  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}${activeFeeding ? '<b style=color:#71ffd0>🐟 Feeding frenzy! Wider reel zone</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
   let nc = null;
-  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), onBoat: !!(window.__boat && window.__boat.active), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
-  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather(), boatId: prof.selectedBoat, onBoat: isAboard() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
-  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4); if (activeFeeding) { cur.zone = Math.min(.6, cur.zone * activityBonus); cur.wait = Math.max(1400, (Number(cur.wait) || 5000) * 0.78); }
+  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), onBoat: isAboard(), boatId: window.__boat?.cur?.id, weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (gen !== castGen || state !== 'wait') return; if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
+  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather(), boatId: window.__boat?.cur?.id, onBoat: isAboard() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
+  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4); if (activeFeeding) { cur.zone = Math.min(.6, cur.zone * activityBonus); if (!cur.srv) cur.wait = Math.max(1400, cur.wait * .78); }
   cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(() => { if (gen === castGen) bite() }, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; const gen = castGen; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite' && gen === castGen) { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0; streak = 0; msg(cur ? '💨 Too early! The fish spooked. Wait for the big dip.' : 'Too early!'); return }
@@ -305,7 +319,7 @@ const putTop = () => topHtml().then(h => { const e = panel.querySelector('#fTop'
 async function openShop() { await refresh(); const v = prof.creel.reduce((a, f) => a + f[2], 0), angler = anglerProgress(prof.xp);
   const levelText = `<p style="margin:8px 0 4px">🎣 <b>Angler Level ${angler.level}</b> · ${angler.xp} XP${angler.nextLevelAt === null ? ' · MAX LEVEL' : ` · ${angler.nextLevelAt - angler.xp} XP to Level ${angler.level + 1}`}</p>`;
   const levelBar = `<div class="xpbar" role="progressbar" aria-label="Angler experience progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(angler.progress * 100)}" style="height:8px;border-radius:6px;background:#ffffff14;overflow:hidden;margin:4px 0 10px"><div style="height:100%;width:${Math.round(angler.progress * 100)}%;background:linear-gradient(90deg,#31b8ff,#ffb020)"></div></div>`;
-  const boatHtml = `<h4>🚤 Private Dock · Your Fleet</h4><div class="nv">Choose which owned boat spawns at your personal dock. Larger boats reach deeper water and support heavier catches.</div>${BOATS.map(b => { const owned = prof.boats.includes(b.id), selected = prof.selectedBoat === b.id; return `<div class="c" style="margin:5px 0;border-color:${selected ? '#7dffb0aa' : '#ffffff22'}"><b>${selected ? '✓ ' : ''}${b.name}</b> · ${b.price ? `${b.price} 🪙` : 'starter boat'}<br><span class="nv">${b.description}</span><br>${owned ? `<button class="b" data-boat="${b.id}">${selected ? 'Spawned at dock' : 'Select & spawn'}</button>` : `<button class="b" data-buy-boat="${b.id}" ${prof.coins < b.price ? 'disabled' : ''}>Buy · ${b.price} 🪙</button>`}</div>` }).join('')}`;
+  const boatHtml = `<h4>🚤 Private Dock · Your Fleet</h4><div class="nv">Choose which owned boat spawns at your personal dock. Larger boats unlock fish in the marked basin and support heavier catches.</div>${BOATS.map(b => { const owned = prof.boats.includes(b.id), selected = prof.selectedBoat === b.id; return `<div class="c" style="margin:5px 0;border-color:${selected ? '#7dffb0aa' : '#ffffff22'}"><b>${selected ? '✓ ' : ''}${b.name}</b> · ${b.price ? `${b.price} 🪙` : 'starter boat'}<br><span class="nv">${b.description} Holds up to ${b.capacityKg} kg.</span><br>${owned ? `<button class="b" data-boat="${b.id}">${selected ? 'Spawned at dock' : 'Select & spawn'}</button>` : `<button class="b" data-buy-boat="${b.id}" ${prof.coins < b.price ? 'disabled' : ''}>Buy · ${b.price} 🪙</button>`}</div>` }).join('')}`;
   panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">🎣 Tackle & Bait</h3>${NV}<p>🪙 <b>${prof.coins}</b> lake coins · creel: ${prof.creel.length} fish (${v} 🪙)</p>${levelText}${levelBar}<button class="b" id="fSell">Sell all fish (+${v} 🪙)</button>
    <h4>Rods</h4>${SHOP.rods.map(r => { const req = rodUnlockLevel(r[0]), locked = !prof.rods.includes(r[0]) && angler.level < req; return `<button class="b" data-rod="${r[0]}" ${locked ? 'disabled' : ''}>${prof.rod === r[0] ? '✓ ' : ''}${r[1]} · ${prof.rods.includes(r[0]) ? (prof.rod === r[0] ? 'equipped' : 'equip') : locked ? `🔒 Angler Lv. ${req}` : r[2] + ' 🪙'}</button>` }).join('')}
    ${boatHtml}<h4>Bait <span class="nv">(using: ${bait})</span></h4><div class="nv" style="margin:4px 0 8px">Bait tips: Worms favor common small fish · Shrimp favors bottom-feeders · Glow Lures favor select rare fish · Burn Fly favors predators.</div>${SHOP.baits.map(b => { if (b[0] === 'worm') return `<button class="b" data-use="worm">${bait === 'worm' ? '✓ ' : ''}${b[1]} · free</button>`; const mx = Math.min(50, Math.floor(prof.coins / b[2])), have = prof.bait[b[0]] || 0;
@@ -322,10 +336,10 @@ async function buy(kind, id, qty = 1) { qty = Math.max(1, Math.min(50, qty | 0))
 function openLog() { const got = Object.keys(prof.log).filter(id => SPECIES.some(s => s[0] === id)).length;
   const achievements = journalAchievements(prof.log, SPECIES);
   const earned = achievements.filter(a => a.unlocked).length;
-  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">📖 Fish Journal · ${got}/${SPECIES.length}</h3><div class="nv">Some fish only bite at night, in deep water (from a boat), or in certain market weather. Records and milestones are based on your saved catch log.</div><button class="b" id="fChallenges" style="margin-top:8px">🎯 View Daily Challenges</button>
+  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">📖 Fish Journal · ${got}/${SPECIES.length}</h3><div class="nv">Check each species for the gear and conditions it needs. The blue ring on the city lake marks the deep basin.</div><button class="b" id="fChallenges" style="margin-top:8px">🎯 View Daily Challenges</button>
   <h4 style="margin:10px 0 5px">🏅 Angler milestones · ${earned}/${achievements.length}</h4><div class="g">${achievements.map(a => `<div class="c" style="border-color:${a.unlocked ? '#ffb02088' : '#ffffff22'}"><b style="color:${a.unlocked ? '#ffb020' : '#b8c0cc'}">${a.unlocked ? '✓ ' : '○ '}${a.title}</b><br><span class="nv">${a.detail}</span><br><b>${a.progress}/${a.goal}</b> ${a.unlocked ? '· unlocked' : '· in progress'}</div>`).join('')}</div>
-  <h4 style="margin:10px 0 5px">🐟 Species discoveries</h4><div class="g" style="margin-top:8px">${SPECIES.map(s => { const L = prof.log[s[0]];
-    return `<div class="c" style="border-color:${RC[s[2]]}55"><b style="color:${L ? RC[s[2]] : '#666'}">${L ? s[1] : '???'}</b><br>${RN[s[2]]}${L ? ` · ×${L.n} · best ${L.best} kg` : (s[5].night ? ' · 🌙' : '') + (s[5].deep ? ' · 🚤' : '') + (s[5].weather ? ' · ⛅' : '')}</div>` }).join('')}</div>`;
+  <h4 style="margin:10px 0 5px">🐟 Species discoveries</h4><div class="g" style="margin-top:8px">${[...SPECIES].sort((a, b) => a[2] - b[2]).map(s => { const L = prof.log[s[0]], requirements = fishRequirements(s);
+    return `<div class="c" style="border-color:${RC[s[2]]}55"><b style="color:${L ? RC[s[2]] : '#666'}">${s[1]}</b><br>${RN[s[2]]}${L ? ` · ×${L.n} · best ${L.best} kg` : ' · undiscovered'}<br><span class="nv">${requirements.length ? requirements.join(' · ') : 'Any tackle'}</span></div>` }).join('')}</div>`;
   panel.insertAdjacentHTML('beforeend', '<div id="fTop"></div>'); putTop(); panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fChallenges').onclick = openChallenges }
 
 function guestDailyCatches() {

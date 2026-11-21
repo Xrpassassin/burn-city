@@ -25,10 +25,11 @@ main{width:min(100%,560px);text-align:center}.eyebrow{font-size:11px;letter-spac
 <button class="secondary" id="cancel">Return to BURN City</button>
 <p style="font-size:12px">Departure is coordinated by the game server. Everyone in this flight sees the same roster and countdown; joining late or becoming unready resets departure until all connected passengers are ready.</p>
 </main>
+<script src="../js/trusted-server.js"></script>
 <script>
 const q=new URLSearchParams(location.search),$=id=>document.getElementById(id);
-// Same rule as the arena page: talk to the server that served this page (any local port, fly.dev), else production; ?api= overrides.
-const flightParams=new URLSearchParams(location.search),flightApi=flightParams.get('api')||(/fly\.dev$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev'),socketUrl=flightApi.replace(/^http/,'ws');
+// Same rule as the arena page: talk to the server that served this page (any local port, fly.dev), else production; ?api= overrides only through the shared allowlist (js/trusted-server.js).
+const flightParams=new URLSearchParams(location.search),flightApi=BCTrustedServer.trustedServer(flightParams.get('api'),/fly\.dev$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev'),socketUrl=flightApi.replace(/^http/,'ws');
 let socket=null,myId=null,myReady=false,departed=false,countdownAt=null,clock=null,serverOffset=0,partyMax=8;
 function setStatus(s){$('status').textContent=s}
 function renderRoster(players=[]){

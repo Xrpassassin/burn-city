@@ -14,14 +14,24 @@ const status = { ok: false, ts: null, pools: 0, tokens: 0, stream: 'off', ledger
 const res = {}, bhCache = new Map(), notAmm = new Set(), pending = new Set(); let flushT = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const side = x => typeof x === 'string' ? { cur: 'XRP', v: +x / 1e6 } : { cur: x.currency, iss: x.issuer, v: +x.value };
-const curName = c => c.length === 40 ? Buffer.from(c, 'hex').toString('latin1').replace(/\0/g, '').trim() || c : c;
+// Token names reach players' browsers, and anyone can issue a currency whose code decodes to markup: keep only
+// [A-Za-z0-9 ._·$-] names; anything else is shown as its hex code (security hardening, HANDOFF "Security hardening").
+const SAFE_NAME = /^[A-Za-z0-9 ._\u00B7$-]{1,48}$/;
+const curHex = c => /^[0-9A-F]{40}$/i.test(c) ? c.toUpperCase() : Buffer.from(c, 'latin1').toString('hex').toUpperCase();
+const curName = c => { c = String(c || ''); const n = c.length === 40 ? Buffer.from(c, 'hex').toString('latin1').replace(/\0/g, '').trim() || c : c;
+  return SAFE_NAME.test(n) ? n : curHex(c); };
+const safeNodeName = (name, key) => typeof name === 'string' && SAFE_NAME.test(name) ? name
+  : curName(String(key || '').slice(String(key || '').indexOf('-') + 1));
 
 const DISC_FILE = fs.existsSync('/data') ? '/data/eco-discovered.json' : path.join(__dirname, 'eco-discovered.json');
 // discovered pools/tokens survive restarts, so towers are right from the first page load instead of after the hourly sweep
 function loadBase() { const s = fs.readFileSync(FILE, 'utf8'); const e = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1));
   try { const d = JSON.parse(fs.readFileSync(DISC_FILE, 'utf8')); const keys = new Set(e.nodes.map(n => n.key)), names = new Set(e.nodes.map(n => n.name)), amms = new Set(e.pools.map(p => p.amm));
-    for (const n of d.nodes || []) if (!keys.has(n.key) && !names.has(n.name)) { e.nodes.push(n); keys.add(n.key); names.add(n.name); }
-    for (const p of d.pools || []) if (!amms.has(p.amm) && names.has(p.a) && names.has(p.b)) { e.pools.push(p); amms.add(p.amm); }
+    const renamed = {};   // discovered names saved before the safe-name rule: re-derive them from the currency code
+    for (const n of d.nodes || []) { const nm = safeNodeName(n.name, n.key); if (nm !== n.name) { renamed[n.name] = nm; n.name = nm; }
+      if (!keys.has(n.key) && !names.has(n.name)) { e.nodes.push(n); keys.add(n.key); names.add(n.name); } }
+    for (const p of d.pools || []) { if (Object.hasOwn(renamed, p.a)) p.a = renamed[p.a]; if (Object.hasOwn(renamed, p.b)) p.b = renamed[p.b];
+      if (!amms.has(p.amm) && names.has(p.a) && names.has(p.b)) { e.pools.push(p); amms.add(p.amm); } }
   } catch {}
   return e; }
 function saveDiscovered() { try { fs.writeFileSync(DISC_FILE, JSON.stringify({ ts: new Date().toISOString(), nodes: eco.nodes.filter(n => n.discovered), pools: eco.pools.filter(p => p.discovered) })); } catch (e) { console.error('save discovered', e.message); } }
@@ -221,7 +231,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
+  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

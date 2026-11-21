@@ -64,6 +64,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { signIn } from './net.js';
+import { trustedServer } from '../js/trusted-server.mjs';
 import { attachViewControls, cameraPose, worldMove } from './homefront-view.mjs';
 import { buildPlayerWalker, poseWalker } from '../js/walker.js';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
@@ -86,7 +87,7 @@ if(directWalkPreview){
  document.getElementById('graveyardMap').setAttribute('aria-label','Shared Graveyard navigation map');
  document.getElementById('graveyardStatus').textContent='Connecting to shared world…';
 }
-const API = new URLSearchParams(location.search).get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+const API = trustedServer(new URLSearchParams(location.search).get('api'), /fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');   // ?api= only via the shared allowlist
 const $ = id => document.getElementById(id);
 let base = null, threatProfile = null, busy = false, pendingBuilding = null, pendingRotation = 0, constructionPaused = false, homefrontMode = "home", lastNearbySurvivorId = null;
 const visitOwner = new URLSearchParams(location.search).get('visit');

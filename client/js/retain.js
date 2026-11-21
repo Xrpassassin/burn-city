@@ -1,7 +1,8 @@
 // Retention: daily streak chip, daily zombie challenge, weekly BURN-coin hunt, shareable postcard. Safari-safe, no deps.
 import * as THREE from 'three';
 import { notify } from './notify-lane.mjs';
-const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev';
+import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
+const Q = new URLSearchParams(location.search), SRV = trustedServer(Q.get('citysrv'));
 const W = () => window.__city, LS = localStorage, T0 = Date.now();
 const tok = () => { try { return LS.bcToken || '' } catch (e) { return '' } };
 const api = (p, b) => fetch(SRV + p, b ? { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok() }, body: JSON.stringify(b) } : {}).then(r => r.json());

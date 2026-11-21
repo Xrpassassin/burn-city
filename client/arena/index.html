@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' blob: https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' blob: data: https://burn-city-game.fly.dev wss://burn-city-game.fly.dev https://xrplcluster.com wss://xrplcluster.com https://s1.ripple.com:51234 https://s2.ripple.com:51234 wss://s1.ripple.com wss://s2.ripple.com https://api.xrpl.fun https://api.xrpl.to https://xumm.app https://xaman.app https://gc.zgo.at https://shinigsmi.goatcounter.com http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Burn City — Arena</title><link rel="icon" href="../icons/icon-192.png">
 <style>html,body{margin:0;height:100%;background:#050208;color:#ffd9a0;font:14px system-ui;overflow:hidden;touch-action:none}
 #hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));right:calc(150px + env(safe-area-inset-right));font-size:13px;display:flex;gap:12px;pointer-events:none;text-shadow:0 0 6px #f60}
@@ -49,17 +49,19 @@ import { readZombieStick } from './zombie-stick.mjs';
 import { zombieMoveVector, ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED, ZOMBIE_CRAWL_SPEED } from './zombie-locomotion.mjs';
 import { mountDefaultPlayerAvatar } from '../js/default-player-avatar.mjs';
 import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
-import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createZombiesMapAmbience } from './zombies-map-ambience.mjs'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
-const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
+import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createZombiesMapAmbience } from './zombies-map-ambience.mjs'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js'; import { trustedServer, safeXamanUrl } from '../js/trusted-server.mjs';
+const P = new URLSearchParams(location.search), API = trustedServer(P.get('api'), /fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const CITY_RETURN = ['airport', 'aegis-pyramid-plaza'].includes(P.get('from'));
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
-const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
+const qr = x => { const box = $('#qr'), src = safeXamanUrl(x?.qr), cap = document.createElement('div'); cap.className = 'small'; cap.textContent = src ? 'Scan with XAMAN' : 'XAMAN request unavailable';
+  if (src) { const img = document.createElement('img'); img.src = src; img.alt = 'XAMAN QR code'; box.replaceChildren(img, cap); } else box.replaceChildren(cap); };   // xaman.app / xumm.app https images only
 let owned = [];
 async function loadShop() { try { await loadShop_(); } catch {} }
 async function loadShop_() {
   const s = await (await fetch(API + '/api/shop', { headers: { authorization: 'Bearer ' + (localStorage.bcToken || '') } })).json(); owned = s.owned;
   if (!s.available) { $('#shop').textContent = '🛒 Cosmetic shop: coming soon'; } else
-  $('#shop').innerHTML = s.items.map(i => `<button data-buy="${i.id}" style="border-color:${i.color}">${i.name} · ${owned.includes(i.id) ? 'owned' : i.xrp + ' XRP'}</button>`).join(' ');
+  $('#shop').replaceChildren(...s.items.flatMap((i, k) => { const b = document.createElement('button'); b.dataset.buy = String(i.id); b.style.borderColor = /^#[0-9a-f]{3,8}$/i.test(i.color || '') ? i.color : '';   // DOM, never innerHTML
+    b.textContent = `${i.name} · ${owned.includes(i.id) ? 'owned' : i.xrp + ' XRP'}`; return k ? [' ', b] : [b]; }));
   $('#shop').querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => { if (!localStorage.bcToken) return $('#price').textContent = 'Sign in first';
     const it = s.items.find(i => i.id === b.dataset.buy);
     try { const v = await buy(API, b.dataset.buy, { onQr: qr, confirm: tx => confirmPay({ title: 'Buy cosmetic: ' + it.name, dest: tx.Destination, rows: [['Amount', it.xrp + ' XRP'], ['Item', it.name + ' (cosmetic only)'], ['Burned (32.2%)', +(it.xrp * s.burnShare).toFixed(6) + ' XRP · irreversible'], ['Refunds', 'Cosmetics are not refundable']] }) });
@@ -120,7 +122,7 @@ async function enterRanked(opts, game = 'zombie') {
     ['Burned (3.22%)', burnX + ' XRP · irreversible'], ['Prize split', tron && opts.cfg?.teams ? 'Winning team splits the pot equally' : '1 player 100% · 2 players 62.5/37.5 · 3+ players 50/30/20'], ['Refund rule', 'Match not started in 30 min → refunded automatically, minus the burn']],
     warn: 'The 3.22% BURN share is burned as soon as you pay and is never refunded, even if the match is cancelled.' });
   if (!okPay) return $('#price').textContent = 'Payment cancelled. Nothing was sent.';
-  if (e.xaman) { qr(e.xaman); if (/iPhone|Android/i.test(navigator.userAgent)) location.href = e.xaman.deeplink; }
+  if (e.xaman) { qr(e.xaman); const dl = safeXamanUrl(e.xaman.deeplink); if (dl && /iPhone|Android/i.test(navigator.userAgent)) location.href = dl; }
   $('#price').textContent = 'Sign the entry payment in XAMAN. Waiting for the ledger… (3.22% is burned at once and is not refunded if the match is cancelled)';
   for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000));
     const v = await (await fetch(API + '/api/ranked/verify', { method: 'POST', headers: h, body: JSON.stringify({ sid: e.sid }) })).json();

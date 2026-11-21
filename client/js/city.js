@@ -9,8 +9,9 @@ import * as NftPick from './nftpick.js';
 import { droneGeo } from './drone.js';
 import { NFT_PLAYER_AVATARS_ENABLED } from './experience-avatar-policy.mjs';
 import { buildPlayerWalker, poseWalker } from './walker.js';
+import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
 const Q=new URLSearchParams(location.search);
-const SRV=Q.get('citysrv')||'https://burn-city-game.fly.dev';
+const SRV=trustedServer(Q.get('citysrv'));
 const WS=SRV.replace(/^http/,'ws')+'/?mode=city';
 const $=id=>document.getElementById(id);
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};

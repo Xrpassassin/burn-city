@@ -8,7 +8,7 @@
 // 3.22% of every entry is owed to the batched BURN job; the rest is the weekly pool. Top 3 split 50/30/20.
 // Prizes come ONLY from collected entries minus a fee buffer -> the project can never pay out more than it took in.
 // Payouts: admin-approved, one by one. DRY_RUN (default) never submits anything.
-const crypto = require('crypto'), C = require('./config'), S = require('./store');
+const crypto = require('crypto'), C = require('./config'), S = require('./store'), Claims = require('./treasury-tx-claims');
 const E = process.env;
 const R = {
   ENTRY: +(E.RANKED_ENTRY_DROPS || 200000), BURN: Math.min(1, Math.max(0, Number.isFinite(+E.BURN_PCT) && E.BURN_PCT !== '' && E.BURN_PCT !== undefined ? +E.BURN_PCT : 3.22) / 100), SPLIT: [0.5, 0.3, 0.2],
@@ -67,6 +67,7 @@ async function verify(sid, ledger, sdk, acct) {
   let r; try { r = (await (await ledger()).request({ command: 'tx', transaction: h })).result; } catch { return { ok: false, reason: 'tx_not_found' }; }
   const v = check(r, s, sid); if (!v.ok) return v;
   if (usedTx.has(h) || s.done) return s.done ? { ok: true, ticket: s.ticket } : { ok: false, reason: 'replay' };   // re-check after the await: concurrent verifies of one tx
+  if (!Claims.claim(h, 'ranked', sid).ok) return { ok: false, reason: 'replay' };   // one tx settles one product, ever
   usedTx.add(h); S.save('ranked_used_tx.json', [...usedTx]); return credit(s, sid, h, v.drops);
 }
 function check(r, s, sid) {     // pure ledger truth
@@ -76,7 +77,7 @@ function check(r, s, sid) {     // pure ledger truth
   if (tx.Destination !== C.TREASURY || tx.DestinationTag !== s.tag) return { ok: false, reason: 'wrong_destination_or_tag' };
   if (tx.Account !== s.account) return { ok: false, reason: 'wrong_sender' };
   const d = m.delivered_amount; if (typeof d !== 'string' || +d < s.buyin) return { ok: false, reason: 'wrong_amount' };
-  if (!(tx.Memos || []).some(x => Buffer.from(x.Memo.MemoData || '', 'hex').toString() === sid)) return { ok: false, reason: 'memo_mismatch' };
+  if (!Claims.exactlyOneMemo(tx, 'burncity/ranked', sid, { typeOptional: true })) return { ok: false, reason: 'memo_mismatch' };   // exactly one memo
   return { ok: true, drops: s.buyin };   // only the buy-in counts; overpayment is not added to prizes
 }
 function credit(s, sid, hash, drops) {

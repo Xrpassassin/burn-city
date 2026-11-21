@@ -1,5 +1,6 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
+import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
 import {mountEstateHomeEditor} from './estates-home-editor-ui.mjs';
 import { mountEstateFreeStyle } from './estate-free-style-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
@@ -429,8 +430,8 @@ export async function installEstatesIslandLive({
     }
   }
   function restoreCityScene(){for(const [object,visible] of hiddenCityObjects)if(object.parent===scene)object.visible=visible;hiddenCityObjects.clear();}
-  const apiBase = new URLSearchParams(location.search).get('citysrv') ||
-    (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+  const apiBase = trustedServer(new URLSearchParams(location.search).get('citysrv'),
+    /localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
   let verifiedFreeStyles=[],stylePreviewProperty=null,stylePreview=null,lastFreeStyleFetch=0,freeStyleFetching=false;
   let lastOwnershipFetch=0,ownershipFetching=false,ownershipRefreshQueued=false;

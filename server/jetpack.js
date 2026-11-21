@@ -12,7 +12,7 @@
 // Gate: JETPACK_PAYMENTS=1 turns purchases on. Off (default): invoice/claim return 409 payments_disabled.
 // Exemptions (free) work regardless of the flag and are env/config (JETPACK_FREE_CITY, JETPACK_FREE_HOMEFRONT).
 'use strict';
-const crypto = require('crypto'), path = require('path'), C = require('./config');
+const crypto = require('crypto'), path = require('path'), C = require('./config'), Claims = require('./treasury-tx-claims');
 
 const ADDR = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const DERRIK = 'rNbR4Gw9d9JRLdkb4rAhkWDcJyKRk39FoA';            // Derrik (owner)
@@ -135,7 +135,7 @@ function checkTx(r, inv, hash) {
   if (!meta || typeof meta !== 'object' || meta.TransactionResult !== 'tesSUCCESS') return fail('tx_failed');
   if (tx.Destination !== inv.destination) return fail('wrong_destination');
   if (tx.DestinationTag !== inv.tag) return fail('wrong_destination_tag');
-  if (!(Array.isArray(tx.Memos) && tx.Memos.some(m => unhex(m?.Memo?.MemoData) === inv.id))) return fail('memo_mismatch');
+  if (!Claims.exactlyOneMemo(tx, 'burncity/jetpack', inv.id, { typeOptional: true })) return fail('memo_mismatch');   // exactly one memo
   if (tx.Account !== inv.acct) return fail('wrong_sender');
   if ((Number(tx.Flags) & 0x00020000) !== 0) return fail('partial_payment');               // tfPartialPayment
   const sent = tx.DeliverMax ?? tx.Amount, delivered = meta.delivered_amount ?? meta.DeliveredAmount;
@@ -170,6 +170,7 @@ async function claim(acct, invoiceId, txHash, { now = Date.now(), cfg = config()
   try {
     inv = d.prepare('SELECT * FROM jp_invoices WHERE id=?').get(invoiceId);
     if (inv.status === 'paid') result = inv.hash === hash ? { status: 200, body: { granted: true, kind: inv.kind, already: true, hash } } : { status: 409, body: { error: 'invoice_already_paid' } };
+    else if (!Claims.claim(hash, 'jetpack', inv.id).ok) result = { status: 409, body: { error: 'replay' } };   // already settled another product
     else if (d.prepare('INSERT OR IGNORE INTO jp_used_tx(hash,invoice,acct,drops,t) VALUES(?,?,?,?,?)').run(hash, inv.id, acct, chk.drops, now).changes !== 1) result = { status: 409, body: { error: 'replay' } };
     else {
       d.prepare('INSERT OR IGNORE INTO jp_grants(acct,kind,source,hash,t) VALUES(?,?,?,?,?)').run(acct, inv.kind, 'xrp', hash, now);

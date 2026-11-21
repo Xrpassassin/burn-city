@@ -5,6 +5,9 @@ const ACCOUNT=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const HASH=/^[A-Fa-f0-9]{64}$/;
 const {splitImgAmount}=require('./estate-img-amount');
 const {matchesPoolReward}=require('./estate-pollux-xrp');
+// The audit ended before this validated-ledger boundary. Do not open old
+// entitlement hours or replay earlier receipts using the expanded memo format.
+const NATIVE_IMG_FLOOR_FROM_LEDGER=108470737;
 function canonicalUnits(value){
  return splitImgAmount(value).exact;
 }
@@ -39,7 +42,9 @@ function createImgRewardVerifier(client,{treasury,imgIssuer,allowedSources,skipN
     (delivered&&typeof delivered==='object'&&typeof delivered.currency==='string'&&typeof delivered.issuer==='string'&&
      (delivered.currency!=='IMG'||delivered.issuer!==imgIssuer)&&splitImgAmount(delivered.value))))return ignored();
   if(!delivered||typeof delivered!=='object'||delivered.currency!=='IMG'||delivered.issuer!==imgIssuer)throw new Error('unexpected_delivered_asset');
-  if(rewardPoolAccount&&!matchesPoolReward(tx,rewardPoolAccount,'IMG'))return ignored();
+  if(rewardPoolAccount&&!matchesPoolReward(tx,rewardPoolAccount,'IMG',{
+   allowNativeImgFloor:r.ledger_index>=NATIVE_IMG_FLOOR_FROM_LEDGER
+  }))return ignored();
   const amount=canonicalUnits(delivered.value);
   return Object.freeze({txHash:txHash.toUpperCase(),ledgerIndex:r.ledger_index,source:tx.Account,destination:tx.Destination,issuer:imgIssuer,amount,receivedAtMs,verified:true});
  };

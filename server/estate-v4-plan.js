@@ -41,6 +41,8 @@ function v4Config(env=process.env){
   // 'img' converts the batch to IMG and pays IMG. Holder 'base' rewards on the LP's PLX are opt-in.
   polluxPayoutAsset:payoutAsset,
   polluxIncludeHolderBase:env.ESTATE_POLLUX_INCLUDE_HOLDER_BASE==='1',
+  // IMG mode: owners without a usable IMG trust line are paid in native XRP (default on; '0' = old held/carry behaviour).
+  polluxNoTrustlineXrp:env.ESTATE_POLLUX_NO_TRUSTLINE_XRP!=='0',
   polluxBatchHours:int(env.ESTATE_POLLUX_BATCH_HOURS,payoutAsset==='img'?1:0,0,24*31),
   polluxMinPayoutDrops:int(env.ESTATE_POLLUX_MIN_PAYOUT_DROPS,payoutAsset==='img'?250:1000,100,100000000),
   polluxMinSwapDrops:int(env.ESTATE_POLLUX_MIN_SWAP_DROPS,250,100,100000000),

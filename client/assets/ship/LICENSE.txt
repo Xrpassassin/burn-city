@@ -1,0 +1,4 @@
+Blacktide galleon: "Ship_Large" from the Pirate Kit by Quaternius (quaternius.com).
+License: CC0 1.0 Universal (public domain). Credit appreciated, not required.
+Changes for Burn City: welded/deduped, sails re-dyed black in the 32px palette atlas,
+mesh-quantized; blacktide-ship-lo.glb is meshoptimizer-simplified to ~9k triangles for phones.

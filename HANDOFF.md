@@ -836,10 +836,12 @@ From the Nov 20, 2026 white-box audit (arena XSS, `?citysrv=` token leak, token-
   6. Fishing / Blacktide server-side trust: `cast` trusts client `onBoat`/`deep`/`weather`, `importGuest` grants any listed rod, Blacktide buy/sell has no dock check.
   7. CSP: drop `'unsafe-inline'` over time; pin GoatCounter `count.v4.js` with SRI; `/api/buy` should use `Object.hasOwn(items, item)`.
 
-## Blacktide party barge (#681, #682)
-- Files: `client/js/pirate-party-barge.mjs` (ship, pier, crowd, bartender/Blackbeard GLTFs from `assets/bar/`, music), `client/js/pirate-party-barge-layout.mjs` (berth search, walkable decks incl. sloped pier via `heightAt`, `partyBargeBlocksBoat`), test `pirate-party-barge-layout.test.mjs`.
-- Hooks: created in `cityprops.mjs` lake init → `window.__cityProps.partyBarge`; pushes `interact` to `window.__interactors`, a minimap anchor to `__mmHooks`, decks to `window.__decks` (read by `fish.js` `__deckAt`), and `boat.js` `inside()` refuses water the hull or pier covers. Toast copy goes through `window.__bcToast`.
+## Blacktide pirate galleon (#681, #682, galleon rework)
+- Files: `client/js/pirate-party-barge.mjs` (loads the galleon GLB, gangway, deck bar + dance floor, crowd, bartender/Blackbeard GLTFs from `assets/bar/`, music), `client/js/pirate-party-barge-layout.mjs` (berth search, deck height profile, boat blocking), test `pirate-party-barge-layout.test.mjs`.
+- Model: `client/assets/ship/blacktide-ship.glb` (Quaternius Pirate Kit "Ship_Large", CC0, ~20.6k tris, 32px palette atlas with sails re-dyed black) and `blacktide-ship-lo.glb` (~9.2k tris, meshoptimizer) for phones/low tier. Both quantized (KHR_mesh_quantization). See `assets/ship/LICENSE.txt`. Not precached (runtime fetch).
+- Scale: cruise-ship size. `SHIP_SCALES = [12, 10, 8]` (12 = ~185 m); the berth search takes the largest that fits clear water beside the beach without touching other docks. On the current lake it picks 10 (~154 m long, main deck 15 m up). The ship lies broadside to the shore; a gangway (no steeper than ~20 deg) climbs from the beach to mid main deck.
+- Decks: `berth.decks` = gangway (`heightAt` ramp) + hull deck (`heightAt` profile: quarterdeck, stairs, main deck, stairs, forecastle) + narrow bow deck. Deck heights come from raycasts of the model (`shipDeckModelY`); if the model changes, re-probe them.
+- Hooks: created in `cityprops.mjs` lake init -> `window.__cityProps.partyBarge`; `interact` in `window.__interactors`, minimap anchor in `__mmHooks`, decks in `window.__decks` (`fish.js` `__deckAt`), `boat.js` `inside()` refuses water under the hull/gangway (`partyBargeBlocksBoat`). Masts and the bar are colliders.
 - Lighting: desktop adds two PointLights (bar, dance floor). Phones/low tier add NO real-time light (it would recompile and shade every lit material city-wide); they get additive `glowPool` decals instead. Keep it that way.
-- Music: `music/burn-city-lives.mp3`, distance-faded, paused when the tab is hidden or the city is paused/in Estates/Tower.
-- Both modules are in the SW precache (cityprops imports the barge statically, so offline would break props without them).
-- Known gaps: no multiplayer presence for the crowd/toast (local only); party music is per client.
+- Music: `music/burn-city-lives.mp3`, distance-faded (90 m), paused when the tab is hidden or the city is paused/in Estates/Tower.
+- Known gaps: deck props in the model (cannons, barrels, rails) are visual only, no collision; the crowd/toast/music are local to each player (no multiplayer presence).

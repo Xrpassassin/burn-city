@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BARGE_DECK_Y, PIER_START, PIER_RAMP_END, findPartyBargeBerth, partyBargeBlocksBoat } from './pirate-party-barge-layout.mjs';
+import { SHIP_MODEL, PIER_START, shipDeckY, findPartyBargeBerth, partyBargeBlocksBoat } from './pirate-party-barge-layout.mjs';
 
 const assets = new URL('../assets/bar/', import.meta.url);
+const shipAssets = new URL('../assets/ship/', import.meta.url);
 const track = new URL('../music/burn-city-lives.mp3', import.meta.url);
 const material = (color, emissive = 0) => new THREE.MeshStandardMaterial({
   color, roughness: .8, emissive, emissiveIntensity: emissive ? .65 : 0,
@@ -53,53 +54,41 @@ function sign(group, text, x, y, z, yaw, width = 6) {
   group.add(mesh);
 }
 
-function mainsail() {
+// Glowing skull-and-crossbones decal for the black sails (transparent, unlit).
+function skullDecal(size) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#64283b';
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = '#d3a574';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(10, 10, 236, 236);
-  ctx.lineWidth = 11;
+  ctx.strokeStyle = ctx.fillStyle = '#f3dcb4';
+  ctx.lineWidth = 20;
   ctx.lineCap = 'round';
   for (const k of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(83, 145 + k * 31);
-    ctx.lineTo(173, 145 - k * 31);
+    ctx.moveTo(60, 160 + k * 46);
+    ctx.lineTo(196, 160 - k * 46);
     ctx.stroke();
   }
-  ctx.fillStyle = '#f0cc9f';
   ctx.beginPath();
-  ctx.ellipse(128, 104, 41, 38, 0, 0, Math.PI * 2);
+  ctx.ellipse(128, 100, 58, 54, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillRect(106, 117, 44, 32);
-  ctx.fillStyle = '#422035';
-  for (const x of [113, 143]) {
+  ctx.fillRect(97, 118, 62, 44);
+  ctx.fillStyle = '#1a1216';
+  for (const x of [106, 150]) {
     ctx.beginPath();
-    ctx.ellipse(x, 108, 8, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, 104, 13, 15, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.fillRect(122, 128, 12, 14);
+  for (const x of [111, 128, 145]) ctx.fillRect(x - 3, 150, 6, 12);
   const map = new THREE.CanvasTexture(canvas);
   map.colorSpace = THREE.SRGBColorSpace;
-  const mesh = new THREE.PlaneGeometry(14.5, 11, 10, 8);
-  const vertices = mesh.attributes.position;
-  for (let i = 0; i < vertices.count; i++) {
-    const x = vertices.getX(i) / 7.25, y = vertices.getY(i) / 5.5;
-    vertices.setZ(i, -1.9 * (1 - x * x) * (1 - .78 * y * y));
-  }
-  mesh.computeVertexNormals();
-  const sail = new THREE.Mesh(mesh, new THREE.MeshStandardMaterial({
-    map, emissiveMap: map, emissive: 0xffffff, emissiveIntensity: .26, roughness: .95, side: THREE.DoubleSide,
-  }));
-  sail.position.set(0, 16, 9.48);
-  return sail;
+  return new THREE.Mesh(new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({ map, transparent: true, alphaTest: .4, side: THREE.DoubleSide, toneMapped: false, color: 0xd8c4a0 }));
 }
 
 // Soft additive light pool on the deck (used instead of real lights on phones).
 let poolTexture = null;
-function glowPool(color, radius, x, z) {
+function glowPool(color, radius, x, y, z) {
   if (!poolTexture) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 64;
@@ -114,103 +103,74 @@ function glowPool(color, radius, x, z) {
   }
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ map: poolTexture, color, transparent: true, opacity: .55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-  mesh.position.set(x, BARGE_DECK_Y + .1, z);
+  mesh.position.set(x, y + .1, z);
   mesh.renderOrder = 2;
   return mesh;
 }
 
 function buildPier(group, berth) {
   const pier = new THREE.Group();
-  pier.name = 'Blacktide boarding pier';
+  pier.name = 'Blacktide gangway';
   pier.position.set(berth.shore.x, 0, berth.shore.z);
   pier.rotation.y = berth.yaw;
   group.add(pier);
   const pieces = batches(pier);
-  const rise = BARGE_DECK_Y;
-  const run = PIER_RAMP_END - PIER_START;
-  const tilt = -Math.atan2(rise, run);
-  pieces.add(oak, new THREE.BoxGeometry(4, .24, Math.hypot(run, rise))
-    .translate(0, -.12, 0).rotateX(tilt).translate(0, rise / 2, (PIER_RAMP_END + PIER_START) / 2));
-  const length = berth.pierEnd - PIER_RAMP_END;
-  pieces.add(oak, geometry(4, .24, length, 0, rise - .12, PIER_RAMP_END + length / 2));
-  for (let z = PIER_START + 1; z < berth.pierEnd; z += 3) {
-    const h = berth.pierHeight(z);
-    for (const x of [-1.9, 1.9]) {
-      pieces.add(wood, geometry(.28, h + .8, .28, x, (h - .8) / 2, z));
-      pieces.add(lamp, geometry(.32, .35, .32, x, h + .4, z));
+  const h = berth.pierHeight;
+  // Plank the walkway in 2 m tilted segments so it follows pierHeight exactly.
+  for (let z = PIER_START; z < berth.pierEnd; z += 2) {
+    const z1 = Math.min(berth.pierEnd, z + 2), y0 = h(z), y1 = h(z1), run = z1 - z;
+    pieces.add(oak, new THREE.BoxGeometry(4, .24, Math.hypot(run, y1 - y0) + .05)
+      .translate(0, -.12, 0).rotateX(-Math.atan2(y1 - y0, run)).translate(0, (y0 + y1) / 2, (z + z1) / 2));
+  }
+  for (let z = PIER_START + 1; z < berth.pierEnd; z += 6) {
+    const y = h(z);
+    for (const x of [-2, 2]) {
+      pieces.add(wood, geometry(.34, y + 1.2, .34, x, (y + 1.2) / 2 - .4, z));
+      pieces.add(lamp, geometry(.38, .4, .38, x, y + 1.05, z));
     }
   }
-  for (const x of [-2.25, 2.25]) {
-    pieces.add(wood, geometry(.26, 4.15, .26, x, 2.075, -2.5));
-    pieces.add(lamp, geometry(.36, .4, .36, x, 4.15, -2.5));
+  for (const x of [-2.05, 2.05]) {
+    for (let z = PIER_START; z < berth.pierEnd; z += 2) {
+      const z1 = Math.min(berth.pierEnd, z + 2), y0 = h(z) + .95, y1 = h(z1) + .95;
+      pieces.add(gold, new THREE.BoxGeometry(.14, .14, Math.hypot(z1 - z, y1 - y0) + .05)
+        .rotateX(-Math.atan2(y1 - y0, z1 - z)).translate(x, (y0 + y1) / 2, (z + z1) / 2));
+    }
+    pieces.add(wood, geometry(.3, 4.6, .3, x * 1.15, 2.3, PIER_START + .5));
+    pieces.add(lamp, geometry(.4, .45, .4, x * 1.15, 4.7, PIER_START + .5));
   }
-  pieces.add(oak, geometry(5.15, .18, .22, 0, 3.1, -2.5));
+  pieces.add(oak, geometry(5.4, .2, .24, 0, 3.4, PIER_START + .5));
   pieces.build();
-  sign(pier, 'BLACKTIDE PARTY BARGE', 0, 3.55, -2.64, Math.PI, 5.5);
+  sign(pier, 'BLACKTIDE PARTY SHIP', 0, 3.9, PIER_START + .36, Math.PI, 5.6);
 }
 
-function buildShip(root) {
+// Deck furniture in the ship's local frame (z forward, x toward the lake side when shoreSign = 1).
+function buildDeck(root, berth, shoreSign, Y) {
+  const S = berth.scale, rail = SHIP_MODEL.deckHalf * S, boardZ = SHIP_MODEL.boardF * S;
   const pieces = batches(root);
-  const block = (mat, ...dimensions) => pieces.add(mat, geometry(...dimensions));
-  const shape = new THREE.Shape();
-  shape.moveTo(-11.5, 24);
-  shape.lineTo(11.5, 24);
-  shape.lineTo(11.5, -22);
-  shape.lineTo(7.8, -25.5);
-  shape.lineTo(0, -29);
-  shape.lineTo(-7.8, -25.5);
-  shape.lineTo(-11.5, -22);
-  shape.closePath();
-  const hull = new THREE.ExtrudeGeometry(shape, { depth: BARGE_DECK_Y - .35, bevelEnabled: false });
-  // Leave the hull cap below the planks to avoid coplanar faces.
-  const hullMesh = new THREE.Mesh(hull, wood);
-  hullMesh.rotation.x = -Math.PI / 2;
-  hullMesh.position.y = .2;
-  root.add(hullMesh);
-
-  for (let x = -10.75; x <= 11; x += 1.45) block(oak, 1.4, .16, 46, x, 3.72, -1);
-  for (const x of [-11.12, 11.12]) {
-    block(gold, .23, .28, 46, x, 4.85, -1);
-    for (let z = -22; z <= 22; z += 4) block(oak, .35, 1.2, .35, x, 4.35, z);
+  const block = (mat, ...d) => pieces.add(mat, geometry(...d));
+  const barX = shoreSign * (rail - 5), barZ = boardZ - 2;
+  block(wood, 1.35, 1.05, 10, barX, Y + .525, barZ);
+  block(gold, 1.6, .13, 10.2, barX, Y + 1.1, barZ);
+  for (let i = 0; i < 4; i++) {
+    pieces.add(wood, new THREE.CylinderGeometry(.58, .5, .94, 10).translate(barX - shoreSign * 2.4, Y + .47, barZ - 3.6 + i * 2.4));
   }
-  for (const x of [-7, 7]) block(oak, 8, .75, .38, x, 4.18, -22);
-  block(oak, 22.3, .75, .38, 0, 4.18, 22);
-  block(oak, .9, 22, .9, 0, 13.9, 10);
-  block(gold, 16, .32, .35, 0, 21.8, 9.45);
-  root.add(mainsail());
-  block(iron, 4.5, 2, .14, 2.2, 24.1, 10);
-  block(oak, .42, 1.5, .42, 0, 4.55, 21.4);
-  pieces.add(gold, new THREE.TorusGeometry(.72, .075, 8, 20).translate(0, 5.22, 21.2));
-  for (const angle of [0, Math.PI / 3, Math.PI * 2 / 3]) {
-    pieces.add(oak, new THREE.BoxGeometry(.09, 1.5, .12).rotateZ(angle).translate(0, 5.22, 21.2));
+  // Dance floor: glowing tiles around the gangway landing's centreline.
+  for (let ix = -3; ix <= 3; ix++) for (let iz = -3; iz <= 3; iz++) {
+    if ((ix + iz) % 2) continue;
+    block(partyLights[(ix + 9) % 2], 1.6, .06, 1.6, ix * 1.7 - shoreSign * 3, Y + .04, boardZ + 3 + iz * 1.7);
   }
-  // Rail-side bar, dance floor, benches, and barrel tables leave the middle aisle clear.
-  block(wood, 1.35, 1.05, 9, 7.4, 4.325, -8);
-  block(gold, 1.6, .13, 9.2, 7.4, 4.89, -8);
-  for (const z of [-17, 16]) {
-    block(oak, 1.4, .5, 5, -8.6, 4.05, z);
-    pieces.add(wood, new THREE.CylinderGeometry(.58, .5, .94, 10).translate(-6.6, 4.27, z));
-    pieces.add(iron, new THREE.CylinderGeometry(.575, .575, .13, 10).translate(-6.6, 4.44, z));
-  }
-  for (const x of [-9.5, 9.5]) {
-    for (const z of [-18, -6, 6, 18]) {
-      block(iron, .2, 2.65, .2, x, 5.1, z);
-      block(lamp, .55, .7, .55, x, 6.5, z);
-    }
-  }
-  for (const x of [-4.5, 4.5]) {
-    for (const z of [-2, 1, 4, 7]) block(partyLights[(z + 2) % 2], .6, .06, .6, x, 3.83, z);
+  for (const z of [boardZ - 12, boardZ + 9]) for (const x of [-rail + 2, rail - 2]) {
+    block(iron, .25, 3.2, .25, x, Y + 1.6, z);
+    block(lamp, .7, .8, .7, x, Y + 3.4, z);
   }
   pieces.build();
-  for (const x of [-11.6, 11.6]) {
-    sign(root, 'BLACKTIDE', x, 2.48, -2, Math.sign(x) * Math.PI / 2, 7);
-  }
-  sign(root, 'EMBER BAR', 9.7, 6.1, -8, -Math.PI / 2, 5);
+  sign(root, 'EMBER BAR', barX + shoreSign * 2.2, Y + 3.2, barZ, -shoreSign * Math.PI / 2, 6);
+  return { bar: [barX - shoreSign * 1.1, barZ], dance: [-shoreSign * 3, boardZ + 3], barX, barZ };
 }
 
-function makePirate(coat, phase, x, z) {
+function makePirate(coat, phase, x, y, z) {
   const root = new THREE.Group();
-  root.position.set(x, BARGE_DECK_Y, z);
+  root.position.set(x, y, z);
   const pieces = batches(root);
   pieces.add(coat, geometry(.6, .78, .38, 0, .93, 0));
   for (const side of [-1, 1]) {
@@ -222,47 +182,80 @@ function makePirate(coat, phase, x, z) {
   pieces.add(iron, geometry(.4, .16, .32, 0, 1.72, 0));
   pieces.add(gold, geometry(.43, .04, .34, 0, 1.67, 0));
   pieces.build();
-  return { root, phase };
+  return { root, phase, y };
 }
 
 export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders, low, announce }) {
   const { dir, side, inLake } = lake;
   const berth = findPartyBargeBerth({ shoreAt, inLake, dir, side, decks, colliders });
   if (!berth) return null;
-  const { site, yaw } = berth;
+  const { site, scale: S, deckY: Y } = berth;
   const group = new THREE.Group();
-  group.name = 'Blacktide Party Barge';
+  group.name = 'Blacktide Pirate Ship';
   const root = new THREE.Group();
-  root.position.set(site.x, 0, site.z);
-  root.rotation.y = yaw;
+  root.position.set(berth.origin.x, 0, berth.origin.z);
+  root.rotation.y = berth.shipYaw;
   group.add(root);
-  buildShip(root);
+  root.updateMatrixWorld(true);
+  const localX = new THREE.Vector3(1, 0, 0).transformDirection(root.matrixWorld);
+  const shoreSign = localX.x * dir.x + localX.z * dir.z > 0 ? 1 : -1;  // +1: local +x points out into the lake
+
+  // The galleon itself (Quaternius Pirate Kit "Ship_Large", CC0), sails re-dyed black.
+  const ship = new THREE.Group();
+  ship.name = 'Blacktide galleon';
+  ship.rotation.y = Math.PI / 2;           // model bow (-x) -> local +z
+  ship.scale.setScalar(S);
+  ship.position.y = -SHIP_MODEL.waterY * S;
+  root.add(ship);
+  new GLTFLoader().loadAsync(new URL(low ? 'blacktide-ship-lo.glb' : 'blacktide-ship.glb', shipAssets).href).then(gltf => {
+    gltf.scene.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = false;
+      o.receiveShadow = !low;
+          });
+    ship.add(gltf.scene);
+  }).catch(error => console.warn('blacktide ship', error));
+  for (const [x, yaw] of [[.92, -Math.PI / 2], [1.95, Math.PI / 2]]) {
+    const skull = skullDecal(2.3);
+    skull.position.set(x, 5.5, 0);
+    skull.rotation.y = yaw;
+    ship.add(skull);
+  }
+
   buildPier(group, berth);
+  const deck = buildDeck(root, berth, shoreSign, Y);
+  const boardZ = SHIP_MODEL.boardF * S;
   if (low) {
     // Phones: no extra real-time light. A PointLight here would join every lit material's shader
     // city-wide (one recompile when the lake loads, plus per-pixel cost everywhere), so fake the pools.
-    root.add(glowPool(0xffc381, 5.5, 6, -8), glowPool(0xadabff, 4.5, 0, 4));
+    root.add(glowPool(0xffc381, 7, deck.barX - shoreSign * 2, Y, deck.barZ), glowPool(0xadabff, 7.5, ...[deck.dance[0], Y, deck.dance[1]]));
   } else {
-    const barLight = new THREE.PointLight(0xffc381, 74, 23, 1.7);
-    barLight.position.set(6, 9.25, -8);
-    const danceLight = new THREE.PointLight(0xadabff, 68, 17, 1.7);
-    danceLight.position.set(0, 8.8, 4);
+    const barLight = new THREE.PointLight(0xffc381, 120, 30, 1.7);
+    barLight.position.set(deck.barX - shoreSign * 2, Y + 6, deck.barZ);
+    const danceLight = new THREE.PointLight(0xadabff, 110, 26, 1.7);
+    danceLight.position.set(deck.dance[0], Y + 6, deck.dance[1]);
     root.add(barLight, danceLight);
   }
   scene.add(group);
   decks.push(...berth.decks);
 
-  // Match the city's solid furniture collision. Keep the walk-through aisle open.
-  for (const [x, z, r, h] of [[0, 10, .5, 26], [-6.6, -17, .58, 4.74], [-6.6, 16, .58, 4.74],
-    ...[-11.5, -10, -8.5, -7, -5.5, -4.5].map(z => [7.4, z, .73, 4.95])]) {
-    colliders.push({ x: site.x - side.x * x + dir.x * z, z: site.z - side.z * x + dir.z * z, r, h, nc: true });
+  const toWorld = (x, y, z) => root.localToWorld(new THREE.Vector3(x, y, z));
+  // Solid furniture: the bar, the barrel stools, and both masts (tall, so they stop fliers too).
+  for (let dz = -4.5; dz <= 4.5; dz += 1.5) {
+    const p = toWorld(deck.barX, Y, deck.barZ + dz);
+    colliders.push({ x: p.x, z: p.z, r: .75, h: Y + 1.2, nc: true });
+  }
+  for (const f of [SHIP_MODEL.mainMastF, SHIP_MODEL.foreMastF]) {
+    const p = toWorld(0, 0, f * S);
+    colliders.push({ x: p.x, z: p.z, r: .16 * S, h: 11 * S, nc: true });
   }
 
   const pirates = [];
-  for (let i = 0; i < (low ? 8 : 18); i++) {
-    const x = (i % 2 ? 1 : -1) * (3 + (i % 5) * 1.05);
-    const z = -2 + Math.floor(i / 2) * 2.5;
-    const p = makePirate(coats[i % coats.length], i * 1.7, x, z);
+  const count = low ? 10 : 24;
+  for (let i = 0; i < count; i++) {
+    const a = i / count * Math.PI * 2, r = 7 + (i % 3) * 1.6;
+    const p = makePirate(coats[i % coats.length], i * 1.7, deck.dance[0] + Math.cos(a) * r, Y, deck.dance[1] + Math.sin(a) * r * .8);
+    p.yaw = Math.atan2(-Math.cos(a), -Math.sin(a) * .8);
     root.add(p.root);
     pirates.push(p);
   }
@@ -275,18 +268,20 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
     const manager = new THREE.LoadingManager();
     if (low) manager.setURLModifier(url => url.replace(/-tex\//, '-tex-512/'));
     const loader = new GLTFLoader(manager);
-    for (const [id, x, z, angle] of [['pirate', 8.85, -8, -Math.PI / 2], ['blackbeard', -5.4, -16, Math.PI / 2]]) {
+    const helmZ = -3.95 * S;
+    for (const [id, x, y, z, angle] of [['pirate', deck.barX + shoreSign * 1.15, Y, deck.barZ, -shoreSign * Math.PI / 2],
+      ['blackbeard', 0, shipDeckY(helmZ / S, S), helmZ, 0]]) {
       const url = new URL(id + (low ? '-lo' : '') + '.gltf', assets);
       loader.loadAsync(url.href).then(gltf => {
         const model = gltf.scene;
         model.name = id === 'pirate' ? 'Ember Bar bartender' : 'Blackbeard';
-        model.position.set(x, BARGE_DECK_Y, z);
+        model.position.set(x, y, z);
         model.rotation.y = angle;
         root.add(model);
         const mixer = new THREE.AnimationMixer(model);
         const idle = gltf.animations.find(a => /idle/i.test(a.name));
         if (idle) mixer.clipAction(idle).play();
-        characters.push({ id, model, mixer });
+        characters.push({ id, model, mixer, y });
       }).catch(error => console.warn('party barge character', id, error));
     }
   }
@@ -305,10 +300,10 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
   });
   let elapsed = 0;
   let cheer = 0;
-  const bar = root.localToWorld(new THREE.Vector3(5.7, BARGE_DECK_Y, -8));
-  const danceFloor = root.localToWorld(new THREE.Vector3(0, BARGE_DECK_Y, 3));
+  const bar = toWorld(deck.bar[0], Y, deck.bar[1]);
+  const danceFloor = toWorld(deck.dance[0], Y, deck.dance[1]);
   function interact(pos) {
-    if (Math.abs(pos.y - BARGE_DECK_Y) > 1.25) return null;
+    if (Math.abs(pos.y - Y) > 1.25) return null;
     const barDistance = Math.hypot(pos.x - bar.x, pos.z - bar.z);
     if (barDistance < 2.7) return {
       d: barDistance, label: 'Toast with the bartender',
@@ -319,7 +314,7 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
       },
     };
     const danceDistance = Math.hypot(pos.x - danceFloor.x, pos.z - danceFloor.z);
-    if (danceDistance < 2.7) return {
+    if (danceDistance < 4) return {
       d: danceDistance, label: music ? 'Stop party music' : 'Play party music',
       act: () => {
         music = !music;
@@ -338,20 +333,20 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
     cheer = Math.max(0, cheer - dt);
     const distance = Math.hypot(camera.x - site.x, camera.z - site.z);
     if (music) {
-      audio.volume = active && !document.hidden ? .22 * Math.max(0, 1 - distance / 48) : 0;
+      audio.volume = active && !document.hidden ? .22 * Math.max(0, 1 - distance / 90) : 0;
       if (audio.volume === 0 && !audio.paused) audio.pause();
       if (audio.volume > 0 && audio.paused) playMusic();
     }
-    if (distance > 145) return;
+    if (distance > 320) return;
     loadCharacters();
     for (const character of characters) {
       character.mixer.update(dt);
       if (character.id === 'pirate') character.model.position.y =
-        BARGE_DECK_Y + (cheer > 0 ? Math.abs(Math.sin(cheer * Math.PI * 2)) * .32 : 0);
+        character.y + (cheer > 0 ? Math.abs(Math.sin(cheer * Math.PI * 2)) * .32 : 0);
     }
-    for (const { root: pirate, phase } of pirates) {
-      pirate.rotation.y = Math.sin(elapsed * .8 + phase) * .7;
-      pirate.position.y = BARGE_DECK_Y + Math.max(0, Math.sin(elapsed * (music ? 6 : 2) + phase)) * (music ? .17 : .045);
+    for (const { root: pirate, phase, y, yaw } of pirates) {
+      pirate.rotation.y = yaw + Math.sin(elapsed * .8 + phase) * .7;
+      pirate.position.y = y + Math.max(0, Math.sin(elapsed * (music ? 6 : 2) + phase)) * (music ? .17 : .045);
     }
   }
   return { root, site, berth, pirates, characters, interact, update, blocksBoat: (x, z) => partyBargeBlocksBoat(berth, x, z) };

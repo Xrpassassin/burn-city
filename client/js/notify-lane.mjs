@@ -89,7 +89,8 @@ const QUIET_SHEETS = [
   '#bcEstatesXaman', '#bcEstatesLivePrompt', // Xaman sign-in / QR; Estates lot, shop, cart, exit prompt
   '#bcMoveGamesPanel', '#more', '#vMenu', '#rPanel', '.jp-sheet', '#aegisModal', '#estateAccessDialog',
   '#wlModal', '.burn-tower-panel', '#aegisNews[data-expanded]',
-  '[aria-modal="true"]', '[role="dialog"]', 'dialog[open]'
+  '[aria-modal="true"]', '[role="dialog"]', 'dialog[open]',
+  'html.hz-pre', 'html.hz-in'               // the HUD is still settling in on arrival (hud-zones.mjs)
 ];
 const RESERVED = [
   'button', 'a[href]', 'input', 'select', 'textarea', 'summary', '[role="button"]', '[tabindex]:not([tabindex="-1"])',
@@ -102,7 +103,9 @@ const RESERVED = [
 // land under an already-placed toast; info/music/bag/keys/rewards panels and the tower/estate HUDs too.
 export const HUD_PANELS = [
   '#recap', '#info', '#music', '#bagList', '#keysBox', '#keysBtn', '#rPanel', '#fPanel', '#fUI', '#banner',
-  '#perfHud', '#estateInteriorHud', '#bcFpReticle.on', '#bBar', '#webBtn', '#skGearBtn', '#skGear .sg-card', '#cityChat .cbody', '#rpBar'
+  '#perfHud', '#estateInteriorHud', '#bcFpReticle.on', '#bBar', '#webBtn', '#skGearBtn', '#skGear .sg-card', '#cityChat .cbody', '#rpBar',
+  // HUD corner zones (hud-zones.mjs tags identity, currency, nav, minimap, ticker, recap, controls, gear and chat)
+  '[data-hz-zone]'
 ];
 const HUD_PANEL_SEL = HUD_PANELS.join(',');
 

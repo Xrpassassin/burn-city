@@ -1,8 +1,8 @@
 'use strict';
 // Authoritative, opt-in Estates tycoon upgrade ledger. No token transfers here.
 // An upgrade adds documented development spend and recorded property share units.
-// Live payout weights are deliberately unchanged until the future-only
-// distribution policy and legal/treasury review have been approved.
+// While ESTATE_UPGRADE_PAYOUTS_ENABLED=1 (estate-upgrade-payouts.js) upgrade share units add to
+// live payout weight (1 per 3 XRP); sharePolicy reports that so the UI copy follows the flag.
 const {PROPERTY_BY_ID,TIER_BY_ID}=require('./estate-economy');
 const ITEMS=Object.freeze([
  {id:'porch-lights',name:'Porch & path lights',category:'decor',priceXrp:3,scene:'lamps'},

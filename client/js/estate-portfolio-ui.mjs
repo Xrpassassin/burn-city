@@ -104,14 +104,14 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  function renderPortfolio(s){
   current=s;const report=s.portfolio,records=new Map(report.properties.map(p=>[p.propertyId,p]));
   const recorded=s.tycoon,tycoonRows=new Map((recorded?.properties||[]).map(p=>[p.propertyId,p]));
-  $('portfolio-summary').textContent=report.portfolioShareUnits+' / '+report.totalShareUnits+' current eligible reward share units · '+sharePercent(report.portfolioShareUnits,report.totalShareUnits)+'% of current eligible weight. '+(recorded?'Estates Tycoon development ledger: '+recorded.recordedShareUnits+' total recorded units, including '+recorded.upgradeShareUnits+' upgrade units, and '+formatRewardUnits(recorded.recordedValueDrops)+' XRP recorded development spending. Upgrade units are NOT active payout weight yet. ':'')+'No payout is guaranteed; recorded property spend is not market value.';
+  $('portfolio-summary').textContent=report.portfolioShareUnits+' / '+report.totalShareUnits+' current eligible reward share units · '+sharePercent(report.portfolioShareUnits,report.totalShareUnits)+'% of current eligible weight. '+(recorded?'Estates Tycoon development ledger: '+recorded.recordedShareUnits+' total recorded units, including '+recorded.upgradeShareUnits+' upgrade units, and '+formatRewardUnits(recorded.recordedValueDrops)+' XRP recorded development spending. '+(recorded.sharePolicy==='active_for_distributions'?'Upgrade shares count toward hourly payout weight (1 share per 3 XRP). ':'Upgrade units are not counted in payout weight while upgrade payouts are switched off. '):'')+'No payout is guaranteed; recorded property spend is not market value.';
   $('owned-properties').replaceChildren();
   if(!s.owned.length)$('owned-properties').append(make('p','No verified properties in this wallet yet.'));
   for(const p of s.owned){
    const r=records.get(p.propertyId),tycoon=tycoonRows.get(p.propertyId),card=make('article');card.dataset.ownedProperty=p.propertyId;
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
-   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+(tycoon.sharePolicy==='active_for_distributions'?' from upgrades; included in payout weight)':' from upgrades; not active payout weight)')));
+   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+(tycoon.sharePolicy==='active_for_distributions'?' from upgrades; counted in hourly payout weight)':' from upgrades; not counted while upgrade payouts are off)')));
    // Upgrade straight from the Estates tab: the same tycoon shop and Xaman flow as in the
    // 3D city (server-priced items, validated-ledger settlement), no travel needed.
    const installed=make('p','','installed-upgrades');installed.dataset.installedUpgrades=p.propertyId;

@@ -1,22 +1,20 @@
 // Lake motorboats: walk up to the boat dock, board, drive with walk controls (WASD / joystick), exit at a dock.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BOATS, boatById } from './fishing-rules.mjs';
+import { boatById } from './fishing-rules.mjs';
+import { createFishingBoat } from './fishing-boat-models.mjs';
 const W = () => window.__city;
-const B = window.__boat = { active: false, pos: new THREE.Vector3(), boats: [], cur: null, peer };
+const B = window.__boat = { active: false, pos: new THREE.Vector3(), boats: [], cur: null, peer, removeBoat };
 let docks = [], barEl;
-function hull(col) {   // pointed bow, rounded stern, cabin + glass windshield, outboard, side stripe; 3 meshes
-  const sh = new THREE.Shape(); sh.moveTo(0, -3.5); sh.bezierCurveTo(.9, -2.3, 1.25, -.8, 1.2, .4); sh.lineTo(1.1, 2.4); sh.quadraticCurveTo(1.0, 2.65, .8, 2.65); sh.lineTo(-.8, 2.65); sh.quadraticCurveTo(-1.0, 2.65, -1.1, 2.4); sh.lineTo(-1.2, .4); sh.bezierCurveTo(-1.25, -.8, -.9, -2.3, 0, -3.5);
-  const ex = (d, y, k = 1) => { const g = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: true, bevelSize: .06, bevelThickness: .06, bevelSegments: 1, curveSegments: 10 }); g.rotateX(Math.PI / 2); g.scale(k, 1, k); g.translate(0, y, 0); return g };
-  const parts = [ex(.8, .85), new THREE.BoxGeometry(1.5, .1, .5).translate(0, 1.0, 1.9), new THREE.BoxGeometry(1.5, .6, 1.3).translate(0, 1.2, .55), new THREE.CylinderGeometry(.16, .12, .9, 8).translate(0, .75, 2.9), new THREE.BoxGeometry(.5, .35, .4).translate(0, 1.05, 2.8)];
-  const m = new THREE.Mesh(mergeGeometries(parts.map(x => { const n = x.toNonIndexed(); n.deleteAttribute('uv'); return n })), new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: 0.15 }));
-  const gl = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .55).rotateX(-.9).translate(0, 1.6, -.15), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: .55, side: 2, depthWrite: false }));
-  const st = new THREE.Mesh(ex(.1, .5, 1.03), new THREE.MeshBasicMaterial({ color: 0x7dffb0, toneMapped: false })); const o = new THREE.Group(); o.add(m, gl, st); return o }
+function removeBoat(boat) {
+  boat.removeFromParent();
+  boat.userData.disposeBoat();
+}
 function peer(p) {
   const c = W(), spec = boatById(p.bt || 'skiff');
   if (p.b && (!p.boat || p.boatType !== spec.id)) {
-    if (p.boat) { c.S.remove(p.boat); p.boat.traverse(o => { if (o.isMesh) { o.geometry?.dispose?.(); for (const m of (Array.isArray(o.material) ? o.material : [o.material])) m?.dispose?.(); } }); }
-    p.boat = hull(spec.color); p.boat.scale.setScalar(.76 + spec.tier * .13); p.boatType = spec.id; c.S.add(p.boat);
+    if (p.boat) removeBoat(p.boat);
+    p.boat = createFishingBoat(spec); p.boatType = spec.id; c.S.add(p.boat);
   }
   if (p.boat) {
     p.boat.visible = !!p.b;
@@ -29,9 +27,8 @@ function fleetProfile() {
 function spawnFleetBoat(id) {
   if (!B.privateDock) return;
   const spec = boatById(id), { base, dir, side, yaw } = B.privateDock, c = W();
-  const m = hull(spec.color), size = 0.76 + spec.tier * 0.13;
-  m.scale.setScalar(size);
-  const p = base.clone().addScaledVector(dir, 4.2).addScaledVector(side, 1.1); p.y = 0.1;
+  const m = createFishingBoat(spec);
+  const p = base.clone().addScaledVector(dir, 6.5).addScaledVector(side, 3.6); p.y = 0.1;
   m.position.copy(p); m.rotation.y = yaw + Math.PI; c.S.add(m);
   B.boats.push({ id: spec.id, boat: spec, m, h: yaw + Math.PI, v: 0 });
 }
@@ -39,7 +36,7 @@ function syncFleetBoat() {
   if (!B.privateDock || B.active) return;
   const profile = fleetProfile(), id = boatById(profile.selectedBoat).id;
   if (B.boats.length === 1 && B.boats[0].id === id) return;
-  for (const b of B.boats) { if (b.m.parent) b.m.parent.remove(b.m); b.m.traverse(o => { if (o.isMesh) { o.geometry?.dispose?.(); for (const m of (Array.isArray(o.material) ? o.material : [o.material])) m?.dispose?.(); } }); }
+  for (const b of B.boats) removeBoat(b.m);
   B.boats.length = 0; spawnFleetBoat(id);
 }
 function build() {

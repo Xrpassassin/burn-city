@@ -6,39 +6,8 @@ try { db.exec('ALTER TABLE fish_prof ADD COLUMN xp INTEGER NOT NULL DEFAULT 0');
 try { db.exec(`ALTER TABLE fish_prof ADD COLUMN boats TEXT NOT NULL DEFAULT '[\"skiff\"]'`); } catch (e) { }
 try { db.exec(`ALTER TABLE fish_prof ADD COLUMN selectedBoat TEXT NOT NULL DEFAULT 'skiff'`); } catch (e) { }
 for (const c of ['kg REAL', 'sp TEXT']) try { db.exec('ALTER TABLE fish_catch ADD COLUMN ' + c); } catch (e) { }
-const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1,"boat":2}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1,"boat":3}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1,"boat":4}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1,"boat":3}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull","boat":4}],["sunfish","Copper Sunfish",0,[0.1,0.8],5,{}],["goldentrout","Gilded Trout",2,[1,7],65,{"night":1,"boat":2}],["swordfish","Bluewater Swordfish",3,[30,120],220,{"deep":1,"boat":3}],["anglerfish","Abyssal Lanternfish",4,[5,80],700,{"deep":1,"night":1,"boat":4}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]};
-const RW = [60, 25, 10, 4, 1];
-const BOATS = [
-  { id: 'skiff', name: 'Harbor Skiff', price: 0, tier: 1, capacityKg: 12, depth: 0, speed: 1, color: 0x2a9d8f, description: 'Starter boat for sheltered water and smaller catches.' },
-  { id: 'bass', name: 'Bass Runner', price: 1200, tier: 2, capacityKg: 60, depth: 1, speed: 1.2, color: 0x2878b8, description: 'A faster fishing boat for larger lake species.' },
-  { id: 'offshore', name: 'Offshore Cruiser', price: 5000, tier: 3, capacityKg: 200, depth: 2, speed: 1.35, color: 0xd97732, description: 'Reaches deep water and supports heavy game fish.' },
-  { id: 'abyss', name: 'Abyssal Hunter', price: 14000, tier: 4, capacityKg: 900, depth: 3, speed: 1.5, color: 0x7657d5, description: 'Deep-water specialist built for legendary catches.' }
-];
-const boatById = id => BOATS.find(b => b.id === id) || BOATS[0];
-const ROD_LEVELS = { basic: 1, carbon: 2, pro: 5, legend: 10 };
-const XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 1850, 2400, 3050];
-function anglerLevel(xp = 0) {
-  const total = Math.max(0, Math.floor(Number(xp) || 0)); let level = 1;
-  for (let i = 1; i < XP_THRESHOLDS.length; i++) { if (total < XP_THRESHOLDS[i]) break; level = i + 1; }
-  return level;
-}
-function xpForCatch(fish = {}) {
-  const rarity = Math.max(0, Math.min(4, Math.floor(Number(fish.r) || 0)));
-  const kg = Math.max(0, Math.min(30, Number(fish.kg) || 0));
-  return Math.round(10 + rarity * 12 + kg);
-}
-const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
-// Species-specific preferred bait, applied on the server so signed-in players get the same rules as guests.
-const PREFERRED_BAIT = { minnow: 0, bluegill: 0, perch: 0, shiner: 0, dace: 0, sunfish: 0, carp: 1, catfish: 1, eel: 2, gar: 2, koi: 2, cod: 1, sturgeon: 1, snapper: 3, trout: 3, goldentrout: 2, bass: 3, pike: 3, salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2, swordfish: 2, anglerfish: 2 };
-function baitAffinity(speciesId, baitTier) { const preferred = PREFERRED_BAIT[speciesId]; if (preferred === undefined) return 1; return Math.max(0, Math.min(3, +baitTier || 0)) === preferred ? 1.25 : 0.9; }
-function roll(rodId, baitId, ctx, rnd = Math.random) {
-  const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
-  const boat = boatById(ctx.boatId || 'skiff'), capacity = ctx.onBoat ? boat.capacityKg : 9;
-  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 0) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
-  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = rnd() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
-  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
-  return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) };
-}
+const { SPECIES, SHOP, BOATS, boatById, ROD_LEVELS, baitAffinity, roll, xpForCatch, anglerProgress } = require('../client/js/fishing-rules.mjs');
+const anglerLevel = xp => anglerProgress(xp).level;
 const xpBackfilled = new Set();
 const get = acct => {
   const r = db.prepare('SELECT * FROM fish_prof WHERE acct=?').get(acct);
@@ -68,13 +37,13 @@ setInterval(() => { const t = Date.now(); for (const [k, v] of landed) if (t - v
 const casts = new Map();   // acct -> {cid, fish, t, ready}
 const LIM = { minCastMs: 5000, maxPerHour: 1000, reelWindowMs: 20000 };
 const phxNight = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6; };
-function cast(acct, { bait = 'worm', deep = false, onBoat = false, weather = '' } = {}) {
+function cast(acct, { bait = 'worm', deep = false, onBoat = false, boatId, weather = '' } = {}) {
   const now = Date.now(), last = casts.get(acct); if (last && now - last.t < LIM.minCastMs) return { error: 'too_fast' };
   if (db.prepare('SELECT COUNT(*) c FROM fish_catch WHERE acct=? AND t>?').get(acct, now - 3600e3).c >= LIM.maxPerHour) return { error: 'hourly_limit' };
   if (last && now > last.ready) streakHit(acct, false);   // a bite was left unreeled (spooked / walked away)
   const p = get(acct); if (bait !== 'worm' && !(p.bait[bait] > 0)) bait = 'worm';
-  const selectedBoat = boatById(p.selectedBoat), aboard = !!onBoat;
-  const fish = roll(p.rod, bait, { night: phxNight(), deep: !!deep && aboard && selectedBoat.depth >= 1, onBoat: aboard, weather: ['bull', 'storm'].includes(weather) ? weather : '', boatId: selectedBoat.id, onBoat });
+  const activeBoat = boatById(p.boats.includes(boatId) ? boatId : p.selectedBoat);
+  const fish = roll(p.rod, bait, { night: phxNight(), deep: !!deep, onBoat: !!onBoat, weather: ['bull', 'storm'].includes(weather) ? weather : '', boatId: activeBoat.id });
   const wait = 2500 + Math.floor(Math.random() * 6000), cid = Math.random().toString(36).slice(2, 10);
   casts.set(acct, { cid, fish, t: now, ready: now + wait, bait });
   return { cid, wait, hits: fish.hits, zone: fish.zone, r: fish.r };   // species stays secret until landed

@@ -16,7 +16,7 @@
 //
 // Every clip starts at left-foot contact and has right-foot contact at half cycle; strides and
 // durations come from client/js/player-gait.mjs, which the runtime uses to drive phase by distance.
-// Run scripts/player-avatar/fix_bind.mjs first (it repairs the skin bind this script relies on).
+// Run scripts/player-avatar/fix_bind.mjs, fix_limb_joints.mjs and fix_weights.mjs first (bind, pivots, weights).
 // In-house procedural motion (no third-party animation data).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -38,10 +38,12 @@ const minJerk = u => { u = clamp01(u); return u * u * u * (10 - 15 * u + 6 * u *
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // Gait parameters (model units, radians). Pitch > 0 = toes down. Arm swing > 0 = forward.
-// footZ: where the mid-foot is at mid-stance, forward of the hip joints.
+// footZ: where the mid-foot is at mid-stance, forward of the hip joints. (The hip joints moved 16.5 cm back to
+// the middle of the thighs in fix_limb_joints.mjs, Nov 2026; footZ grew by the same amount so the feet land
+// exactly where they did.)
 const PARAMS = {
   Walk: {
-    duty: .62, width: .085, footZ: -.12, kneeOut: .06,
+    duty: .62, width: .085, footZ: .045, kneeOut: .06,
     strike: { pivot: 'heel', pitch: -.30, rocker: .13 }, flatUntil: .52, toeOff: .85,
     swing: { kind: 'walk', lift: .085, dorsi: -.16, match: [.4, 1], land: .9, liftPow: .6 },
     bob: { kind: 'pendulum', sink: .018, kneeBase: .9975, kneeLoad: .989 },
@@ -51,7 +53,7 @@ const PARAMS = {
     arm: { swing: .34, center: -.04, lag: .05, adduct: .13, elbow: .22, elbowSwing: .30 }
   },
   Run: {
-    duty: .27, width: .07, footZ: -.20, kneeOut: .05,
+    duty: .27, width: .07, footZ: -.035, kneeOut: .05,
     strike: { pivot: 'heel', pitch: -.13, rocker: .10 }, flatUntil: .40, toeOff: .86,
     swing: { kind: 'run', kick: .42, high: .14, dorsi: -.22, match: [.45, 1], land: .92 },
     bob: { kind: 'spring', amp: .035, kneeMid: .64 },
@@ -61,7 +63,7 @@ const PARAMS = {
     arm: { swing: .55, center: .02, lag: .04, adduct: .14, elbow: 1.2, elbowSwing: .28 }
   },
   Sprint: {
-    duty: .19, width: .055, footZ: -.22, kneeOut: .04,
+    duty: .19, width: .055, footZ: -.055, kneeOut: .04,
     strike: { pivot: 'ball', pitch: .24, settle: .07, settleAt: .35 }, flatUntil: .35, toeOff: 1.0,
     swing: { kind: 'run', kick: .46, high: .2, dorsi: -.24, match: [.35, 1], land: .92 },
     bob: { kind: 'spring', amp: .03, kneeMid: .62 },
@@ -388,7 +390,7 @@ function author(gltf, bin) {
       const xc = X.clone().applyQuaternion(delta), zc = Z.clone().applyQuaternion(delta);
       for (const sd of ['L', 'R']) {
         const ua = B('upperarm.' + sd), fa = B('forearm.' + sd), sign = Math.sign(restWorldP.get(ua).x);
-        rotWorld(ua, zc, sign * (.28 + .03 * b));
+        rotWorld(ua, zc, sign * (.10 + .02 * b));   // arms only slightly out: the scan's sleeves are fused to the coat sides, so a wide spread opens a web of skin
         rotWorld(ua, xc, -(sd === 'L' ? .25 : -.1));
         rotWorld(fa, xc, -.55);
       }

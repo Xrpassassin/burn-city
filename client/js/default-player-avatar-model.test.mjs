@@ -1,8 +1,12 @@
-// Gas Mask Guy: the locomotion clips may change, the model may not.
-// Exception, on purpose (fix/walk-bind, Nov 2026): the inverse binds and the legacy Idle/Jump/Sit/Ride
-// clips were rewritten by scripts/player-avatar/fix_bind.mjs (the bind was off by a half turn, so every
-// joint pivoted on the far side of the body). BIND_FIX pins their new bytes; everything else still
-// matches the original model byte for byte. Hashes every byte the mesh and
+// Gas Mask Guy: the locomotion clips may change, the mesh may not.
+// Exceptions, on purpose:
+//  - fix/walk-bind (Nov 2026): the inverse binds and the legacy Idle/Jump/Sit/Ride clips were rewritten by
+//    scripts/player-avatar/fix_bind.mjs (the bind was off by a half turn). BIND_FIX pins those bytes.
+//  - fix/avatar-weights (Nov 2026): scripts/player-avatar/fix_limb_joints.mjs moved the hip/knee/ankle/
+//    shoulder/elbow pivots into the limbs (rest TRS, their inverse binds, legacy limb channels retargeted)
+//    and scripts/player-avatar/fix_weights.mjs rewrote JOINTS_0/WEIGHTS_0. SKIN_FIX pins those bytes per file.
+// POSITION / NORMAL / TEXCOORD_0 / indices / skin joint list / materials still match the original model
+// byte for byte. Hashes every byte the mesh and
 // skin are made of (POSITION / NORMAL / TEXCOORD_0 / JOINTS_0 / WEIGHTS_0 / indices /
 // inverseBindMatrices), the node rest transforms and hierarchy, skin joints, materials/textures, and
 // the untouched Idle/Jump/Sit/Ride clips, against the values from before the gait rework (#668 assets).
@@ -61,6 +65,10 @@ const BASELINE = {"gas-mask-guy.gltf":{"mesh0.0.POSITION":"2694d263aa982fc83f4ea
 // After fix_bind.mjs: inverseBindMatrices = original * Ry(180); Idle/Jump/Sit/Ride turned to match.
 const BIND_FIX = {"skin0.inverseBindMatrices":"02df73e32817e45c56f8aa49","clip.Idle":"0a9aca956046ffaeceee43c7","clip.Jump":"9972294efd4547700e3f0116","clip.Sit":"924c897b59a6458bac797b2d","clip.Ride":"3a1474aab111e3c39ed0908c"};
 
+// After fix_limb_joints.mjs + fix_weights.mjs (pivots in the limbs, clean weights; mesh bytes untouched).
+const SKIN_FIX = {"gas-mask-guy.gltf": {"mesh0.0.JOINTS_0": "0c41898fd19f4cf6dd530c37", "mesh0.0.WEIGHTS_0": "dfaecceb94c7c9b4e066ed65", "skin0.inverseBindMatrices": "51fc93a494dd3fa671344719", "nodes": "014296f377aca723d1646f9b", "clip.Idle": "1c2bb835af38fd227c9597e1", "clip.Jump": "04e9ce70ad7b862bdf28d2b9", "clip.Sit": "60d52c5f4186b00116339462", "clip.Ride": "0404d520aeb1404242d2fb15"}, "gas-mask-guy-lod.gltf": {"mesh0.0.JOINTS_0": "258539662fed14d12cce1e0f", "mesh0.0.WEIGHTS_0": "f85e7a8b2528a780ef02c0bf", "skin0.inverseBindMatrices": "51fc93a494dd3fa671344719", "nodes": "d18d8b04a52df74790c4ae77", "clip.Idle": "1c2bb835af38fd227c9597e1", "clip.Jump": "04e9ce70ad7b862bdf28d2b9", "clip.Sit": "60d52c5f4186b00116339462", "clip.Ride": "0404d520aeb1404242d2fb15"}, "gas-mask-guy-body.gltf": {"mesh0.0.JOINTS_0": "5ae8e2ea88e1db2f507f880a", "mesh0.0.WEIGHTS_0": "eeecaa3c399957173d91adb6", "skin0.inverseBindMatrices": "51fc93a494dd3fa671344719", "nodes": "a1da8a671bbd3e3c8184a5df", "clip.Idle": "1c2bb835af38fd227c9597e1", "clip.Jump": "04e9ce70ad7b862bdf28d2b9", "clip.Sit": "60d52c5f4186b00116339462", "clip.Ride": "0404d520aeb1404242d2fb15"}};
+const MESH_KEYS = ['mesh0.0.POSITION', 'mesh0.0.NORMAL', 'mesh0.0.TEXCOORD_0', 'mesh0.0.indices', 'mesh0.0.material', 'skin0.joints', 'scenes', 'materials'];
+
 if (process.argv.includes('--baseline')) {
   console.log(JSON.stringify(Object.fromEntries(FILES.map(f => [f, modelFingerprint(f)]))));
   process.exit(0);
@@ -70,9 +78,14 @@ for (const file of FILES) {
   const now = modelFingerprint(file), was = BASELINE[file];
   assert(was, `baseline recorded for ${file}`);
   for (const key of Object.keys(was)) {
-    if (key in BIND_FIX) assert.equal(now[key], BIND_FIX[key], `${file}: ${key} must match the bind-fixed asset (fix_bind.mjs)`);
+    if (key in SKIN_FIX[file]) assert.equal(now[key], SKIN_FIX[file][key], `${file}: ${key} must match the rigged asset (fix_limb_joints.mjs + fix_weights.mjs)`);
+    else if (key in BIND_FIX) assert.equal(now[key], BIND_FIX[key], `${file}: ${key} must match the bind-fixed asset (fix_bind.mjs)`);
     else assert.equal(now[key], was[key], `${file}: ${key} must be byte-identical to the original model`);
+  }
+  for (const key of MESH_KEYS) {
+    assert(!(key in SKIN_FIX[file]), `${file}: the skin fix must not touch ${key}`);
+    assert.equal(now[key], was[key], `${file}: ${key} (the mesh itself) is byte-identical to the original model`);
   }
   assert.deepEqual(Object.keys(now).sort(), Object.keys(was).sort(), `${file}: same set of model parts`);
 }
-console.log('Gas Mask Guy model untouched: mesh, skin weights, joints, rest pose and materials are byte-identical in all three files; inverse binds and Idle/Jump/Sit/Ride match the bind fix');
+console.log('Gas Mask Guy mesh untouched: positions, normals, UVs, indices and materials are byte-identical in all three files; inverse binds, limb pivots, legacy clips and skin weights match the pinned bind + skin fixes');

@@ -52,13 +52,34 @@ export function buildPlayerWalker(options) {
   const body = walker.children.filter(child => child.renderOrder !== -1);
   // `tint: null` keeps Gas Mask Guy's own textures (NFT holders); otherwise the suit colour tints it.
   const tint = options && Object.prototype.hasOwnProperty.call(options, 'tint') ? options.tint : options?.suit;
-  walker.userData.avatarSkin = { model: 'gas-mask-guy', tint: tint ?? null };
-  walker.userData.defaultAvatar = mountDefaultPlayerAvatar(walker, {
-    tint,
-    lod: !!options?.lite,
+  // model (optional): 'gas-mask-guy' (default) or 'hover-mage' (client/js/player-model-choice.mjs); local player only for now.
+  const model = options?.model === 'hover-mage' ? 'hover-mage' : 'gas-mask-guy';
+  walker.userData.avatarSkin = { model, tint: tint ?? null };
+  walker.userData.avatarBody = body;
+  walker.userData.avatarLite = !!options?.lite;
+  walker.userData.defaultAvatar = mountPlayerModel(walker, model, tint, !!options?.lite);
+  return walker;
+}
+function mountPlayerModel(walker, model, tint, lite) {
+  const body = walker.userData.avatarBody || [];
+  return mountDefaultPlayerAvatar(walker, {
+    tint, model,
+    lod: lite,
     fallback: visible => { for (const child of body) child.visible = visible; }
   });
-  return walker;
+}
+// Swap a buildPlayerWalker's body in place (Settings > Player model). Keeps the group, its position,
+// attachments and pose callers; returns the new handle.
+export function setWalkerModel(walker, model) {
+  const skin = walker?.userData?.avatarSkin;
+  if (!skin) return null;
+  const next = model === 'hover-mage' ? 'hover-mage' : 'gas-mask-guy';
+  if (skin.model === next && walker.userData.defaultAvatar) return walker.userData.defaultAvatar;
+  const lite = !!walker.userData.avatarLite;
+  walker.userData.defaultAvatar?.dispose();
+  skin.model = next;
+  walker.userData.defaultAvatar = mountPlayerModel(walker, next, skin.tint, lite);
+  return walker.userData.defaultAvatar;
 }
 
 // pose: ph = walk phase, amp 0..1 (0 = idle), t = seconds. Writes legs/arms rotation.x (compatible with NFT chars: extras apply only if present)

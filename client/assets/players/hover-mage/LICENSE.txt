@@ -1,0 +1,11 @@
+Model Information:
+* title:	Dark Hooded Robe
+* source:	https://sketchfab.com/3d-models/dark-hooded-robe-2763a5cc223b48ecb2745b7e2067f00b
+* author:	maksfrolov947 (https://sketchfab.com/maksfrolov947)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Dark Hooded Robe" (https://sketchfab.com/3d-models/dark-hooded-robe-2763a5cc223b48ecb2745b7e2067f00b) by maksfrolov947 (https://sketchfab.com/maksfrolov947) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -49,16 +49,17 @@ async function load(file){
  for(const m of g.materials||[]){if(m.pbrMetallicRoughness){delete m.pbrMetallicRoughness.baseColorTexture;delete m.pbrMetallicRoughness.metallicRoughnessTexture;}delete m.normalTexture;delete m.occlusionTexture;delete m.emissiveTexture;}
  return {json:g,gltf:await new Promise((ok,no)=>new GLTFLoader().parse(JSON.stringify(g),'',ok,no))};
 }
-// Boot sole points as the game renders them: the visible boot weighted to foot.L is the mirror of the
-// joint (see scripts/player-avatar/author_gait.mjs) and moves with the joint's world motion.
+// Boot sole points as the game renders them: the bind is exact (scripts/player-avatar/fix_bind.mjs),
+// toe tip 1 cm in and heel 1.5 cm in (the pivots author_gait.mjs plants; the body faces -Z, toes at min z),
+// so the boot weighted to foot.L sits on the foot.L joint and moves with it. The body faces -Z.
 function soles(scene){
  let mesh;scene.traverse(o=>{if(o.isSkinnedMesh)mesh=o});
  const P=mesh.geometry.attributes.position,J=mesh.geometry.attributes.skinIndex,W=mesh.geometry.attributes.skinWeight,bones=mesh.skeleton.bones,out=[];
  for(const name of ['footL','footR']){const bi=bones.findIndex(b=>b.name===name),pts=[];
-  for(let i=0;i<P.count;i++){let w=0;for(let k=0;k<4;k++)if(J.getComponent(i,k)===bi)w+=W.getComponent(i,k);if(w>.5)pts.push(new THREE.Vector3().fromBufferAttribute(P,i).setX(-P.getX(i)));}
+  for(let i=0;i<P.count;i++){let w=0;for(let k=0;k<4;k++)if(J.getComponent(i,k)===bi)w+=W.getComponent(i,k);if(w>.5)pts.push(new THREE.Vector3().fromBufferAttribute(P,i));}
   const minY=Math.min(...pts.map(p=>p.y)),sole=pts.filter(p=>p.y<minY+.02);
   const zs=sole.map(p=>p.z),x=sole.reduce((s,p)=>s+p.x,0)/sole.length;
-  out.push({bone:bones[bi],rest:bones[bi].matrixWorld.clone().invert(),ground:minY,pts:[Math.min(...zs)+.015,(Math.min(...zs)+Math.max(...zs))/2,Math.max(...zs)-.01].map(z=>new THREE.Vector3(x,minY,z))});}
+  out.push({bone:bones[bi],rest:bones[bi].matrixWorld.clone().invert(),ground:minY,pts:[Math.min(...zs)+.01,(Math.min(...zs)+Math.max(...zs))/2,Math.max(...zs)-.015].map(z=>new THREE.Vector3(x,minY,z))});}
  return out;
 }
 for(const file of ['gas-mask-guy.gltf','gas-mask-guy-lod.gltf','gas-mask-guy-body.gltf']){
@@ -84,7 +85,7 @@ for(const file of ['gas-mask-guy.gltf','gas-mask-guy-lod.gltf','gas-mask-guy-bod
   const clip=clips[n],act=mixer.clipAction(clip).play(),N=120,rows=[];
   for(let i=0;i<=N;i++){mixer.setTime(clip.duration*i/N);scene.updateMatrixWorld(true);
    const travel=GAIT_CLIPS[n].stride*i/N;
-   rows.push(feet.map(f=>{const m=f.bone.matrixWorld.clone().multiply(f.rest);return f.pts.map(p=>{v.copy(p).applyMatrix4(m);return {y:v.y-f.ground,x:v.x,z:v.z+travel}})}));}
+   rows.push(feet.map(f=>{const m=f.bone.matrixWorld.clone().multiply(f.rest);return f.pts.map(p=>{v.copy(p).applyMatrix4(m);return {y:v.y-f.ground,x:v.x,z:v.z-travel}})}));}
   let slip=0,planted=0,air=0,worst=0;
   for(let i=0;i<N;i++){let down=0;for(let f=0;f<2;f++){let step=0,on=false;for(let c=0;c<3;c++){const a=rows[i][f][c],b=rows[i+1][f][c];if(a.y<.005&&b.y<.005){on=true;step=Math.max(step,Math.hypot(b.x-a.x,b.z-a.z));}}if(on){down++;slip+=step;planted+=GAIT_CLIPS[n].stride/N;worst=Math.max(worst,step);}}if(!down)air++;}
   const ratio=slip/planted;

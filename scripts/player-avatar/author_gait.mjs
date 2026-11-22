@@ -16,6 +16,7 @@
 //
 // Every clip starts at left-foot contact and has right-foot contact at half cycle; strides and
 // durations come from client/js/player-gait.mjs, which the runtime uses to drive phase by distance.
+// Run scripts/player-avatar/fix_bind.mjs first (it repairs the skin bind this script relies on).
 // In-house procedural motion (no third-party animation data).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -37,11 +38,12 @@ const minJerk = u => { u = clamp01(u); return u * u * u * (10 - 15 * u + 6 * u *
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // Gait parameters (model units, radians). Pitch > 0 = toes down. Arm swing > 0 = forward.
+// footZ: where the mid-foot is at mid-stance, forward of the hip joints.
 const PARAMS = {
   Walk: {
     duty: .62, width: .085, footZ: -.12, kneeOut: .06,
-    strike: { pivot: 'heel', pitch: -.30, rocker: .13 }, flatUntil: .52, toeOff: .62,
-    swing: { kind: 'walk', lift: .085, dorsi: -.16, match: [1, .85] },
+    strike: { pivot: 'heel', pitch: -.30, rocker: .13 }, flatUntil: .52, toeOff: .85,
+    swing: { kind: 'walk', lift: .085, dorsi: -.16, match: [.4, 1], land: .9, liftPow: .6 },
     bob: { kind: 'pendulum', sink: .018, kneeBase: .9975, kneeLoad: .989 },
     hips: { yaw: .085, list: .055, shift: .016, tilt: .03 },
     spine: { lean: .025, chestUp: .035, chestYaw: .11, chestList: .03, bounce: 0 },
@@ -49,9 +51,9 @@ const PARAMS = {
     arm: { swing: .34, center: -.04, lag: .05, adduct: .13, elbow: .22, elbowSwing: .30 }
   },
   Run: {
-    duty: .27, width: .07, footZ: -.17, kneeOut: .05,
+    duty: .27, width: .07, footZ: -.20, kneeOut: .05,
     strike: { pivot: 'heel', pitch: -.13, rocker: .10 }, flatUntil: .40, toeOff: .86,
-    swing: { kind: 'run', kick: .42, high: .14, dorsi: -.22, match: [.45, .35] },
+    swing: { kind: 'run', kick: .42, high: .14, dorsi: -.22, match: [.45, 1], land: .92 },
     bob: { kind: 'spring', amp: .035, kneeMid: .64 },
     hips: { yaw: .11, list: .035, shift: .01, tilt: .09 },
     spine: { lean: .07, chestUp: .02, chestYaw: .12, chestList: .02, bounce: .025 },
@@ -61,7 +63,7 @@ const PARAMS = {
   Sprint: {
     duty: .19, width: .055, footZ: -.22, kneeOut: .04,
     strike: { pivot: 'ball', pitch: .24, settle: .07, settleAt: .35 }, flatUntil: .35, toeOff: 1.0,
-    swing: { kind: 'run', kick: .46, high: .2, dorsi: -.24, match: [.35, .3] },
+    swing: { kind: 'run', kick: .46, high: .2, dorsi: -.24, match: [.35, 1], land: .92 },
     bob: { kind: 'spring', amp: .03, kneeMid: .62 },
     hips: { yaw: .13, list: .025, shift: .006, tilt: .10 },
     spine: { lean: .09, chestUp: 0, chestYaw: .14, chestList: .015, bounce: .03 },
@@ -85,27 +87,21 @@ function readAccessor(gltf, bin, index) {
   return out;
 }
 
-// Measured in three.js (rendered in a browser, both on the loaded scene and on SkeletonUtils.clone,
-// which is what the game uses): the skin places the visible mesh at the LEFT/RIGHT MIRROR of the joint
-// layout. The boot weighted to foot.L sits at -X while the foot.L joint is at +X, and a joint's motion
-// is applied to its mesh as-is, about the joint's own (+X) pivot. Rotations about X (the walking plane)
-// therefore look right, but any yaw/roll of an off-centre joint swings the mesh about the wrong pivot
-// and smears it (one reason the old clips looked broken). So: pose a mirrored copy of the rig that lines
-// up with the visible mesh, then give every joint the same rigid motion the visible part should make
-// (rotation AND translation keys), which is exactly what the skin then applies to the mesh.
-const mirrorQ = q => q.set(q.x, -q.y, -q.z, q.w);
-const mirrorP = p => p.set(-p.x, p.y, p.z);
-function buildRig(gltf, { mirror = false } = {}) {
+// The skin bind is exact (jointWorld * IBM = identity at rest, see fix_bind.mjs), so the visible
+// mesh sits on the joints and posing the real rig is posing the body. The glTF scene has the body
+// facing -Z; the authoring frame below turns it half a turn so model space is +Z forward, +X the
+// model's left, +Y up (the boot on foot.L is then on the model's right: names are just labels).
+function buildRig(gltf) {
   const objs = gltf.nodes.map(n => {
     const o = new Object3D(); o.name = n.name || '';
     if (n.translation) o.position.fromArray(n.translation);
     if (n.rotation) o.quaternion.fromArray(n.rotation);
-    if (mirror) { mirrorP(o.position); mirrorQ(o.quaternion); }
     if (n.scale) o.scale.fromArray(n.scale);
     return o;
   });
   gltf.nodes.forEach((n, i) => (n.children || []).forEach(c => objs[i].add(objs[c])));
-  const root = new Object3D();   // model space = the glTF scene: +Z forward, +X the model's left, +Y up
+  const root = new Object3D();   // model space = the glTF scene turned 180 deg: +Z forward, +X the model's left, +Y up
+  root.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), Math.PI);
   for (const i of gltf.scenes[gltf.scene || 0].nodes) root.add(objs[i]);
   root.updateMatrixWorld(true);
   const byName = {};
@@ -120,10 +116,8 @@ function soleGeometry(gltf, bin, rig) {
   const J = readAccessor(gltf, bin, prim.attributes.JOINTS_0);
   const W = readAccessor(gltf, bin, prim.attributes.WEIGHTS_0);
   const IBM = readAccessor(gltf, bin, skin.inverseBindMatrices);
-  // three.js binds the skin with the mesh node's world as bind matrix, so a skinned vertex lands at
-  // meshWorld^-1 * jointWorld * IBM * v in scene space (the rig's 180 deg turn cancels out).
-  const meshInv = rig.objs[gltf.nodes.findIndex(n => n.skin != null)].matrixWorld.clone().invert();
-  const jm = skin.joints.map((node, k) => meshInv.clone().multiply(rig.objs[node].matrixWorld).multiply(new Matrix4().fromArray(IBM, k * 16)));
+  // A skinned vertex lands at jointWorld * IBM * v (glTF spec, and three.js with its attached bind).
+  const jm = skin.joints.map((node, k) => rig.objs[node].matrixWorld.clone().multiply(new Matrix4().fromArray(IBM, k * 16)));
   const out = {};
   for (const side of ['L', 'R']) {
     const node = rig.byName['foot.' + side].i, k = skin.joints.indexOf(node), foot = rig.objs[node];
@@ -172,17 +166,12 @@ function aim(o, target) {
 }
 
 function author(gltf, bin) {
-  const rig = buildRig(gltf, { mirror: true }), B = n => rig.byName[n].o;
-  const real = buildRig(gltf), RB = n => real.byName[n].o;
+  const rig = buildRig(gltf), B = n => rig.byName[n].o;
   const bones = gltf.skins[0].joints.map(i => rig.objs[i]).filter(o => o.name !== 'neutral_bone');
   const rest = new Map(bones.map(o => [o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }]));
   const restWorldQ = new Map(bones.map(o => [o, worldQ(o)]));
   const restWorldP = new Map(bones.map(o => [o, o.getWorldPosition(new Vector3())]));
-  const sole = soleGeometry(gltf, bin, buildRig(gltf));
-  for (const side of ['L', 'R']) {   // into the mirrored (visible) space, attached to the mirrored foot
-    const f = sole[side], inv = B('foot.' + side).matrixWorld.clone().invert();
-    for (const k of ['heel', 'ball', 'toe']) { mirrorP(f[k + 'W']); f[k] = f[k + 'W'].clone().applyMatrix4(inv); }
-  }
+  const sole = soleGeometry(gltf, bin, rig);
   const resetRest = () => { for (const [o, r] of rest) { o.position.copy(r.p); o.quaternion.copy(r.q); o.scale.copy(r.s); } rig.root.updateMatrixWorld(true); };
   const len = (a, b) => restWorldP.get(B(a)).distanceTo(restWorldP.get(B(b)));
   const legs = ['L', 'R'].map((sd, i) => ({
@@ -198,6 +187,7 @@ function author(gltf, bin) {
     L.ankleY = L.ankleRest.y - L.sole.ground;   // ankle height when the sole is flat on y=0
   }
   const ground = Math.min(sole.L.ground, sole.R.ground);
+  const hipZ = (restWorldP.get(B('thigh.L')).z + restWorldP.get(B('thigh.R')).z) / 2;   // hip joints, fore-aft
 
   // Ankle position when the foot, pitched by `pitch` about its lateral axis, touches the ground at `pivot`.
   function ankleAbout(L, pivotPoint, relKey, pitch) {
@@ -207,7 +197,7 @@ function author(gltf, bin) {
   function stance(L, P, p, stride) {
     const s = p / P.duty;
     // Mid-foot point slides back at exactly ground speed: stride per cycle.
-    const zMid = P.footZ + stride * (P.duty / 2 - p);
+    const zMid = hipZ + P.footZ + stride * (P.duty / 2 - p);
     const flatAnkle = new Vector3(L.sign * P.width, L.ankleY + ground, zMid - L.rel.mid.z);
     const ground3 = k => flatAnkle.clone().add(L.rel[k]).setY(ground);
     const S = P.strike;
@@ -229,12 +219,15 @@ function author(gltf, bin) {
     // Fore-aft: Hermite with end tangents matched (in part) to the ground speed, so the foot leaves and
     // meets the ground without a jerk: a short back-kick after toe-off and a pull-back before landing.
     const travel = -stride * (1 - P.duty);
-    const z0 = a0.ankle.z, z1 = a1.ankle.z, m0 = travel * S.match[0], m1 = travel * S.match[1];
-    const h = [2 * w ** 3 - 3 * w * w + 1, w ** 3 - 2 * w * w + w, -2 * w ** 3 + 3 * w * w, w ** 3 - w * w];
-    const ankle = a0.ankle.clone().lerp(a1.ankle, smooth(w));
-    ankle.z = h[0] * z0 + h[1] * m0 + h[2] * z1 + h[3] * m1;
+    // `land` < 1: the foot reaches the air above its landing spot early and then only drops onto it
+    // (no forward skid while the heel skims the floor); it is held still over the ground meanwhile.
+    const wl = S.land || 1, ww = Math.min(1, w / wl);
+    const z0 = a0.ankle.z, z1 = a1.ankle.z + travel * (wl - 1), m0 = travel * S.match[0] * wl, m1 = travel * S.match[1] * wl;
+    const h = [2 * ww ** 3 - 3 * ww * ww + 1, ww ** 3 - 2 * ww * ww + ww, -2 * ww ** 3 + 3 * ww * ww, ww ** 3 - ww * ww];
+    const ankle = a0.ankle.clone().lerp(a1.ankle, smooth(ww));
+    ankle.z = w < wl ? h[0] * z0 + h[1] * m0 + h[2] * z1 + h[3] * m1 : a1.ankle.z + travel * (w - 1);
     if (S.kind === 'walk') {
-      ankle.y += S.lift * Math.sin(Math.PI * Math.pow(w, .8)) ** 2 * 1.15;   // squared: the foot lifts off and sets down with zero vertical speed
+      ankle.y += S.lift * Math.sin(Math.PI * Math.pow(w, S.liftPow || .8)) ** 2 * 1.15;   // squared: the foot lifts off and sets down with zero vertical speed
       ankle.x += L.sign * .012 * Math.sin(Math.PI * w);
     } else {
       // Running: heel kicks up toward the seat, then the knee drives through and the shin unfolds to land.
@@ -242,7 +235,7 @@ function author(gltf, bin) {
       ankle.y = y0 * u * u * u + (y0 + S.kick) * 3 * u * u * t + (y1 + S.high) * 3 * u * t * t + y1 * t * t * t;
       ankle.x += L.sign * .008 * Math.sin(Math.PI * w);
     }
-    const pitch = a0.pitch * (1 - smooth(w / .4)) + S.dorsi * Math.sin(Math.PI * clamp01(w / .85)) ** 2 + a1.pitch * smooth((w - .62) / .38);
+    const pitch = a0.pitch * (1 - smooth(w / .4)) + S.dorsi * Math.sin(Math.PI * clamp01(w / .85)) ** 2 + a1.pitch * smooth((w - .55) / (wl - .55));
     return { ankle, pitch };
   }
 
@@ -404,21 +397,8 @@ function author(gltf, bin) {
     return { name: 'Air', duration, stride: 0, frames, float: 0 };
   }
 
-  const visRest = new Map(bones.map(o => [o.name, o.matrixWorld.clone()]));
-  const realRest = new Map(bones.map(o => [o.name, RB(o.name).matrixWorld.clone()]));
-  function snapshot() {
-    // Visible rigid motion of each part -> the same world motion for its joint -> local TRS keys.
-    const world = new Map(), out = [];
-    for (const o of bones) {   // skin joint order: parents first
-      const motion = o.matrixWorld.clone().multiply(visRest.get(o.name).clone().invert());
-      const w = motion.multiply(realRest.get(o.name));
-      world.set(o.name, w);
-      const parent = RB(o.name).parent, pw = world.get(parent.name) || parent.matrixWorld;
-      const local = pw.clone().invert().multiply(w), p = new Vector3(), q = new Quaternion(), sc = new Vector3();
-      local.decompose(p, q, sc);
-      out.push({ name: o.name, q: q.toArray(), p: p.toArray() });
-    }
-    return out;
+  function snapshot() {   // local TRS keys of every skin joint (parents first), straight off the posed rig
+    return bones.map(o => ({ name: o.name, q: o.quaternion.toArray(), p: o.position.toArray() }));
   }
 
   const clips = ['Walk', 'Run', 'Sprint'].map(makeClip);
@@ -431,10 +411,6 @@ function slipReport(gltf, bin, clip) {
   const rig = buildRig(gltf);
   const feet = ['L', 'R'].map(sd => rig.byName['foot.' + sd].o);
   const sole = soleGeometry(gltf, bin, rig);
-  for (const side of ['L', 'R']) {   // the visible boot (mirrored), carried by its joint's motion
-    const f = sole[side], inv = rig.byName['foot.' + side].o.matrixWorld.clone().invert();
-    for (const k of ['heel', 'ball', 'toe']) { mirrorP(f[k + 'W']); f[k] = f[k + 'W'].clone().applyMatrix4(inv); }
-  }
   let worst = 0, sumSlip = 0, sumTravel = 0;
   const pts = [];
   const N = clip.frames.length - 1;

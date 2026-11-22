@@ -113,8 +113,9 @@ export function mountDefaultPlayerAvatar(root, {
     applyTint(visual, tint);
     visual.name = 'gas-mask-guy';
     visual.scale.setScalar(height / 1.8);
-    // The exports face +Z. Match the shared walker’s -Z before applying the mode’s yaw.
-    visual.rotation.y = Math.PI + yaw;
+    // The exports face -Z (the shared walker's forward) since the skin bind fix (fix_bind.mjs), so
+    // only the mode's yaw is applied.
+    visual.rotation.y = yaw;
     visual.position.set(...offset);
     visual.traverse(node => {
       node.userData.sharedAsset = true;

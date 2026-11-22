@@ -22,6 +22,11 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const fmtN = x => x == null ? '—' : x >= 1e12 ? (x / 1e12).toFixed(2) + 'T' : x >= 1e9 ? (x / 1e9).toFixed(2) + 'B' : x >= 1e6 ? (x / 1e6).toFixed(2) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'k' : x >= 1 ? x.toFixed(1) : x.toPrecision(3);
 const pctS = x => x == null ? '—' : (x >= 10 ? x.toFixed(1) : x >= 1 ? x.toFixed(2) : x.toFixed(3)) + '%';
 const STALE_MS = 6 * 3600e3;
+// Historical project snapshot: visual fallback, never a fresh verified audit.
+const BURN_ORIGINAL = 1_000_000_000_000_000;
+const BURN_LAST_REPORTED_OUTSTANDING = 34_843_974_557_394.52;
+const BURN_MANUAL_FRACTION = (BURN_ORIGINAL - BURN_LAST_REPORTED_OUTSTANDING) / BURN_ORIGINAL;
+const BURN_TOKEN_KEY = 'rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd-4255524E00000000000000000000000000000000';
 
 // fixture: every acceptance case, mapped onto real bridges/tokens so it renders in the real city
 function fixture(bridges, N) {
@@ -121,6 +126,9 @@ export function initAmmLock(c) {
     if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
+    // Every fresh verified ledger reading above wins. Only then may BURN fall back to the
+    // labeled historical snapshot (st 'manual'): visual only, never shown as verified.
+    if(k==='BURN' && N[k]?.key===BURN_TOKEN_KEY)return {st:'manual',o,f:BURN_MANUAL_FRACTION,net:true};
     // Supply-based IMM and XRPyro previews use obligations from the read-only
     // ledger service. Require the exact token identity, gateway source, fresh
     // verified holder snapshot and disabled issuer keys. Not an audited burn.
@@ -149,7 +157,7 @@ export function initAmmLock(c) {
     // partial/unknown and reported-only percentages never look gold.
     bridges.forEach(publishLock);
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified' || v.st === 'estimated', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st,token:k}); singPos(n, R, v.f, v.st === 'verified' || v.st === 'estimated' || v.st === 'manual', _v);
       if(on) { const slot=visibleSingularities++;
         _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);
         // BURN purple, IMM turquoise, XRPyro ember-orange; one batched shader and one singularity per token.
@@ -157,7 +165,7 @@ export function initAmmLock(c) {
         sA.set([v.f,...tint],slot*4);
         _m.compose(_v,diskQ,_s.setScalar(R));disks.setMatrixAt(slot,_m);
       }
-      let pk = pickers[k]; if (on) { if (!pk) { pk = pickers[k] = new THREE.Mesh(pickGeo, pickMat); pk.userData = { kind: 'ammlock', token: k }; S.add(pk); pick.push(pk); } pk.position.copy(_v); pk.scale.setScalar(R * 1.6); pk.visible = true; }
+      let pk = pickers[k]; if (on) { if (!pk) { pk = pickers[k] = new THREE.Mesh(pickGeo, pickMat); pk.userData = { kind: 'ammlock', token: k }; S.add(pk); pick.push(pk); } pk.position.copy(_v); pk.scale.setScalar(R > 16 ? R * 1.15 : R * 1.6); pk.visible = true; }
       else if (pk) { pk.position.set(0, -999, 0); } });
     sing.count = disks.count = visibleSingularities;
     sing.instanceMatrix.needsUpdate = true; sph.attributes.bp.needsUpdate = true; disks.instanceMatrix.needsUpdate = true;
@@ -174,9 +182,9 @@ export function initAmmLock(c) {
   apply(); load(); if (!TEST) setInterval(load, 10 * 60e3);
 
   // ---- cards (reuse #info styling: table rows, .dim) ----
-  const badge = (s, stale) => s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'estimated' ? '<b style="color:#ffd27a">◐ ESTIMATED (launch minus supply)</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
+  const badge = (s, stale) => s === 'manual' ? '<b style="color:#ffd27a">◐ HISTORICAL SNAPSHOT (not live verified)</b>' : s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'estimated' ? '<b style="color:#ffd27a">◐ ESTIMATED (launch minus supply)</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
   const CLS = { permanent: ['#ffc64a', 'permanently locked'], time_locked: ['#ff9d3c', 'time-locked'], held: ['#8fd8ff', 'held (keys exist)'], unknown: ['#c9c9d6', 'unverified'], burned: ['#b98cff', 'black hole'], designated: ['#d9a7ff', 'sent to designated address'] };
-  const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified supply reduction · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
+  const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified supply reduction (BURN falls back to a labeled historical snapshot when no fresh verified reading exists) · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
   function poolHTML(p) {
     const b = bridges.find(x => x.p === p || x.p.amm === p.amm); const v = b ? poolView(b) : { st: 'unverified' }, o = v.o, stale = o && !fresh(o);
     const rows = [['Total liquidity', `${fmtN(p.tvl_xrp)} XRP <span class="dim">(bridge thickness · ECO reserves)</span>`], ['Lock status', badge(v.st, stale)]];
@@ -192,6 +200,7 @@ export function initAmmLock(c) {
   function tokHTML(k) {
     const v = tokOf(k), o = v.o, stale = o && !fresh(o), n = N[k]; const rows = [['Burn status', badge(v.st, stale)]];
     if(!st.data?.fixture){
+      if(k==='BURN' && v.st==='manual')return '<div class="amml"><h3>BURN black hole — historical visual estimate</h3><p><b>'+ (BURN_MANUAL_FRACTION*100).toFixed(4) +'% net supply reduction (historical snapshot)</b></p><p>Original issuance: 1,000,000,000,000,000 BURN. Last reported outstanding: 34,843,974,557,394.52 BURN (November 3, 2026). Not a live verified reading or complete issuer-return audit. The giant black hole remains visible during verification outages.</p></div>';
       const supplyCard = supplyReconciliationCard({record:fresh(o)?o?.supply_reconciliation:null,tokenKey:n?.key,tokenName:k});
       if(supplyCard)return supplyCard;
       const ecosystemCard = ecosystemSupplyCard({record:fresh(o)?o?.supply_reconciliation:null,tokenName:k});
@@ -232,7 +241,7 @@ export function initAmmLock(c) {
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.preview?.status === 'indicative_outstanding_supply' ? pctS(v.preview.fraction * 100) + ' estimated supply reduction (not audited burns)' : v.preview ? 'indicative partial issuer returns, NOT verified burn supply' : v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.preview?.status === 'indicative_outstanding_supply' ? pctS(v.preview.fraction * 100) + ' estimated supply reduction (not audited burns)' : v.preview ? 'indicative partial issuer returns, NOT verified burn supply' : v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.f * 100) + (v.st === 'manual' ? ' historical net reduction (not verified)' : v.net?' net supply reduction':' of supply burned')} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b) => { const v = poolView(b), midpoint=b.curve.getPoint(.5);
       return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl,
         shown: v.st==='verified'&&v.perm>0, mid: midpoint.toArray(), R: b.r*1.45+.55 }; }),

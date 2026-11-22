@@ -364,6 +364,13 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   token scans check only the top 30 holders (a tiny black-hole balance below 0.01% is not counted, so burn is a slight lower bound); RLUSD is not scanned (unverified);
   Escrow detection depends on IOU escrows being listed on the AMM account (TokenEscrow); real-phone look/fps still pending (headless SwiftShader only).
 
+### BURN singularity landmark (PR #679, sw bc-v189-burn-singularity)
+- **Size**: `client/js/blackhole-radius.mjs` `blackHoleRadius({fraction,status,token})`: `token==='BURN'` with any positive fraction → `36 + 12·sqrt(f)` (≈47.8 at 96.52%, 48 max). IMM/XRPyro/others keep the status-based radii (verified `2+13√f`, partial/estimated `3.4+7√f`, else 2.2). amm-lock.js has no inline radius.
+- **Data priority** (`tokOf` in `client/js/amm-lock.js`): fresh verified `supply_reconciliation` (fixed_issuance_supply_v1) → ecosystem snapshot → verified issuer-return history → only then, for BURN by exact token key, `st:'manual'` = historical snapshot `(1e15 − 34,843,974,557,394.52)/1e15 ≈ 96.5156%` (`BURN_LAST_REPORTED_OUTSTANDING`, visual only). Badge "HISTORICAL SNAPSHOT (not live verified)", card "historical visual estimate … Not a live verified reading", tip "historical net reduction (not verified)". A stale (>6 h) verified record falls back to manual.
+- **Placement**: unchanged `blackHoleAltitude` (rooftop + R + 12 + 50·f^0.8). Measured locally: BURN tower top 82.6, sphere bottom 143.2 (+60.6), tilted disk lowest 156.8 (+74.2), disk outer radius ≈105; the only solid mesh in the footprint is the BURN tower itself. The BURN rooftop searchlight cone (additive, night only) sweeps into the hole: visual only.
+- **Cost**: still 2 instanced draws, no lights; tris/draws unchanged vs main. Fill-rate: the BURN disk's bounding circle covers ~7% of a 1366×800 frame and ~20% of an iPhone 13 portrait frame at the default view (main ~0.6% / ~2%). Pick sphere is `R·1.15` for big cores (was `R·1.6`) so it doesn't swallow taps near the tower.
+- **Tests**: `client/js/blackhole-radius.test.mjs` (BURN ~48, IMM/XRPyro unchanged, clearance math), `test/blackhole-size-and-pending.test.js` (verified-before-manual order, labels). Gap: real-phone fps not measured (SwiftShader only); the 34.84T outstanding figure is the PR author's reported snapshot, not re-verified on ledger.
+
 ## AEGIS Live Cams (feat/live-cams, sw bc-v52-livecams)
 - **Server** `server/cams.js` (hook: one line in `server.js` before `/api/eco/live`, plus `Cams.start()` at boot).
   Key: `process.env.YT_API_KEY || process.env.Youtube_API` (the Fly secret is named **`Youtube_API`**). Never sent to the client.

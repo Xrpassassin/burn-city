@@ -2,6 +2,7 @@
 // Front is -Z. legs/arms are hip/shoulder pivots (rotation.x swings); userData.legs/arms keep the old API.
 import * as THREE from 'three';
 import { mountDefaultPlayerAvatar } from './default-player-avatar.mjs';
+import { playerModelOr } from './player-model-choice.mjs';
 const G = {}, M = {}, SK = [0xf1c8a5, 0xd9a47c, 0xb97c54, 0x8a5636, 0x5e3a24];
 const geo = (k, f) => G[k] || (G[k] = f());
 const std = (c, r = .55, m = .25, e = 0) => { const k = c + '_' + r + '_' + m + '_' + e; return M[k] || (M[k] = new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m, emissive: e })) };
@@ -52,8 +53,8 @@ export function buildPlayerWalker(options) {
   const body = walker.children.filter(child => child.renderOrder !== -1);
   // `tint: null` keeps Gas Mask Guy's own textures (NFT holders); otherwise the suit colour tints it.
   const tint = options && Object.prototype.hasOwnProperty.call(options, 'tint') ? options.tint : options?.suit;
-  // model (optional): 'gas-mask-guy' (default) or 'hover-mage' (client/js/player-model-choice.mjs); local player only for now.
-  const model = options?.model === 'hover-mage' ? 'hover-mage' : 'gas-mask-guy';
+  // model (optional): 'hover-mage' (default since bc-v193) or 'gas-mask-guy' (client/js/player-model-choice.mjs).
+  const model = playerModelOr(options?.model);
   walker.userData.avatarSkin = { model, tint: tint ?? null };
   walker.userData.avatarBody = body;
   walker.userData.avatarLite = !!options?.lite;
@@ -73,7 +74,7 @@ function mountPlayerModel(walker, model, tint, lite) {
 export function setWalkerModel(walker, model) {
   const skin = walker?.userData?.avatarSkin;
   if (!skin) return null;
-  const next = model === 'hover-mage' ? 'hover-mage' : 'gas-mask-guy';
+  const next = playerModelOr(model);
   if (skin.model === next && walker.userData.defaultAvatar) return walker.userData.defaultAvatar;
   const lite = !!walker.userData.avatarLite;
   walker.userData.defaultAvatar?.dispose();

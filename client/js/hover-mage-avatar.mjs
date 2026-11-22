@@ -40,16 +40,18 @@ export function hoverTarget(state, v, out = {}) {
   return Object.assign(out, { hover: .12 + .03 * n, bobAmp: .03 - .012 * n, bobHz: .55 + .45 * n, lean: .22 * n, trail: .085 * n, n });
 }
 
-const SWAY_KEY = 'hover-mage-sway-v1';
+const SWAY_KEY = 'hover-mage-sway-v2';
 function addSway(material, uniforms) {
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uMageTime; uniform float uMageSway; uniform vec3 uMageTrail;')
+      .replace('#include <common>', '#include <common>\nuniform float uMageTime; uniform float uMageSway; uniform vec3 uMageTrail; uniform vec2 uMageQ;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
       {
         // Weight by height: the hem (y = 0) moves most, nothing above the waist (y > 0.55) moves.
-        float w = 1.0 - smoothstep(0.0, 0.55, position.y); float w2 = w * w;
+        // position is KHR_mesh_quantization space (-1..1); uMageQ = the mesh node's (scale.y, position.y) maps it to model y.
+        float my = position.y * uMageQ.x + uMageQ.y;
+        float w = 1.0 - smoothstep(0.0, 0.55, my); float w2 = w * w;
         float ph = uMageTime * 2.1 + position.y * 7.0 + position.x * 9.0 + position.z * 5.0;
         transformed.x += sin(ph) * uMageSway * w;
         transformed.z += cos(ph * 0.83 + 1.3) * uMageSway * w;
@@ -70,7 +72,7 @@ export function mountHoverMage(root, {
   if (mounted.has(root)) return mounted.get(root);
   const phone = phoneQuality();
   let farWanted = !!lod, visual = null, model = null, aura = null, disposed = false, hidden = false;
-  const uniforms = { uMageTime: { value: 0 }, uMageSway: { value: .006 }, uMageTrail: { value: new THREE.Vector3() } };
+  const uniforms = { uMageTime: { value: 0 }, uMageSway: { value: .006 }, uMageTrail: { value: new THREE.Vector3() }, uMageQ: { value: new THREE.Vector2(1, 0) } };
   const cur = { hover: .12, bobAmp: .03, bobHz: .55, lean: 0, trail: 0, n: 0, roll: 0, side: 0 }, want = {};
   let t = 0, bobPhase = 0, spd = 0, prevYaw = null, lastState = 'Idle';
   const file = () => HOVER_MAGE_FILES[(phone || farWanted) ? 'far' : 'near'];
@@ -80,12 +82,13 @@ export function mountHoverMage(root, {
   function makeAura() {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 2, 32, 32, 31);
-    g.addColorStop(0, 'rgba(170,140,255,.85)'); g.addColorStop(.45, 'rgba(120,90,240,.32)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    g.addColorStop(0, 'rgba(205,175,255,1)'); g.addColorStop(.4, 'rgba(150,105,255,.6)'); g.addColorStop(.75, 'rgba(110,70,240,.18)'); g.addColorStop(1, 'rgba(0,0,0,0)');   // brighter: the #687 glow vanished on asphalt
     x.fillStyle = g; x.fillRect(0, 0, 64, 64);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({
-      map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false
+      map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4   // never sinks into a road decal / curb at the same height
     }));
-    m.name = 'hover-mage-aura'; m.renderOrder = -1; m.scale.setScalar(height * .5); m.position.set(offset[0], offset[1] + .06, offset[2]);
+    m.name = 'hover-mage-aura'; m.renderOrder = -1; m.scale.setScalar(height * .5); m.position.set(offset[0], offset[1] + .1, offset[2]);
     return m;
   }
 
@@ -104,6 +107,7 @@ export function mountHoverMage(root, {
     model.traverse(n => {
       n.userData.sharedAsset = true;        // shared geometry/texture: clearGroup must not dispose them
       if (!n.isMesh) return;
+      uniforms.uMageQ.value.set(n.scale.y || 1, n.position.y || 0);   // dequantize transform (one mesh per LOD)
       n.material = n.material.clone();
       n.material.roughness = Math.max(n.material.roughness ?? 1, .8);
       addSway(n.material, uniforms);
@@ -163,8 +167,8 @@ export function mountHoverMage(root, {
       uniforms.uMageTrail.value.set(cur.roll * .25, 0, -cur.trail);
       if (aura) {
         const lift = Math.max(0, cur.hover + bob);
-        aura.material.opacity = .6 + .4 * (1 - Math.min(1, lift / .2));
-        aura.scale.setScalar(height * (.62 + lift * .8));
+        aura.material.opacity = .85 + .15 * (1 - Math.min(1, lift / .2));
+        aura.scale.setScalar(height * (.72 + lift * .8));
       }
     },
     setLod(useFar) {

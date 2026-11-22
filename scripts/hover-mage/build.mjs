@@ -8,6 +8,7 @@ import { weld, dedup, prune, simplify, quantize, flatten, join, textureCompress,
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import fs from 'fs';
+import { tuckBoots } from './tuck-boots.mjs';
 const SRC = process.argv[2] || '/workspace/work/robe/scene.gltf', OUT = process.argv[3] || '/workspace/work/robe/out';
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const tris = d => d.getRoot().listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((a, p) => a + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0), 0);
@@ -27,6 +28,7 @@ for (const [name, target, size, keepNormalMap] of [['hover-mage', 15000, 1024, f
   if (!keepNormalMap) { const nt = mat.getNormalTexture(); mat.setNormalTexture(null); nt?.dispose(); }
   mat.setRoughnessFactor(0.85).setMetallicFactor(0).setDoubleSided(true);
   await doc.transform(prune(), textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [size, size], quality: 80 }), quantize());
+  console.log(name, 'boot vertices tucked', tuckBoots(doc));   // after quantize: works in model space via the node transform
   const n = tris(doc);
   const pth = `${OUT}/${name}.glb`;
   await io.write(pth, doc);

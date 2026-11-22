@@ -378,7 +378,7 @@ export function createZombieFX(scene, { low = false } = {}) {
     armorBreak: infected.armorBreak,
     clear() { infected.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) { if (q.nc) disposeNftChar(q.nc); q.defaultAvatar?.dispose(); q.avatarRoot?.removeFromParent(); } ps.clear(); for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
-    update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
+    update(dt, st, me, myId, colorOf, flameCol, nftOf, srv, modelOf) {   // modelOf(id): that player's body ('hover-mage' default | 'gas-mask-guy', roster look.pm)
       t += dt; nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }
       for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); const dy = (r.y1 || 0) - (r.y0 || 0), L3 = Math.hypot(L, dy); const o6 = r.mz ? 0 : 0.6; beamAt(r.x0 + dx / L * o6, 1.2 + (r.y0 || 0), r.z0 + dz / L * o6, yaw, Math.max(0.5, L3 - o6), -Math.atan2(dy, L)); }   // Firestorm ember bolts
       infected.update(dt, st.zombies, me);
@@ -388,11 +388,10 @@ export function createZombieFX(scene, { low = false } = {}) {
         const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.y = p.y || 0; q.yaw = p.r ?? q.yaw; q.pi = p.pi || 0; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
         if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, (p.up & 4) ? WP2[p.w] : WP[p.w], Math.sin(q.pi || 0));   // others' flames (emit only)
         if (p.firing && p.w === 4) beamAt(q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, q.yaw, 22);
-        if (!q.avatarRoot) {
-          q.avatarRoot = new THREE.Group();
-          scene.add(q.avatarRoot);
-          q.defaultAvatar = mountDefaultPlayerAvatar(q.avatarRoot, { height: 2.05, yaw: Math.PI });
-        }
+        const pm = modelOf?.(p.id) || 'hover-mage';
+        if (q.avatarRoot && q.pm !== pm) { q.defaultAvatar?.dispose(); q.defaultAvatar = null; }   // roster look arrived after the first frame
+        if (!q.avatarRoot) { q.avatarRoot = new THREE.Group(); scene.add(q.avatarRoot); }
+        if (!q.defaultAvatar) { q.pm = pm; q.defaultAvatar = mountDefaultPlayerAvatar(q.avatarRoot, { height: 2.05, yaw: Math.PI, model: pm }); }
         q.avatarRoot.visible = true;
         q.avatarRoot.position.set(q.x, q.y + (p.down ? .25 : 0), q.z);
         q.avatarRoot.rotation.set(p.down ? -1.3 : 0, q.yaw, 0, 'YXZ');

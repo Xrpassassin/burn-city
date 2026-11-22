@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildPlayerWalker,poseWalker,setWalkerModel} from './walker.js';
-import {PLAYER_MODELS,getPlayerModel,savePlayerModel} from './player-model-choice.mjs';
+import {PLAYER_MODELS,DEFAULT_PLAYER_MODEL,getPlayerModel,savePlayerModel} from './player-model-choice.mjs';
 import {MOTION,speedFor,turnToward,JETPACK,jetHorizontal,jetVertical} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
@@ -1841,7 +1841,7 @@ function updTL(dt){if(RP)RP.update(dt)}
 // the Hover Mage has no jetpack pack on its back (the pack box would float behind the robe)
 function packFor(){const m=avatar.userData.avatarSkin?.model;for(const o of avatar.userData.pack||[])o.visible=o.userData.hideFor!==m}
 // Settings > Player model (cosmetic, this device; client/js/player-model-choice.mjs, swaps the body in place)
-{const el=$('playerModel');if(el){el.innerHTML=PLAYER_MODELS.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');el.value=avatar.userData.avatarSkin?.model||'gas-mask-guy';el.onchange=e=>{savePlayerModel(e.target.value);setWalkerModel(avatar,e.target.value);packFor()}}packFor()}
+{const el=$('playerModel');if(el){el.innerHTML=PLAYER_MODELS.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');el.value=avatar.userData.avatarSkin?.model||DEFAULT_PLAYER_MODEL;el.onchange=e=>{savePlayerModel(e.target.value);setWalkerModel(avatar,e.target.value);packFor()}}packFor()}
 $('quality').value=TIERS[qPref]?qPref:'auto';$('qInfo').textContent=qPref==='auto'?`auto → ${TIER}`:'';
 $('quality').onchange=e=>{localStorage.setItem('bc_quality',e.target.value);$('loader').classList.remove('done');window.__load(.05,'Applying graphics: '+e.target.value);setTimeout(()=>{const u=new URL(location.href);u.searchParams.delete('q');location.replace(u)},250)};
 $('copyLink').onclick=()=>{const u=new URL(location.origin+location.pathname),r1=v=>v.toFixed(1);

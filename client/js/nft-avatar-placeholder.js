@@ -35,7 +35,7 @@ export function attachFloatingNftCard(root, n, opts={}) {
   return {card, frame};
 }
 export function buildCollectionPlaceholder(n,opts={}) {
-  const colors=collectionWalkerColors(n?.key), walker=buildPlayerWalker({...colors,tint:null,lite:!!opts.lite,skin:0});
+  const colors=collectionWalkerColors(n?.key), walker=buildPlayerWalker({...colors,tint:null,lite:!!opts.lite,skin:0,model:'gas-mask-guy'});
   // NFT callers face +Z; the shared walker faces -Z. Keep that correction on
   // the child, leaving the existing city/arena heading and rig references intact.
   const root=new THREE.Group();root.name='burn-city-nft-gas-mask-guy';

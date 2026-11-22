@@ -8,7 +8,8 @@ import { buildNftChar, disposeNftChar } from './nftchar.js';
 import * as NftPick from './nftpick.js';
 import { droneGeo } from './drone.js';
 import { NFT_PLAYER_AVATARS_ENABLED } from './experience-avatar-policy.mjs';
-import { buildPlayerWalker, poseWalker } from './walker.js';
+import { buildPlayerWalker, poseWalker, setWalkerModel } from './walker.js';
+import { getPlayerModel, modelToWire, modelFromWire } from './player-model-choice.mjs';
 import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
 const Q=new URLSearchParams(location.search);
 const SRV=trustedServer(Q.get('citysrv'));
@@ -55,7 +56,8 @@ function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{co
 // dt-based exponential smoothing (~0.1 s), so it reads the same at 20 or 120 fps.
 function peerSpeed(p,now){const x=p.g.position.x,z=p.g.position.z,q=p.sq;if(q&&q.t===now)return p.gs||0;p.sq={x,z,t:now};if(!q||now-q.t<=0)return p.gs||0;
  const dt=(now-q.t)/1000,raw=Math.hypot(x-q.x,z-q.z)/dt;if(raw<40)p.gs=(p.gs||0)+(raw-(p.gs||0))*(1-Math.exp(-dt/.1));return p.gs||0;}
-function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&NFT_PLAYER_AVATARS_ENABLED&&nfts.has(p.id)&&W().C.position.distanceToSquared(p.g.position)<85*85)setNft(p);if(p.nc&&(!walk||W().C.position.distanceToSquared(p.g.position)>120*120))setNft(p);if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildPlayerWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
+function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&NFT_PLAYER_AVATARS_ENABLED&&nfts.has(p.id)&&W().C.position.distanceToSquared(p.g.position)<85*85)setNft(p);if(p.nc&&(!walk||W().C.position.distanceToSquared(p.g.position)>120*120))setNft(p);if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildPlayerWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low')),model:p.pm});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
+  if(p.wk&&p.pm&&p.wk.userData.avatarSkin?.model!==p.pm)setWalkerModel(p.wk,p.pm);   // their Settings > Player choice (presence pm)
   if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;p.mv=mv;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;p.wk.userData.defaultAvatar?.setLod?.(W().C.position.distanceToSquared(p.g.position)>40*40);const sp=peerSpeed(p,now);poseWalker(p.wk,p.wph,mv?.8:0,now/1000,p.md==='w'&&sp>7.5,sp,!!p.j);p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.peer=1;g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
@@ -114,7 +116,7 @@ function connect(){if(ws||document.hidden||window.__estatesCityPresencePaused)re
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=onMsg=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;window.__myName=m.name||'';window.__jetOK=!!m.jet;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
-    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs,fl,bt] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.bt=bt||'skiff';q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0;setFlair(q,fl)}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
+    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs,fl,bt,pm] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.pm=modelFromWire(pm);q.b=b;q.bt=bt||'skiff';q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0;setFlair(q,fl)}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='fc'){dispatchEvent(new CustomEvent('bc-peer-catch',{detail:m}))}
     else if(m.t==='ab'){dispatchEvent(new CustomEvent('bc-aegis',{detail:m}))}   // AEGIS Response Ops: a peer holding / stabilizing a beacon (aegis.js)
@@ -127,8 +129,8 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(ws){ws.
 // my position (few updates on phones)
 const _v=new THREE.Vector3(),_d=new THREE.Vector3();
 function myPos(){const c=W(),m=c.getMode();if(m==='explore')return [c.P.pos.x,c.P.pos.y,c.P.pos.z];if(m==='fly'){const d=c.drone&&c.drone();const q=d&&d.visible?d.position:c.C.position;return [q.x,q.y-2.4,q.z]}return [c.C.position.x,Math.max(0,c.C.position.y-2.4),c.C.position.z]}
-function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,bt=window.__boat&&window.__boat.active?1:0,boatId=(bt&&window.__boat.cur?.id)||(window.__boat?.getSelectedBoat?.().id)||'skiff',sk=localStorage.bcDroneSkin==='drone_burncoin'?1:0,md=bt?'b':c.getMode()==='explore'?'w':'f',jt=window.__jetThrust?1:0,k=p.join()+r+bt+boatId+sk+md+jt;
-  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt,bt:boatId,k:sk,md,j:jt}))}
+function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,bt=window.__boat&&window.__boat.active?1:0,boatId=(bt&&window.__boat.cur?.id)||(window.__boat?.getSelectedBoat?.().id)||'skiff',sk=localStorage.bcDroneSkin==='drone_burncoin'?1:0,md=bt?'b':c.getMode()==='explore'?'w':'f',jt=window.__jetThrust?1:0,pm=modelToWire(getPlayerModel()),k=p.join()+r+bt+boatId+sk+md+jt+pm;
+  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt,bt:boatId,k:sk,md,j:jt,pm}))}
 
 let fr=0,lastLoop=0;function loop(now){requestAnimationFrame(loop);const c=W();const ldt=lastLoop?Math.min(.25,Math.max(0,(now-lastLoop)/1000)):1/60;lastLoop=now;if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size){if(IB)for(const k in IB)IB[k].count=0;return}drawInst(now/1000);
   if(selfBub&&c.P&&c.P.pos){if(selfT&&Date.now()>selfT){selfBub.classList.add('out');selfT=0;setTimeout(()=>{if(!selfT)selfBub.style.display='none'},450)}if(selfBub.style.display!=='none'){_v.set(c.P.pos.x,c.P.pos.y+(c.getMode&&c.getMode()==='walk'?3.2:5),c.P.pos.z);_v.project(c.C);selfBub.style.transform=`translate3d(${((_v.x+1)/2*innerWidth).toFixed(1)}px,${((1-_v.y)/2*innerHeight).toFixed(1)}px,0) translate(-50%,-100%)`;selfBub.style.visibility=_v.z<1?'':'hidden'}}

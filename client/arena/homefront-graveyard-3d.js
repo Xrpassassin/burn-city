@@ -39,6 +39,7 @@ import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildPlayerWalker, buildWalker, poseWalker } from '../js/walker.js';
+import { getPlayerModel } from '../js/player-model-choice.mjs';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
 import {createHomefrontCommunityArt} from './homefront-community-art.mjs';
 import { NFT_PLAYER_AVATARS_ENABLED } from '../js/experience-avatar-policy.mjs';
@@ -1325,7 +1326,7 @@ function boot(host) {
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const isLocalPlayer = p.label === 'You';
       const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
-      const walker = buildPlayerWalker({ suit: bodyColor, accent: isLocalPlayer ? 0xffb45c : p.party ? 0x8fd4f4 : 0xc5aa8a, skin: 1, lite: LITE_AVATARS || !isLocalPlayer });
+      const walker = buildPlayerWalker({ suit: bodyColor, accent: isLocalPlayer ? 0xffb45c : p.party ? 0x8fd4f4 : 0xc5aa8a, skin: 1, lite: LITE_AVATARS || !isLocalPlayer, model: isLocalPlayer ? getPlayerModel() : undefined });   // others: the default Hover Mage (the world API carries no model id)
       applyHomefrontFieldLook(THREE,walker,{lite:LITE_AVATARS || !isLocalPlayer});
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });

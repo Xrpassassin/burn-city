@@ -7,7 +7,8 @@ const notifyLane=installNotifyLane(window);
 import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
-import {buildPlayerWalker,poseWalker} from './walker.js';
+import {buildPlayerWalker,poseWalker,setWalkerModel} from './walker.js';
+import {PLAYER_MODELS,getPlayerModel,savePlayerModel} from './player-model-choice.mjs';
 import {MOTION,speedFor,turnToward,JETPACK,jetHorizontal,jetVertical} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
@@ -1379,8 +1380,8 @@ const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.max
 let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};let exploreCamDistance=6.5;const EXPLORE_CAM_MIN=2.5,EXPLORE_CAM_MAX=14;
 const P={pos:new THREE.Vector3(0,0,55),vel:new THREE.Vector3(),onGround:true,fp:false,spawned:0,district:'',walk:0,near:null};
 const me=new PlayerState();
-const avatar=(()=>{const g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
- const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.add(thr);
+const avatar=(()=>{const g=buildPlayerWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1,model:getPlayerModel()});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
+ const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.add(thr);g.userData.pack=[bp,thr];bp.userData.hideFor=thr.userData.hideFor='hover-mage';
  const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.035;g.add(ring);
  const pl=new THREE.PointLight(0x7ee0ff,0,6,2);S.add(pl);g.userData.pl=pl;g.visible=false;S.add(g);return g})();
 // avatar glow stays in the scene at 0 intensity while hidden: toggling a light's visibility changes the light count and recompiles every lit shader (hitch on entering Explore)
@@ -1837,6 +1838,10 @@ if(Q.get('replay')==='1')setTimeout(()=>$('tlOpen').click(),1500);
 function updTL(dt){if(RP)RP.update(dt)}
 
 // ---------- graphics setting + shareable links + data-source labels ----------
+// the Hover Mage has no jetpack pack on its back (the pack box would float behind the robe)
+function packFor(){const m=avatar.userData.avatarSkin?.model;for(const o of avatar.userData.pack||[])o.visible=o.userData.hideFor!==m}
+// Settings > Player model (cosmetic, this device; client/js/player-model-choice.mjs, swaps the body in place)
+{const el=$('playerModel');if(el){el.innerHTML=PLAYER_MODELS.map(m=>`<option value="${m.id}">${m.label}</option>`).join('');el.value=avatar.userData.avatarSkin?.model||'gas-mask-guy';el.onchange=e=>{savePlayerModel(e.target.value);setWalkerModel(avatar,e.target.value);packFor()}}packFor()}
 $('quality').value=TIERS[qPref]?qPref:'auto';$('qInfo').textContent=qPref==='auto'?`auto → ${TIER}`:'';
 $('quality').onchange=e=>{localStorage.setItem('bc_quality',e.target.value);$('loader').classList.remove('done');window.__load(.05,'Applying graphics: '+e.target.value);setTimeout(()=>{const u=new URL(location.href);u.searchParams.delete('q');location.replace(u)},250)};
 $('copyLink').onclick=()=>{const u=new URL(location.origin+location.pathname),r1=v=>v.toFixed(1);

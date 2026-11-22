@@ -153,10 +153,10 @@ const pickBtn=el('button','cnft','🎭 Play as my NFT');pickBtn.hidden=true;pick
 if(NFT_PLAYER_AVATARS_ENABLED)NftPick.mount(SRV,{button:pickBtn});
 let myNft=null;
 function applyMine(){if(!NFT_PLAYER_AVATARS_ENABLED)return;const c=W(),av=c&&c.avatar;if(!av)return setTimeout(applyMine,800);const n=NftPick.current();
-  if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children].filter(k=>k.name!=='gas-mask-guy'&&k.name!=='nft-portrait-card'&&k.name!=='nft-portrait-frame')};
+  if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children].filter(k=>k.name!=='gas-mask-guy'&&k.name!=='hover-mage'&&k.name!=='hover-mage-aura'&&k.name!=='nft-portrait-card'&&k.name!=='nft-portrait-frame')};
   if(myNft){disposeNftChar(myNft);myNft=null}av.userData.nftCharacter=null;const o=av.userData.orig;
   if(n){try{myNft=buildNftChar(n,{srv:SRV,card:true,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;av.add(myNft);av.userData.defaultAvatar?.setVisible(false);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
-  o.kids.forEach(k=>k.visible=true);av.userData.defaultAvatar?.setVisible(true);av.userData.legs=o.legs;av.userData.arms=o.arms}
+  o.kids.forEach(k=>k.visible=k.userData.hideFor!==av.userData.avatarSkin?.model);av.userData.defaultAvatar?.setVisible(true);av.userData.legs=o.legs;av.userData.arms=o.arms}   // hideFor: the jetpack box stays off on the Hover Mage
 addEventListener('bc-nft',()=>{applyMine();if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'nft'}))});
 (function waitAv(){if(!window.__ready||!W())return setTimeout(waitAv,600);applyMine()})();
 

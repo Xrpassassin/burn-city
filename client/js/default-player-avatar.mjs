@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { GAIT_CLIPS, LOCOMOTION, gaitWeights, blendedStride, advancePhase } from './player-gait.mjs';
+import { mountHoverMage } from './hover-mage-avatar.mjs';
 
 const assetRoot = new URL('../assets/players/', import.meta.url);
 const MODEL_FILES = Object.freeze({
@@ -89,10 +90,12 @@ const BLEND_TIME = .12, AIR_TIME = .08;
 const mounted = new WeakMap();
 
 // The caller owns position, facing, collision, camera and gameplay equipment.
+// model: 'gas-mask-guy' (default) | 'hover-mage' (rigless floating robe, client/js/hover-mage-avatar.mjs; third person only).
 export function mountDefaultPlayerAvatar(root, {
   height = 2, yaw = 0, offset = [0, 0, 0], seated = false,
-  variant = 'thirdPerson', lod = false, tint, fallback
+  variant = 'thirdPerson', lod = false, tint, fallback, model = 'gas-mask-guy'
 } = {}) {
+  if (model === 'hover-mage' && variant === 'thirdPerson') return mountHoverMage(root, { height, yaw, offset, seated, lod, fallback });
   if (mounted.has(root)) return mounted.get(root);
   let visual, mixer, clips, actions = null, disposed = false, hidden = false, requestedLod = !!lod;
   let phase = 0, seatAction = null;

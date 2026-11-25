@@ -27,7 +27,7 @@ try{
     const inside=p(.98),outside=p(1.02);
     if(!e.inLake(inside.x,inside.z)||e.inLake(outside.x,outside.z))boundary=false;
    }
-   const bridges=(window.__decks||[]).filter(d=>d.base?.distanceTo(e.bridgeStart)<.01);
+   const bridges=(window.__decks||[]).filter(d=>Math.hypot((d.base?.x??1e9)-e.bridgeStart.x,(d.base?.y??0)-e.bridgeStart.y,(d.base?.z??1e9)-e.bridgeStart.z)<.01);
    const park=c.S.getObjectByName('city-beach-parking');
    const obstacles=c.colliders.filter(o=>o.r>0&&b.contains(o.x,o.z,o.r+.5)).map(o=>({x:o.x,z:o.z,r:o.r,h:o.h}));
    return {placement:b.placementFound,origin:b.origin, junction:b.junction, dir:e.dir, side:e.side, ready:!!window.__ready,parkingDry:parking.every(dry),pathDry:path.every(dry),routeDry:b.route.every(dry),boundary,bridgeDeck:bridges.length===1,

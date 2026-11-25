@@ -6,7 +6,7 @@
 const assert=require('node:assert/strict');
 const {DatabaseSync}=require('node:sqlite');
 const {cartKey,orderItems,ITEM_BY_ID}=require('./estate-tycoon');
-const {createEstateTycoonRuntime}=require('./estate-tycoon-runtime');
+const {createEstateTycoonRuntime,parseItemIds}=require('./estate-tycoon-runtime');
 const {createEstateHangarLogbook}=require('./estate-hangar-logbook');
 const buyer='rKZmQq3gMCNmV6th3wZPhfqgZ3815vUmiV',other='rpUaH8G4H1o1np8YBDHZMHGYJwyoR6EgST',treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
 const config={DRY_RUN:false,NETWORK:'mainnet',XUMM_KEY:'t',XUMM_SECRET:'t',ESTATE_TREASURY:treasury};
@@ -17,6 +17,9 @@ assert.equal(cartKey(['garden-pond','porch-lights','flower-garden']),'cart:porch
 assert.throws(()=>cartKey(['porch-lights','porch-lights']),/invalid_upgrade_cart/);
 assert.throws(()=>cartKey([]),/invalid_upgrade_cart/);
 assert.throws(()=>cartKey(['porch-lights','nope']),/unknown_upgrade_item/);
+assert.deepEqual(parseItemIds([' garden-pond ','flower-garden']),['garden-pond','flower-garden']);
+assert.deepEqual(parseItemIds('flower-garden, garden-pond'),['flower-garden','garden-pond']);
+assert.equal(parseItemIds(''),null);assert.equal(parseItemIds(undefined),null);assert.equal(parseItemIds(1),null);
 assert.throws(()=>orderItems('cart:flower-garden+porch-lights'),/invalid_upgrade_cart/,'non-canonical key');
 assert.throws(()=>orderItems('cart:porch-lights'),/invalid_upgrade_cart/,'a cart has 2+ items');
 function db0(){const db=new DatabaseSync(':memory:');

@@ -14,6 +14,7 @@ on:
       - 'client/sw.js'
       - 'server/server.js'
       - 'test/estate-tycoon-http.test.js'
+      - 'test/estate-tycoon-cart-http.test.js'
       - 'test/estate-hangar-http.test.js'
       - 'client/js/estate-portfolio-ui.mjs'
       - 'client/js/estate-tycoon*'

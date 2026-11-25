@@ -16,4 +16,11 @@ const second=reservations.reserve({reservationId:'reservation-00000002',property
 assert.throws(()=>settlements.settle({reservationId:second.reservation_id,verification:{...verification,reservationId:second.reservation_id,propertyId:second.property_id},now:now+10000}),/payment_already_used/);
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM estate_property_ownership').get().n,1);
 assert.throws(()=>settlements.settle({reservationId:second.reservation_id,verification:{...verification,txHash:'B'.repeat(64),amountDrops:1,reservationId:second.reservation_id,propertyId:second.property_id},now:now+10000}),/payment_reservation_mismatch/);
+const hist=db.prepare('SELECT property_id,from_acct,to_acct,kind,price_drops,tx_hash,listing_id,at FROM estate_ownership_history').all();
+assert.equal(hist.length,1,'primary sale writes exactly one history row');
+assert.equal(hist[0].property_id,'trailer-01');assert.equal(hist[0].from_acct,null);assert.equal(hist[0].to_acct,buyer);
+assert.equal(hist[0].kind,'primary');assert.equal(hist[0].price_drops,row.price_drops);assert.equal(hist[0].tx_hash,hash);
+assert.equal(hist[0].listing_id,null);assert.equal(hist[0].at,now+10000);
+assert.equal(settlements.settle({reservationId:row.reservation_id,verification,now:now+10000}).purchase_tx,hash);
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM estate_ownership_history').get().n,1,'replayed settle does not duplicate history');
 console.log('Estate sale settlement tests passed');

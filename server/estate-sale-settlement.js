@@ -1,6 +1,7 @@
 'use strict';
 const {createEstateCapitalAllocation}=require('./estate-capital-allocation');
 const {PROPERTY_BY_ID,TIER_BY_ID}=require('./estate-economy');
+const {recordPrimaryPurchase}=require('./estate-resale-market');
 // Accept ONLY the output of the trusted server-side XRPL verifier. Caller must
 // orchestrate verification; this store never trusts client-supplied payment data.
 function createEstateSaleSettlementStore(db){
@@ -24,6 +25,7 @@ function createEstateSaleSettlementStore(db){
    if(row.status==='settled'&&row.payment_tx===hash){
     const prior=owned.get(row.property_id);
     if(prior?.purchase_tx!==hash||prior.acct!==row.buyer)throw new Error('settlement_state_conflict');
+    recordPrimaryPurchase(db,prior);
     db.exec('COMMIT');return prior;
    }
    const inWindow=row.status==='reserved'&&now<=row.expires_at;
@@ -49,6 +51,8 @@ function createEstateSaleSettlementStore(db){
    if(mark.run(hash,reservationId).changes!==1)throw new Error('reservation_settlement_conflict');
    const result=owned.get(row.property_id);
    capital.record(result);
+   // Ownership is source of truth; history was previously only backfilled at resale-market startup.
+   recordPrimaryPurchase(db,result);
    db.exec('COMMIT');return result;
   }catch(e){db.exec('ROLLBACK');throw e;}
  }

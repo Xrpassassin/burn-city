@@ -37,6 +37,16 @@ function ensureSchema(db){
 function authorizationDigest({listingId,propertyId,seller,askDrops,version}){
  return crypto.createHash('sha256').update(['burncity-estate-resale-v1',listingId,propertyId,seller,String(askDrops),String(version)].join('|')).digest('hex');
 }
+// Idempotent primary-sale history row. from_acct is null (issuer/treasury is not a prior owner).
+// Safe to call inside the sale-settlement transaction; does not begin its own txn.
+function recordPrimaryPurchase(db,row){
+ if(!db||typeof db.prepare!=='function'||!row||typeof row.purchase_tx!=='string'||!row.purchase_tx)return false;
+ ensureSchema(db);
+ if(db.prepare('SELECT 1 FROM estate_ownership_history WHERE tx_hash=?').get(row.purchase_tx))return false;
+ db.prepare('INSERT INTO estate_ownership_history(property_id,from_acct,to_acct,kind,price_drops,tx_hash,listing_id,at) VALUES(?,?,?,?,?,?,?,?)')
+  .run(row.property_id,null,row.acct,'primary',row.purchase_amount_drops,row.purchase_tx,null,row.purchased_at);
+ return true;
+}
 function createEstateResaleMarket(db,{isEnabled=()=>false,now:clock=Date.now,xrplClient=null,xamanSdk=null}={}){
  if(!db||typeof db.prepare!=='function'||typeof db.exec!=='function')throw new TypeError('sqlite_db_required');
  ensureSchema(db);
@@ -69,7 +79,7 @@ function createEstateResaleMarket(db,{isEnabled=()=>false,now:clock=Date.now,xrp
  const gate=()=>isEnabled()===true?null:fail('estate_resale_disabled');
  // Primary purchases already recorded before this module existed still form the first history entry.
  function backfillPrimary(){
-  for(const r of q.ownerRows.all()) if(!q.histTx.get(r.purchase_tx)) q.addHist.run(r.property_id,null,r.acct,'primary',r.purchase_amount_drops,r.purchase_tx,null,r.purchased_at);
+  for(const r of q.ownerRows.all()) recordPrimaryPurchase(db,r);
  }
  function expireStale(t){
   for(const l of db.prepare("SELECT listing_id FROM estate_resale_listings WHERE status='reserved'").all()){
@@ -204,6 +214,6 @@ function createEstateResaleMarket(db,{isEnabled=()=>false,now:clock=Date.now,xrp
  function history(propertyId){try{tx(()=>{backfillPrimary();return {ok:true};});}catch{}return q.hist.all(String(propertyId||'')).map(h=>({...h,priceDrops:String(h.priceDrops)}));}
  function status(){return {resaleEnabled:isEnabled()===true,marketplaceFeeDrops:'0',feeDisclosure:'No marketplace fee. XRPL network fees apply.',settlement:'buyer_pays_seller_directly'};}
  tx(()=>{backfillPrimary();return {ok:true};});
- return {list,reprice,cancel,reserve,startPayment,settle,confirm,verifyPayment,listings,history,status,recordPrimary:(row)=>{if(!q.histTx.get(row.purchase_tx))q.addHist.run(row.property_id,null,row.acct,'primary',row.purchase_amount_drops,row.purchase_tx,null,row.purchased_at);}};
+ return {list,reprice,cancel,reserve,startPayment,settle,confirm,verifyPayment,listings,history,status,recordPrimary:(row)=>recordPrimaryPurchase(db,row)};
 }
-module.exports={createEstateResaleMarket,authorizationDigest,MEMO_TYPE,RESERVATION_MS,CONFIRM_GRACE_MS};
+module.exports={createEstateResaleMarket,recordPrimaryPurchase,authorizationDigest,MEMO_TYPE,RESERVATION_MS,CONFIRM_GRACE_MS};

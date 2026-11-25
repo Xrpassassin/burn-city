@@ -18,6 +18,7 @@ import './citybuildings2.mjs';   // CC BY sci-fi street buildings around the BUR
 import './streetprops.js';
 import './events.js';
 import './airport.js';
+import './airport-shuttle.mjs';   // BURN Air 1: shared scenic flight, ride + cabin/cockpit camera, quiet WebAudio sounds (?shuttle=0 disables)
 import './city-space.mjs';   // CC BY ISS (BlendRuN) + CB1 (Keremz) in the City sky and on the airport pad, in-City docking flight; ?space=0 disables, see city-credits.html
 import './ember-bar-building.mjs';   // THE EMBER BAR: its own tavern on the BURN ring road (procedural exterior; interior = tower-interior.js 'ember' venue); ?emberbar=0 disables
 import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
@@ -1489,7 +1490,7 @@ const hold=(id,k)=>{const el=$(id);el.addEventListener('touchstart',e=>{tb[k]=1;
 $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{passive:false});
 
 // ---------- explore: physics, collisions, districts, interaction ----------
-function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}if(window.__hwDeck){const hd=window.__hwDeck(x,z);if(hd!=null&&hd<=y+1.4&&hd>g)g=hd}return g}
+function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}if(window.__hwDeck){const hd=window.__hwDeck(x,z);if(hd!=null&&hd<=y+1.4&&hd>g)g=hd}if(window.__apDeck){const ad=window.__apDeck(x,z);if(ad!=null&&ad<=y+1.4&&ad>g)g=ad}return g}
 // walkers stay out of the water except on docks and the lake bridge
 function wet(x,z){const es=window.__estate;if(!es)return false;if(es.inCityIsland?.(x,z))return true;if(!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}

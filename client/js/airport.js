@@ -3,6 +3,11 @@
 // and jet bridges, ATC tower with a rotating beacon, hangar, fuel farm, car park, an access road with curbside
 // drop-off/pick-up traffic and passengers, apron tugs, and one movement every ~100 s (arrival or departure).
 // Draw-call budget: static parts merged into a few meshes; repeated parts instanced; only the moving plane is separate.
+// Runway/tarmac pass: painted markings are one merged vertex-coloured mesh (threshold bars, aiming point, touchdown bars,
+// centreline dashes, edge lines, blast-pad chevrons, hold-short bars, stand outlines) + two small number decals; soft round
+// night lights (additive sprites) that follow the sky's day value; apron floodlight masts with light pools; windsock; PAPI;
+// concrete-slab apron; a walkable surface height (window.__apDeck) so feet sit ON the paving; tighter terminal/hangar colliders.
+// Low graphics tier: smaller textures, half the lights, no pools/stand outlines/approach lights. All procedural (no outside assets).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -17,18 +22,35 @@ const merge = a => mergeGeometries(a, false);
 const RW = { z: -720, x0: -550, x1: 550, w: 45 }, TW = { z: -672 }, APRON = { z0: -655, z1: -585 }, TERM = { x: 0, z: -560, w: 230, d: 40 };
 const ROAD = { x: 0, z0: -335, z1: -515 }, CURB = { z: -522 };
 
-function runwayTex() {
-  const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 128; const g = cv.getContext('2d');
-  g.fillStyle = '#2a2b2e'; g.fillRect(0, 0, 2048, 128); for (let i = 0; i < 4000; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .04})`; g.fillRect(Math.random() * 2048, Math.random() * 128, 2, 2); }
-  g.fillStyle = '#f2f2ee'; for (let x = 120; x < 1928; x += 48) g.fillRect(x, 62, 26, 4);   // centreline
-  g.fillRect(0, 4, 2048, 2); g.fillRect(0, 122, 2048, 2);                                     // edge lines
-  for (const x0 of [8, 2008]) for (let k = 0; k < 8; k++) g.fillRect(x0, 10 + k * 14 + (k > 3 ? 8 : 0), 32, 8);   // threshold piano keys
-  for (const x of [190, 1840]) { g.fillRect(x, 30, 40, 10); g.fillRect(x, 88, 40, 10); }   // touchdown zone
-  g.save(); g.font = 'bold 44px system-ui'; g.translate(90, 64); g.rotate(Math.PI / 2); g.textAlign = 'center'; g.fillText('09', 0, 0); g.restore();
-  g.save(); g.font = 'bold 44px system-ui'; g.translate(1958, 64); g.rotate(-Math.PI / 2); g.textAlign = 'center'; g.fillText('27', 0, 0); g.restore();
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+function runwayTex(low) {   // weathered asphalt + rubber build-up only; markings are real geometry (sharp at any distance)
+  const W = low ? 1024 : 2048, H = low ? 128 : 256, k = W / 1100, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  g.fillStyle = '#2b2c2f'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 36; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(0,0,0,.05)' : 'rgba(255,255,255,.025)'; g.fillRect(Math.random() * W, 0, 40 + Math.random() * 160, H); }   // resurfacing bands
+  for (let i = 0; i < W * H / 70; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * W, Math.random() * H, 1.5, 1.5); }
+  const zy = zo => (zo + 22.5) / 45 * H;
+  if (!low) for (const end of [0, 1]) for (let i = 0; i < 46; i++) {   // rubber streaks in the touchdown zones, two wheel tracks either side of the centreline
+    const d = 110 + Math.random() * 330, len = 18 + Math.random() * 50, zo = (Math.random() < .5 ? -1 : 1) * (4.2 + Math.random() * 3.2), x = end ? W - (d + len) * k : d * k;
+    g.fillStyle = `rgba(8,8,9,${.18 + Math.random() * .22})`; g.fillRect(x, zy(zo), len * k, 1.2 / 45 * H);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = low ? 2 : 8; return t;
 }
-function lineTex(base, line, dash) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, 64, 64); g.fillStyle = line; if (dash) g.fillRect(29, 0, 6, 40); else g.fillRect(29, 0, 6, 64); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * 64, Math.random() * 64, 1, 1); } const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }
+function lineTex(base, line, dash, edge) {   // narrow real-world line widths: centre 0.3 m (taxi) / 0.15 m (road), optional solid edge lines
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, 128, 64);
+  for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * 128, Math.random() * 64, 1, 1); }
+  g.fillStyle = line; if (dash) g.fillRect(63, 0, 2, 40); else g.fillRect(63, 0, 2, 64);
+  if (edge) { g.fillStyle = edge; g.fillRect(5, 0, 2, 64); g.fillRect(121, 0, 2, 64); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function concreteTex() {   // apron: 6 m concrete slabs with joints, oil stains, wear (tiles 12 m)
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d'); g.fillStyle = '#8e9094'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 4; i++) { g.fillStyle = `rgba(${i % 2 ? '255,255,255' : '0,0,0'},.035)`; g.fillRect((i % 2) * 128, (i >> 1) * 128, 128, 128); }
+  for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .06})`; g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5); }
+  for (let i = 0; i < 7; i++) { const x = Math.random() * 256, y = Math.random() * 256, r = 6 + Math.random() * 12, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(20,20,24,.28)'); gr.addColorStop(1, 'rgba(20,20,24,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  g.fillStyle = 'rgba(30,30,34,.55)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 128, 256, 2); g.fillRect(0, 0, 2, 256); g.fillRect(128, 0, 2, 256);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function glowTex() { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.25, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; }
+function numTex(txt) { const cv = document.createElement('canvas'); cv.width = 256; cv.height = 160; const g = cv.getContext('2d'); g.fillStyle = '#f2f2ee'; g.font = '900 150px "Arial Black",Impact,system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 128, 86, 240); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
 // flat airfield surfaces draw AFTER the city ground overlay (transparent, no depth write) in a fixed layer order:
 // no z-fighting at any distance, and still depth-tested against planes/buildings.
 const flat = (m, o) => { m.material.transparent = true; m.material.depthWrite = false; m.renderOrder = 10 + o; return m; };
@@ -52,7 +74,7 @@ function airliner() {
   const hs = new THREE.Shape(); hs.moveTo(0, 0); hs.lineTo(6.5, -2.5); hs.lineTo(6.5, -3.6); hs.lineTo(0, -3.2);
   for (const s of [1, -1]) { const g = new THREE.ExtrudeGeometry(hs, { depth: .2, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 1.2, -16.5); if (s < 0) g.scale(-1, 1, 1); p.push(colored(g, 0xdfe2e6)); }
   for (const [x, z] of [[0, 12.5], [2.6, -1], [-2.6, -1]]) p.push(cyl(.12, .12, 2.1, x, -2.6, z, 0x6a6e74, 6), colored(new THREE.CylinderGeometry(.55, .55, .5, 12).rotateZ(Math.PI / 2).translate(x, -3.4, z), 0x111111));
-  const g = merge(p); g.translate(0, 3.95, 0); return g;   // wheels on the ground at y=0
+  const g = merge(p); g.translate(0, 4.08, 0); return g;   // wheels on the ground at y=0
 }
 
 function build() {
@@ -62,14 +84,20 @@ function build() {
   const glass = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .12, metalness: .25, transparent: true, opacity: .62, emissive: 0x0d2233, emissiveIntensity: .6 });
   const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
   const add = (geo, m) => { const mm = new THREE.Mesh(geo, m); grp.add(mm); return mm; };
+  let floodHeads = null, poolMesh = null, sock = null; const numMats = [];
 
-  // ---- surfaces
+  // ---- surfaces (flat layers drawn in a fixed order; markings are one merged vertex-coloured mesh)
+  const low = tier === 'low', mob = !!c.MOBILE;
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(1300, 420).rotateX(-Math.PI / 2).translate(0, .02, -650), new THREE.MeshStandardMaterial({ color: 0x3a4a34, roughness: 1 })); grp.add(flat(ground, 0));
-  const rw = new THREE.Mesh(new THREE.PlaneGeometry(RW.x1 - RW.x0, RW.w).rotateX(-Math.PI / 2).translate(0, .12, RW.z), new THREE.MeshStandardMaterial({ map: runwayTex(), roughness: .85, emissive: 0xffffff, emissiveIntensity: .35 })); rw.material.emissiveMap = rw.material.map; grp.add(flat(rw, 30));
-  const twT = lineTex('#34353a', '#e8c020', false); grp.add(strip(RW.x0 + 30, TW.z, RW.x1 - 30, TW.z, 23, twT, 23, .06));
-  for (const x of [-500, -120, 260, 500]) grp.add(strip(x, RW.z + RW.w / 2 - 2, x, APRON.z0 + 2, 20, twT, 20, .09));
-  const ap = new THREE.Mesh(new THREE.PlaneGeometry(TERM.w + 60, APRON.z1 - APRON.z0).rotateX(-Math.PI / 2).translate(0, .03, (APRON.z0 + APRON.z1) / 2), new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: .9 })); grp.add(flat(ap, 2));
-  const rdT = lineTex('#2b2c30', '#e8e2c8', true); grp.add(strip(ROAD.x, ROAD.z0, ROAD.x, ROAD.z1, 12, rdT, 8, .06));
+  const RWH = RW.w / 2, PADL = 60;
+  const shoulder = new THREE.Mesh(new THREE.PlaneGeometry(RW.x1 - RW.x0 + PADL * 2, RW.w + 14).rotateX(-Math.PI / 2).translate(0, .1, RW.z), new THREE.MeshStandardMaterial({ color: 0x3b3c40, roughness: .95 })); grp.add(flat(shoulder, 20));   // paved shoulders + blast pads
+  const rwMat = new THREE.MeshStandardMaterial({ map: runwayTex(low), roughness: .86, emissive: 0xffffff, emissiveIntensity: 0 }); rwMat.emissiveMap = rwMat.map;
+  const rw = new THREE.Mesh(new THREE.PlaneGeometry(RW.x1 - RW.x0, RW.w).rotateX(-Math.PI / 2).translate(0, .12, RW.z), rwMat); rw.receiveShadow = true; grp.add(flat(rw, 30));
+  const twT = lineTex('#34353a', '#e8c020', false, '#e8c020'); grp.add(strip(RW.x0 + 30, TW.z, RW.x1 - 30, TW.z, 23, twT, 23, .06));
+  for (const x of [-500, -120, 260, 500]) grp.add(strip(x, RW.z + RW.w / 2 - 2, x, APRON.z0 + 2, 20, lineTex('#34353a', '#e8c020', false, '#e8c020'), 20, .09));
+  const conc = concreteTex(), apW = TERM.w + 60, apD = APRON.z1 - APRON.z0; conc.repeat.set(apW / 12, apD / 12);
+  const ap = new THREE.Mesh(new THREE.PlaneGeometry(apW, apD).rotateX(-Math.PI / 2).translate(0, .03, (APRON.z0 + APRON.z1) / 2), new THREE.MeshStandardMaterial({ map: conc, roughness: .9 })); grp.add(flat(ap, 2));
+  const rdT = lineTex('#2b2c30', '#e8e2c8', true, '#cfcfc8'); grp.add(strip(ROAD.x, ROAD.z0, ROAD.x, ROAD.z1, 12, rdT, 8, .06));
   grp.add(strip(-80, CURB.z, 80, CURB.z, 12, rdT, 8, .09)); grp.add(strip(-80, CURB.z, -80, ROAD.z1 + 6, 12, rdT, 8, .12)); grp.add(strip(80, CURB.z, 80, ROAD.z1 + 6, 12, rdT, 8, .12)); grp.add(strip(-80, ROAD.z1 + 6, 80, ROAD.z1 + 6, 12, rdT, 8, .15));
   // sidewalks + curbs: access road both sides, terminal-side walk and outer edge of the curb loop (one merged mesh)
   { const sw = [], K = 0x9a9ca2, C = 0xd8d8d0, H = .18;
@@ -79,14 +107,62 @@ function build() {
     add(merge(sw), mat); }
   const lotM = new THREE.Mesh(new THREE.PlaneGeometry(120, 60).rotateX(-Math.PI / 2).translate(-170, .03, -480), new THREE.MeshStandardMaterial({ color: 0x3a3b40, roughness: .95 })); grp.add(flat(lotM, 2));
 
-  // ---- runway edge + approach lights (one Points draw)
-  const lp = [], lc = [], push = (x, z, r, g, b) => { lp.push(x, .35, z); lc.push(r, g, b); };
-  for (let x = RW.x0; x <= RW.x1; x += 30) { push(x, RW.z + RW.w / 2 + 1, 1, .95, .8); push(x, RW.z - RW.w / 2 - 1, 1, .95, .8); }
+  // ---- painted markings: ONE merged mesh. quad(): four world-plane corners, either winding (double-sided).
+  const pv = [], pcl = [], Y_ = .02;
+  const WHITE = [.95, .95, .92], YEL = [.93, .76, .1];
+  const quad = (pts, col) => { const [a, b, c2, d] = pts; for (const t of [[a, b, c2], [a, c2, d]]) for (const p of t) { pv.push(p[0], Y_, p[1]); pcl.push(...col); } };
+  const rect = (x0, z0, x1, z1, col) => quad([[x0, z0], [x1, z0], [x1, z1], [x0, z1]], col);
+  const mark = (cx, cz, lx, lz, col) => rect(cx - lx / 2, cz - lz / 2, cx + lx / 2, cz + lz / 2, col);
+  for (const end of [-1, 1]) {   // end = -1 west threshold (runway 09), +1 east threshold (runway 27); dir points into the runway
+    const x0 = end < 0 ? RW.x0 : RW.x1, dir = -end, X = d => x0 + dir * d;
+    for (let k = 0; k < 6; k++) for (const sg of [-1, 1]) mark(X(21), RW.z + sg * (2.1 + k * 3.4), 30, 1.7, WHITE);   // threshold piano keys
+    for (const [d, n] of [[150, 3], [225, 2], [375, 2], [450, 1]]) for (let i = 0; i < n; i++) for (const sg of [-1, 1]) mark(X(d), RW.z + sg * (6.2 + i * 2.8), 22, 1.8, WHITE);   // touchdown-zone bars
+    for (const sg of [-1, 1]) mark(X(300), RW.z + sg * 9, 45, 4.2, WHITE);                                   // aiming point
+    if (!low) { for (let k = 0; k < 5; k++) { const xa = x0 - dir * (10 + k * 9); const arm = (sg) => quad([[xa, RW.z], [xa - dir * 1.5, RW.z], [xa - dir * 1.5 - dir * 9, RW.z + sg * 16], [xa - dir * 9, RW.z + sg * 16]], YEL); arm(-1); arm(1); } }   // blast-pad chevrons
+  }
+  for (let x = RW.x0 + 85; x < RW.x1 - 85; x += 50) mark(x + 15, RW.z, 30, .9, WHITE);                     // centreline dashes 30 m / gap 20 m
+  rect(RW.x0, RW.z - RWH + .5, RW.x1, RW.z - RWH + .95, WHITE); rect(RW.x0, RW.z + RWH - .95, RW.x1, RW.z + RWH - .5, WHITE);   // edge lines
+  for (const x of [-500, -120, 260, 500]) {   // hold-short bars on each connector: two solid (taxiway side) + two dashed (runway side)
+    const hz = RW.z + RWH + 11; mark(x, hz, 20, .4, YEL); mark(x, hz + 1, 20, .4, YEL);
+    for (let dx = -10; dx < 10; dx += 2) { mark(x + dx + .5, hz - 1, 1, .4, YEL); mark(x + dx + .5, hz - 2, 1, .4, YEL); }
+  }
+  if (!low) {
+    for (const gt of [-90, -54, -18, 18, 54, 90]) { const x0 = gt - 19, x1 = gt + 19, z0 = -635, z1 = -594; rect(x0, z0, x1, z0 + .3, WHITE); rect(x0, z1 - .3, x1, z1, WHITE); rect(x0, z0, x0 + .3, z1, WHITE); rect(x1 - .3, z0, x1, z1, WHITE); rect(gt - 2.5, -597, gt + 2.5, -596.4, YEL); }   // stand outlines + stop bars
+    rect(-145, APRON.z0 + 3, 145, APRON.z0 + 3.4, YEL);   // apron edge line
+  }
+  const paintMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, depthWrite: false });
+  { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pv, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(pcl, 3)); const m = new THREE.Mesh(g, paintMat); m.frustumCulled = false; grp.add(flat(m, 40)); }
+  // runway numbers (readable on final: text-up points down the runway)
+  for (const [txt, end] of [['09', -1], ['27', 1]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(18, 11.5).rotateX(-Math.PI / 2).rotateY(end < 0 ? -Math.PI / 2 : Math.PI / 2).translate((end < 0 ? RW.x0 : RW.x1) - end * 55, Y_, RW.z), new THREE.MeshBasicMaterial({ map: numTex(txt), transparent: true, depthWrite: false })); m.userData.paint = 1; grp.add(flat(m, 41)); numMats.push(m.material); }
+
+  // ---- runway / taxiway lights: soft round additive sprites (one Points draw each), dimmer by day, glowing at night
+  const sprite = glowTex(), lstep = low ? 2 : 1;
+  const lp = [], lc = [], push = (x, z, r, g, b, y = .35) => { lp.push(x, y, z); lc.push(r, g, b); };
+  for (let x = RW.x0; x <= RW.x1; x += 30 * lstep) { push(x, RW.z + RW.w / 2 + 1, 1, .95, .8); push(x, RW.z - RW.w / 2 - 1, 1, .95, .8); }
   for (let k = -9; k <= 9; k++) { push(RW.x0 - 1, RW.z + k * 2.4, .2, 1, .3); push(RW.x1 + 1, RW.z + k * 2.4, 1, .1, .05); }
-  for (let d = 30; d <= 300; d += 30) for (const k of [-2, -1, 0, 1, 2]) push(RW.x1 + d, RW.z + k * 3, 1, .95, .8);
-  for (let x = RW.x0 + 30; x <= RW.x1 - 30; x += 25) { push(x, TW.z + 11.5, .2, .5, 1.6); push(x, TW.z - 11.5, .2, .5, 1.6); }
+  if (!low) {
+    for (let d = 30; d <= 300; d += 30) for (const k of [-2, -1, 0, 1, 2]) { push(RW.x1 + d, RW.z + k * 3, 1, .95, .8); push(RW.x0 - d, RW.z + k * 3, 1, .95, .8); }   // approach lights, both ends
+    for (let x = RW.x0 + 60; x <= RW.x1 - 60; x += 15) push(x, RW.z, 1, 1, 1, .2);   // centreline lights
+    for (const end of [-1, 1]) { const x = end < 0 ? RW.x0 + 300 : RW.x1 - 300; for (let i = 0; i < 4; i++) push(x, RW.z - RWH - 14 - i * 3, i < 2 ? 1 : 1, i < 2 ? .15 : .95, i < 2 ? .1 : .9); }   // PAPI: 2 red, 2 white
+  }
+  for (let x = RW.x0 + 30; x <= RW.x1 - 30; x += 25 * lstep) { push(x, TW.z + 11.5, .2, .5, 1.6); push(x, TW.z - 11.5, .2, .5, 1.6); }
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
-  grp.add(new THREE.Points(lg, new THREE.PointsMaterial({ size: 1.1, vertexColors: true, toneMapped: false, transparent: true, depthWrite: false })));
+  const lightMat = new THREE.PointsMaterial({ size: 5, sizeAttenuation: false, map: sprite, vertexColors: true, toneMapped: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .5 });
+  const lights = new THREE.Points(lg, lightMat); lights.frustumCulled = false; lights.renderOrder = 60; grp.add(lights);
+
+  // ---- apron floodlight masts (merged) with additive light pools; heads glow at night
+  const FLOOD = (low ? [-150, 0, 150] : [-250, -150, -50, 50, 150, 250]).map(x => ({ x, z: -651 }));
+  { const poles = [], heads = [], pools = [];
+    FLOOD.forEach(f => { poles.push(cyl(.22, .32, 20, f.x, 10, f.z, 0x707780, 8), box(4.2, .3, 1.2, f.x, 20.2, f.z, 0x4a5058)); heads.push(box(3.8, .45, .9, f.x, 19.9, f.z + .5, 0xffffff));
+      c.colliders.push({ x: f.x, z: f.z, r: .5, h: 20, nc: true });
+      if (!low) pools.push(new THREE.PlaneGeometry(64, 64).rotateX(-Math.PI / 2).translate(f.x, Y_ + .01, f.z + 18)); });
+    add(merge(poles), mat);
+    floodHeads = new THREE.Mesh(merge(heads), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })); grp.add(floodHeads);
+    if (pools.length) { const pg = mergeGeometries(pools, false); const pm = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ map: sprite, color: 0xffe2a8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 })); pm.frustumCulled = false; poolMesh = pm; grp.add(flat(pm, 45)); } }
+  // windsock (pole merged into the static mesh; the sock turns slowly)
+  { const sx = 90, sz = RW.z - RWH - 22;
+    add(merge([cyl(.12, .16, 7, sx, 3.5, sz, 0xd8dde4, 8), box(.6, .6, .6, sx, 7.1, sz, 0xff7a1a)]), mat); c.colliders.push({ x: sx, z: sz, r: .4, h: 7, nc: true });
+    sock = new THREE.Mesh(new THREE.CylinderGeometry(.18, .6, 3.4, 10, 3, true).rotateZ(Math.PI / 2).translate(1.9, 0, 0), new THREE.MeshStandardMaterial({ color: 0xff6a1a, roughness: .8, side: THREE.DoubleSide })); sock.position.set(sx, 7.1, sz); grp.add(sock); }
 
   // ---- terminal, concourse, jet bridges, tower, hangar, fuel farm (merged)
   const T = [];
@@ -140,8 +216,12 @@ function build() {
   // tower beacon
   const beacon = new THREE.Mesh(new THREE.BoxGeometry(1.4, .6, .4), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.2, 1.6), toneMapped: false })); beacon.position.set(TW_.x, 56, TW_.z); grp.add(beacon);
   // colliders
-  for (let x = -100; x <= 100; x += 25) c.colliders.push({ x, z: TERM.z, r: 20, h: 13 });
-  c.colliders.push({ x: TW_.x, z: TW_.z, r: 4.4, h: 51 }, { x: -220, z: -615, r: 30, h: 22 });
+  // terminal: round colliders every 12 m (front/back faces stay within ~1 m of the wall) + four small corner posts so nobody walks into the corners
+  for (let x = -96; x <= 96; x += 12) c.colliders.push({ x, z: TERM.z, r: 20, h: 13 });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) c.colliders.push({ x: sx * 110, z: TERM.z + sz * 15, r: 8, h: 13 });
+  // hangar (72 x 60 arch): three columns of circles that follow its walls instead of one oversized circle
+  for (const dx of [-23, 0, 23]) for (const dz of [-24, -8, 8, 24]) c.colliders.push({ x: -220 + dx, z: -615 + dz, r: 14, h: dx ? 14 : 22 });
+  c.colliders.push({ x: TW_.x, z: TW_.z, r: 4.4, h: 51 });
   for (let k = 0; k < 3; k++) c.colliders.push({ x: 240 + k * 17, z: -540, r: 7.2, h: 9 });
 
   // ---- parked planes (instanced) + the one moving plane
@@ -151,6 +231,7 @@ function build() {
   const navL = new THREE.Mesh(new THREE.SphereGeometry(.35, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, .1, .05), toneMapped: false })), navR = new THREE.Mesh(new THREE.SphereGeometry(.35, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(.1, 2.4, .3), toneMapped: false })), strobe = new THREE.Mesh(new THREE.SphereGeometry(.4, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 3, 3), toneMapped: false }));
   navL.position.set(-17, 3.4, -4.5); navR.position.set(17, 3.4, -4.5); strobe.position.set(0, 10.5, -21); mover.add(navL, navR, strobe);
   const occ = GATES.map((_, i) => i % 3 !== 2);   // 4 of 6 gates start occupied
+  const SHUTTLE_GATE = 3; if (!Q.has('noshuttle') && Q.get('shuttle') !== '0') { occ[SHUTTLE_GATE] = false; A.sharedFlights = true; }   // gate 4 belongs to the shared BURN Air 1 (airport-shuttle.mjs); random ambient movements are off while it is active
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3(), hide = new THREE.Matrix4().makeScale(0, 0, 0);
   function drawParked() { GATES.forEach((g, i) => { if (occ[i]) { q.setFromAxisAngle(up, 0); m4.compose(v.set(g.x, 0, g.z), q, one); parkedIM.setMatrixAt(i, m4); } else parkedIM.setMatrixAt(i, hide); }); parkedIM.instanceMatrix.needsUpdate = true; }
   drawParked();   // parked nose-in, facing +z toward the terminal
@@ -308,10 +389,21 @@ function build() {
   function update() {
     const dt = Math.min(clk.getDelta(), .05) * RATE, t = performance.now() / 1000;
     beacon.rotation.y = t * 2.2;
-    if (!flight) { opT += dt; if (opT > nextOp) startFlight(); } else updFlight(dt);
+    const day = c.U && c.U.day ? c.U.day.value : .5, nf = 1 - Math.min(1, Math.max(0, (day - .12) / .38));   // 1 = night
+    lightMat.opacity = .45 + .55 * nf; lightMat.size = (mob ? 5 : 6) * (1 + .5 * nf);
+    paintMat.color.setScalar(.34 + .66 * (1 - nf)); numMats.forEach(m => m.color.setScalar(.34 + .66 * (1 - nf)));
+    rwMat.emissiveIntensity = .1 * nf; if (poolMesh) poolMesh.material.opacity = .5 * nf; if (floodHeads) floodHeads.material.color.setScalar(.25 + .75 * nf);
+    if (sock) sock.rotation.y = -1.2 + Math.sin(t * .35) * .35 + Math.sin(t * 1.7) * .06;
+    if (!flight) { if (!A.sharedFlights) { opT += dt; if (opT > nextOp) startFlight(); } } else updFlight(dt);
     updCars(dt); updTugs(dt); updBannerPlanes();
   }
   (function tick() { requestAnimationFrame(tick); if (!document.hidden && !window.__cityPaused) update(); })();   // __cityPaused: The Wilds deep area
+  // walkable paving height: the airfield group is lifted so its flat layers clear the city ground; this makes feet stand ON the paving
+  // (smoothly ramped at every edge so walking/jetpacking on and off the field never pops). Plugged into groundAt() in app.js.
+  const SURF = [[-650, 650, -860, -440, .2, 5], [RW.x0 - PADL, RW.x1 + PADL, RW.z - RWH - 7, RW.z + RWH + 7, .28, 2], [RW.x0, RW.x1, RW.z - RWH, RW.z + RWH, .3, 1.5], [RW.x0 + 30, RW.x1 - 30, TW.z - 11.5, TW.z + 11.5, .24, 1.5],
+    ...[-500, -120, 260, 500].map(x => [x - 10, x + 10, RW.z + RWH - 2, APRON.z0 + 2, .27, 1.5]), [-145, 145, APRON.z0, APRON.z1, .21, 1.5], [-230, -110, -510, -450, .21, 1.5], [-6, 6, ROAD.z1, ROAD.z0, .24, 1]];
+  window.__apDeck = (x, z) => { if (x < -660 || x > 660 || z < -870 || z > -430) return null; let h = 0; for (const r of SURF) { const d = Math.min(x - r[0], r[1] - x, z - r[2], r[3] - z); if (d > 0) { const v = r[4] * Math.min(1, d / r[5]); if (v > h) h = v; } } return h || null; };
+  A.api = { grp, planeGeo, mat, GATES, RW, TW, APRON };
   A.gates = GATES.length; A.ready = true;
 }
 

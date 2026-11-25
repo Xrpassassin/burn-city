@@ -9,6 +9,12 @@ const hex=s=>Buffer.from(s,'utf8').toString('hex').toUpperCase();
 // Xaman rejects custom_meta.identifier longer than 40 chars (HTTP 413). Order ids are
 // 'tycoon_'+40 hex = 47 chars, so the payload identifier is just the 40 hex chars (lossless).
 const xamanIdentifier=orderId=>String(orderId).replace(/^tycoon_/,'');
+// Accept a JSON array or a comma-separated list (GET quote / older clients). Empty → null.
+function parseItemIds(value){
+ if(Array.isArray(value))return value.map(v=>String(v)).map(v=>v.trim()).filter(Boolean).slice(0,32);
+ if(typeof value==='string'&&value.trim())return value.split(',').map(v=>v.trim()).filter(Boolean).slice(0,32);
+ return null;
+}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // One Payment for the exact total; the instruction lists what the single signature buys.
 function instructionFor(r){
@@ -26,8 +32,10 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  const gate=()=>!configured?{ok:false,error:'tycoon_purchases_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
  // A cart arrives as itemIds (2+ distinct catalogue ids for one property); it is priced and keyed
  // server-side. A single id (itemId or a one-element itemIds) keeps the original single-item flow.
+ // HTTP clients should send a JSON array; a comma-separated string is also accepted so a missing
+ // array (or a query-string quote) still opens one Payment instead of failing before reserve.
  const CLIENT_ERRORS=['unknown_property','unknown_upgrade_item','invalid_upgrade_cart'];
- const resolveItem=({itemId,itemIds})=>Array.isArray(itemIds)?cartKey(itemIds.map(String)):itemId;
+ const resolveItem=({itemId,itemIds})=>{const ids=parseItemIds(itemIds);return ids?cartKey(ids):itemId;};
  function quote({propertyId,buyer,itemId,itemIds}){
   try{return {ok:true,...store.quote({propertyId,buyer,itemId:resolveItem({itemId,itemIds})}),purchasesEnabled:enabled(),purchaseStatus:purchaseStatus()};}
   catch(e){if(CLIENT_ERRORS.includes(e.message))return {ok:false,error:e.message};throw e;}
@@ -129,4 +137,4 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  }
  return {publicState:store.publicState,portfolio:store.ownerPortfolio,quote,start,confirm,enabled,purchaseStatus,store};
 }
-module.exports={createEstateTycoonRuntime,xamanIdentifier};
+module.exports={createEstateTycoonRuntime,xamanIdentifier,parseItemIds};

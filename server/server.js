@@ -30,7 +30,8 @@ const estateResale=require('./estate-resale-market').createEstateResaleMarket(Pa
   xamanSdk:{payload:{create:(...a)=>Pay.sdk().payload.create(...a),get:(...a)=>Pay.sdk().payload.get(...a)}}});
 const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
-const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused,onSettled:()=>estateMonthly.kick()});
+const {createEstateTycoonRuntime,parseItemIds}=require('./estate-tycoon-runtime');
+const estateTycoon = createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused,onSettled:()=>estateMonthly.kick()});
 const EstateAccess = require('./estate-access');
 const estateHome = require('./estate-home-interior').createEstateHomeInteriorStore({db:Pay.sdb,accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store});
 const estateFreeStyles = require('./estate-free-style').createEstateFreeStyleStore({db:Pay.sdb});
@@ -319,15 +320,18 @@ const server = http.createServer(async (req, res) => {
         return json(res,result.ok?200:result.error?.startsWith('invalid_')?400:403,result);
       }
       if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
-      if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
-        const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),
-          ...(url.searchParams.has('itemIds')?{itemIds:String(url.searchParams.get('itemIds')).split(',').slice(0,32)}:{}),buyer:u.acct});
+      if (url.pathname === '/api/estates/tycoon/quote' && (req.method === 'GET' || req.method === 'POST')) {
+        const b=req.method==='POST'?await body():{};
+        const itemIds=parseItemIds(b?.itemIds ?? (url.searchParams.has('itemIds')?url.searchParams.get('itemIds'):null));
+        const result=estateTycoon.quote({propertyId:String(b?.propertyId||url.searchParams.get('propertyId')||''),itemId:String(b?.itemId||url.searchParams.get('itemId')||''),
+          ...(itemIds?{itemIds}:{}),buyer:u.acct});
         return json(res,result.ok?200:400,result);
       }
       if (url.pathname === '/api/estates/tycoon/start' && req.method === 'POST') {
         if(gate('estate-tycoon-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});
-        const b=await body(),result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),
-          ...(Array.isArray(b?.itemIds)?{itemIds:b.itemIds.slice(0,32)}:{}),buyer:u.acct});
+        const b=await body(),itemIds=parseItemIds(b?.itemIds);
+        const result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),
+          ...(itemIds?{itemIds}:{}),buyer:u.acct});
         return json(res,result.ok?200:409,result);
       }
       if (url.pathname === '/api/estates/tycoon/confirm' && req.method === 'POST') {

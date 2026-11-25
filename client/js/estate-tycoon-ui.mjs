@@ -119,14 +119,19 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   expired:{title:()=>'Payment request expired',steps:['stop','','']},
   review:{title:()=>'Payment needs review',steps:['','stop','']}
  };
- function showOrder(phase,text,actions=[],extra=null){
+ function showOrder(phase,text,actions=[],extra=null,{reveal=true}={}){
   const p=PHASES[phase];order.hidden=false;order.dataset.phase=phase;section.open=true;
   const steps=el('ol','bc-ty-steps');steps.setAttribute('aria-label','Upgrade purchase progress');
   STEPS.forEach((label,i)=>{const li=el('li',null,label);if(p.steps[i])li.dataset.s=p.steps[i];if(p.steps[i]==='active')li.setAttribute('aria-current','step');steps.append(li);});
   const row=el('div','bc-ty-actions');row.append(...actions);
   order.replaceChildren(el('h4',null,p.title(itemName(orderItemId))),steps,el('p',null,text),...(extra?[extra]:[]),row);
+  if(reveal)revealOrder();
  }
  function hideOrder(){order.hidden=true;order.replaceChildren();delete order.dataset.phase;}
+ function revealOrder(){
+  section.open=true;
+  try{order.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});}catch{}
+ }
  async function confirm(){
   if(!orderId){message.textContent='No pending upgrade payment was found. Refresh the property before trying again.';return;}
   message.textContent='';
@@ -202,7 +207,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   if(ids.length===1)return buy(cartItems()[0]);
   const win=preopen();
   try{
-   const q=await request('quote?propertyId='+encodeURIComponent(propertyId)+'&itemIds='+ids.map(encodeURIComponent).join(','));
+   const q=await request('quote',{propertyId,itemIds:ids});
    if(!q.canPurchase||!q.purchasesEnabled){
     try{win?.close();}catch{}
     message.textContent=q.pending?'An existing upgrade order is blocking another purchase. Check that payment first.'
@@ -245,13 +250,18 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    ' · not purchased, not installed, and no recorded shares or financial rights have changed.';
   else if(message.textContent.startsWith('CYAN 3D PREVIEW ONLY'))message.textContent='';
   if(s.ownerAuthorized&&s.pending?.orderId){
+   if(orderId!==s.pending.orderId)orderLink='';
    orderId=s.pending.orderId;orderItemId=s.pending.itemId;
    const expired=Date.now()>=Number(s.pending.expiresAt);
-   const actions=[button('Check existing payment',confirm,false,{primary:expired})];
-   if(s.purchasesEnabled&&!expired)actions.push(button('Continue existing Xaman request',resumePending,false,{primary:true}));
+   const actions=[...(orderLink&&!expired?[xamanLink(orderLink)]:[]) ,button('Check existing payment',confirm,false,{primary:expired})];
+   if(s.purchasesEnabled&&!expired&&!orderLink)actions.push(button('Continue existing Xaman request',resumePending,false,{primary:true}));
+   const qr=(!expired&&orderLink&&!touch())?safeXaman((()=>{try{const u=new URL(orderLink);return u.origin+u.pathname+'_q.png';}catch{return '';}})()):null;
+   let extra=null;
+   if(qr){extra=el('img','bc-ty-qr');extra.src=qr.href;extra.alt='Xaman payment QR code';extra.width=168;extra.height=168;}
    showOrder(expired?'expired':'sign',expired
     ?'The signing window for this request has closed. If you never signed it, it is released automatically (about 15 minutes after it was created) and you can buy again. If you did sign, check the existing payment. Do not send a duplicate payment.'
-    :'This order is still open. Finish or review it before buying another upgrade. Do not send a duplicate payment.',actions);
+    : (orderLink?'Approve this payment in Xaman. Only the server-verified XRP amount is payable. After you sign, come back and tap Check payment.'
+      :'This order is still open. Finish or review it before buying another upgrade. Do not send a duplicate payment.'),actions,extra,{reveal:false});
    order.dataset.tycoonPending='';
   }else{
    delete order.dataset.tycoonPending;

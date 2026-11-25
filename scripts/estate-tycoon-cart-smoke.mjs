@@ -25,7 +25,8 @@ try{
    const response=(v,status=200)=>({ok:status<400,status,json:async()=>v});
    const fetcher=async(url,o={})=>{const u=new URL(url,location.origin),path=u.pathname;
     if(path.endsWith('/state'))return response({...state});
-    if(path.endsWith('/quote')){calls.push({quote:u.searchParams.get('itemIds')||u.searchParams.get('itemId')});
+    if(path.endsWith('/quote')){const b=o.body?JSON.parse(o.body):{};
+     calls.push({quote:Array.isArray(b.itemIds)?b.itemIds.join(','):(u.searchParams.get('itemIds')||u.searchParams.get('itemId'))});
      return response({ok:true,canPurchase:true,purchasesEnabled:true,pending:null,itemId:'cart:flower-garden+fire-pit+garden-pond'});}
     if(path.endsWith('/start')){calls.push({start:JSON.parse(o.body)});return response({ok:true,orderId:'tycoon_'+'a'.repeat(40),deeplink:'https://xumm.app/sign/1289e9ae-7d5d-4d5f-b89c-18633112ce09',qr:'https://xumm.app/sign/1289e9ae-7d5d-4d5f-b89c-18633112ce09_q.png'});}
     if(path.endsWith('/confirm')){calls.push({confirm:JSON.parse(o.body)});

@@ -1,5 +1,6 @@
-// AION phase 1: authored in-world autobiographies and bounded session recall.
-// Pure, deterministic game logic. No model calls, player identifiers, storage or external actions.
+// Authored in-world autobiographies and bounded recall of completed City visits.
+import { placeOk } from './citizens-core.mjs';
+
 const histories = {
   maya: [
     { id: 'first-shop', place: 'shop:coffee', year: -8, line: 'My first shift here, a regular taught me how to make the perfect coffee.' },
@@ -19,15 +20,36 @@ const histories = {
 };
 export const MAX_EPISODES = 12;
 export const enabledFor = id => Object.hasOwn(histories, id);
-export function makeCitizenMemory(id) {
-  return enabledFor(id) ? { id, episodes: [], lastPlace: null, spoken: new Set() } : null;
+const storageKey = id => 'burn-city:aion:visits:v1:' + id;
+
+export function makeCitizenMemory(id, storage = null) {
+  if (!enabledFor(id)) return null;
+  let episodes = [];
+  try {
+    const saved = storage?.getItem(storageKey(id));
+    if (saved && saved.length <= 512) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length <= MAX_EPISODES &&
+          parsed.every((place, i) => placeOk(place) && place.length <= 26 && place !== parsed[i - 1])) {
+        episodes = parsed;
+      }
+    }
+  } catch {
+    // Unavailable or malformed storage leaves this citizen with a fresh session.
+  }
+  return { id, episodes, lastPlace: episodes.at(-1) ?? null, spoken: new Set() };
 }
 // Record only actual completed NPC visits, not player location or identity.
-export function observeVisit(state, place) {
+export function observeVisit(state, place, storage = null) {
   if (!state || typeof place !== 'string' || !place || place === state.lastPlace) return;
   state.lastPlace = place;
   state.episodes.push(place);
   if (state.episodes.length > MAX_EPISODES) state.episodes.shift();
+  try {
+    storage?.setItem(storageKey(state.id), JSON.stringify(state.episodes));
+  } catch {
+    // Keep recording visits in memory when browser storage refuses writes.
+  }
 }
 // Recall once per authored memory per session; new observations stay distinct from backstory.
 export function recallLine(state, place) {

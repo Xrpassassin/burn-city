@@ -115,3 +115,7 @@ These two were tried and left out (`"enabled": false`, with the reason in `model
 * **Elegance in Black (pIINW):** the sandal straps join the two feet in the scan, so a web stretches between them mid-stride.
 
 Both would need hand rigging or mesh cleanup.
+
+## Project AION: opt-in autobiography pilot
+
+Open the City with `?aion=1` (or append `&aion=1` to an existing query). Maya, Skye and Dex recall authored fictional formative experiences when they arrive at relevant locations. After repeated completed visits, they may recall a familiar stop. Authored memories and runtime observations are separate. Recall is limited to one per memory per session; the visit history retains at most 12 entries. Normal scheduled dialogue takes precedence, and all other citizens are unchanged. Refreshing the page resets observations. No player identifiers, persistence, model calls, networking, financial logic or external actions are involved. This is deterministic game behavior, not an experiment establishing machine consciousness or an LLM's beliefs. The pilot tests memory-driven dialogue only; future decision policies require separate evaluation. `npm run test:citizens` includes the AION unit tests.

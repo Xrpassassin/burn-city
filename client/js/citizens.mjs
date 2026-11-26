@@ -12,6 +12,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { validateCitizen, activeEntry, resolvePlace, pickNear, budgetFor } from './citizens-core.mjs';
 import { initMotion, stepMotion, makeGrid, avoidPush, wrap } from './citizens-motion.mjs';
 import { makeLifeLayer } from './citizens-life.mjs';
+import { makeCitizenMemory, observeVisit, recallLine } from './citizens-aion.mjs';
 
 const Q = new URLSearchParams(location.search);
 const ASSETS = new URL('../assets/citizens/', import.meta.url), DATA = new URL('../data/citizens/', import.meta.url);
@@ -66,6 +67,7 @@ async function loadFar(m, cap) {
 async function init() {
   const c = window.__city, L = window.__cityLife;
   const B = budgetFor(c.TIER, c.MOBILE);
+  const aionEnabled = new URLSearchParams(window.location.search).get('aion') === '1';
   const man = await fetch(new URL('models.json', ASSETS)).then(r => r.json());
   const models = man.models, ids = models.map(m => m.id);
   const peds = c.pedMesh, shop = L && L.shopperMesh;
@@ -90,7 +92,7 @@ async function init() {
   const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
   for (const s of named) {
     const p = resolvePlace(activeEntry(s.schedule, nowMin()).place, world()) || { x: 0, z: 52 };
-    agents.push(initMotion({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
+    agents.push(initMotion({ named: s, memory: aionEnabled ? makeCitizenMemory(s.id) : null, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
   const hideCapsules = () => { if (c.pedMesh) c.pedMesh.visible = false; if (L && L.shopperMesh) L.shopperMesh.visible = false; };
@@ -128,7 +130,7 @@ async function init() {
     if (a.place !== e.place) { a.place = e.place; a.entry = e; a.tgt = resolvePlace(e.place, world()); a.arrived = false; if (e.say) a.pending = e.say; }
     if (!a.tgt || a.arrived) return;
     const n = a.n, dx = a.tgt.x - n.x, dz = a.tgt.z - n.z, d = Math.hypot(dx, dz);
-    if (d < 1.2) { a.arrived = true; return; }
+    if (d < 1.2) { a.arrived = true; observeVisit(a.memory, a.place); return; }
     const s = Math.min(d, 1.35 * dt); n.x += dx / d * s; n.z += dz / d * s; n.yaw = Math.atan2(dx, dz);
     for (const o of c.colliders) { if (!o.r) continue; const ex = n.x - o.x, ez = n.z - o.z, mm = o.r + .5; if (Math.abs(ex) > mm || Math.abs(ez) > mm) continue; const ee = Math.hypot(ex, ez); if (ee < mm) { n.x += ex / (ee || 1) * (mm - ee); n.z += ez / (ee || 1) * (mm - ee); } }
     if (now - a.last > 3000) { if (a.lp && Math.hypot(n.x - a.lp.x, n.z - a.lp.z) < .6) { n.x += (Math.random() - .5) * 4; n.z += (Math.random() - .5) * 4; a.stuck++; if (a.stuck > 6) { n.x = a.tgt.x; n.z = a.tgt.z; a.stuck = 0; } } a.lp = { x: n.x, z: n.z }; a.last = now; }
@@ -195,7 +197,7 @@ async function init() {
       a.tag.style.display = a.bub.style.display = on ? '' : 'none'; if (!on) continue;
       const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H; a.tag.textContent = a.named.name + (a.entry && a.entry.activity ? ' · ' + a.entry.activity : '');
       a.tag.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`; a.bub.style.transform = `translate(${x}px,${y - 16}px) translate(-50%,-100%)`;
-      if (d < 10 && now > a.next) { const D = a.named.dialogue || []; const line = a.pending || D[(Math.random() * D.length) | 0]; a.pending = null; if (line) { a.bub.textContent = line; a.bub.classList.add('on'); a.hideAt = now + 5000; } a.next = now + 9000 + Math.random() * 6000; }
+      if (d < 10 && now > a.next) { const D = a.named.dialogue || []; const line = a.pending || (a.arrived && recallLine(a.memory, a.place)) || D[(Math.random() * D.length) | 0]; a.pending = null; if (line) { a.bub.textContent = line; a.bub.classList.add('on'); a.hideAt = now + 5000; } a.next = now + 9000 + Math.random() * 6000; }
       if (a.hideAt && now > a.hideAt) { a.bub.classList.remove('on'); a.hideAt = 0; }
     }
     CC.stats = { agents: agents.length, far: drawn, near: nearSet, named: named.length, budget: B };

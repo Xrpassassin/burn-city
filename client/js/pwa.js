@@ -1,5 +1,16 @@
 // Install support: service worker + subtle Install button (Chrome/Edge/Android) + one-time iOS hint.
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+if ('serviceWorker' in navigator) addEventListener('load', () => {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    try { reg.update(); } catch { }
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing; if (!w) return;
+      w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' }); });
+    });
+  }).catch(() => {});
+  // A waiting worker that just claimed this page: reload once so phones (especially installed PWAs) drop stale JS.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
+});
 const standalone = matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone;
 const btn = document.getElementById('installBtn');
 let deferred = null;

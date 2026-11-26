@@ -71,11 +71,12 @@ async function init() {
   const aionMode = Q.get('aion');
   const aionEnabled = aionMode === '1' || aionMode === '2' || aionMode === '3';
   const coffee = aionMode === '3' && L.shops.find(shop => shop.id === 'coffee');
-  const district = coffee ? makeDistrict() : null;
   let aionStorage = null;
   if (aionMode === '2' || aionMode === '3') {
     try { aionStorage = window.localStorage; } catch { /* Fall back to session recall. */ }
   }
+  const arcade = coffee && L.shops.find(shop => shop.id === 'arcade');
+  const district = coffee ? makeDistrict(aionStorage, !!arcade) : null;
   const man = await fetch(new URL('models.json', ASSETS)).then(r => r.json());
   const models = man.models, ids = models.map(m => m.id);
   const peds = c.pedMesh, shop = L && L.shopperMesh;
@@ -106,6 +107,7 @@ async function init() {
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
   const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
   const districtPoints = district ? districtTargets(coffee, c.colliders) : null;
+  if (districtPoints && arcade) Object.assign(districtPoints, districtTargets(arcade, c.colliders, 'arcade-'));
   const targetFor = place => districtPoints?.[place] ?? resolvePlace(place, world());
   for (const s of named) {
     const p = targetFor(district?.assignment(s.id)?.place ?? activeEntry(s.schedule, nowMin()).place) || { x: 0, z: 52 };

@@ -66,10 +66,33 @@ const assignments = {
     roe: { place: 'police', activity: 'Reporting back to the precinct' },
     jax: { place: 'shop:arcade', activity: 'Cooling off near the arcade' },
     nia: { place: 'shop:arcade', activity: 'Making sure Jax stays put' }
+  },
+  mediation: {
+    roe: duty('arcade-left', 'Meeting Jax outside Pixel Arcade', 'I said I’d hear you out. Go ahead.'),
+    jax: duty('arcade-right', 'Meeting Roe outside Pixel Arcade', 'We can talk if you’ll let me finish.'),
+    nia: duty('arcade-near-east', 'Making introductions', 'I asked Skye to come. We could use someone we both trust.'),
+    skye: duty('arcade-witness', 'Helping Nia mediate'),
+    ines: duty('near-west', 'Covering Main Street while Roe talks'),
+    maya: duty('door', 'Serving customers at Hot Beans')
+  },
+  community: {
+    jax: duty('arcade-right', 'Playing friendly matches at Pixel Arcade'),
+    nia: duty('arcade-near-east', 'Making room for new players'),
+    skye: duty('arcade-witness', 'Teaching the newcomers'),
+    dex: duty('arcade-door', 'Visiting the neighborhood arcade'),
+    ines: duty('near-west', 'Checking in on Main Street'),
+    roe: duty('west', 'Walking the beat away from the arcade'),
+    maya: duty('door', 'Serving customers at Hot Beans')
   }
 };
 
 const streetPatrol = duty('west', 'Patrolling Main Street');
+const openShift = {
+  ines: duty('door', 'Checking in at Hot Beans'),
+  roe: duty('west-end', 'Walking the Main Street beat'),
+  jax: duty('arcade-east', 'Waiting for a free arcade cabinet'),
+  nia: duty('arcade-door', 'Catching up with Skye')
+};
 
 const reports = {
   maya: 'I saw Roe get in Jax’s face. I closed early before anyone else got dragged into it.',
@@ -80,44 +103,94 @@ const reports = {
   nia: 'I got Jax out of there. I’m going to find Skye later and see how she’s doing.'
 };
 
+const truceReports = {
+  roe: 'Nia and Skye got us talking. Jax gets his evenings at the arcade. I’ll give the place some room.',
+  jax: 'Roe actually heard me out. I’ll keep the arcade quiet if he gives us our space.',
+  nia: 'Jax listened when Skye spoke up. We agreed to keep the arcade open to everyone.',
+  skye: 'Nia asked me to sit in. They finally agreed to leave their history outside the arcade.'
+};
+const walkoutReports = {
+  roe: 'We tried to talk at the arcade, but we left without an agreement.',
+  jax: 'I told Roe I’d try again when Nia and Skye could both make it.',
+  nia: 'We needed Skye there. I’ll find another time for everyone.',
+  skye: 'The two of them still don’t trust each other. Nia’s going to try again.'
+};
+const communityReports = {
+  jax: 'I finally taught Dex the controls. He still beat me on his second go.',
+  nia: 'People are coming back to the arcade. Sometimes all it takes is leaving the door open.',
+  skye: 'Nia brought in some new faces tonight. We put their names up on the board.',
+  dex: 'Skye showed me around Pixel Arcade. I might start coming here after my walks.'
+};
+
 const positions = {
   'west-end': [-10, 1], west: [-7, 0], 'near-west': [-3.4, 0],
   left: [-.85, 0], right: [.85, 0], 'near-east': [3.4, 0],
   east: [7, 0], 'east-end': [10, 1], witness: [-4, 2.8], door: [0, 3.1]
 };
 
-export function districtTargets(coffee, colliders = []) {
-  const forward = { x: Math.sin(coffee.yaw), z: Math.cos(coffee.yaw) };
+export function districtTargets(storefront, colliders = [], prefix = '') {
+  const forward = { x: Math.sin(storefront.yaw), z: Math.cos(storefront.yaw) };
   const targets = {};
   for (const [id, [along, towardShop]] of Object.entries(positions)) {
     const at = distance => ({
-      x: coffee.door.x + forward.z * along - forward.x * (distance - towardShop),
-      z: coffee.door.z - forward.x * along - forward.z * (distance - towardShop)
+      x: storefront.door.x + forward.z * along - forward.x * (distance - towardShop),
+      z: storefront.door.z - forward.x * along - forward.z * (distance - towardShop)
     });
     let point = at(5.3);
     for (let distance = 5.8; distance <= 11.3; distance += .5) {
       if (!colliders.some(o => o.r && Math.hypot(point.x - o.x, point.z - o.z) < o.r + .65)) break;
       point = at(distance);
     }
-    targets[districtPlace(id)] = point;
+    targets[districtPlace(prefix + id)] = point;
   }
   return targets;
 }
 
-export function makeDistrict() {
-  let phase = 'routine', elapsed = 0;
-  const witnesses = new Set(), heard = new Set();
+const OUTCOME_KEY = 'burn-city:aion:district-outcome:v1';
+const ARCHIVE_SIZE = 3;
+// Dex can start the shift at the power plant, several minutes away on foot.
+const COMMUNITY_WINDOW = 480;
+
+export function makeDistrict(storage = null, hasArcade = true) {
+  let outcome = null;
+  try {
+    const saved = storage?.getItem(OUTCOME_KEY);
+    if (saved === 'clash' || saved === 'truce' || saved === 'walkout') outcome = saved;
+  } catch { /* Continue the district in this session. */ }
+
+  let phase = outcome ? 'settled' : 'routine', elapsed = 0, mayaSawClash = false;
+  let witnessedClash = [];
+  const pendingReports = new Map(), remembered = new Set();
   function enter(next) { phase = next; elapsed = 0; }
+  function remember(lines, saw) {
+    for (const [id, line] of Object.entries(lines)) {
+      if (!saw(id) || remembered.has(line)) continue;
+      remembered.add(line);
+      const pending = pendingReports.get(id) ?? [];
+      pendingReports.set(id, [...pending.slice(1 - ARCHIVE_SIZE), line]);
+    }
+  }
+  function settle(nextOutcome) {
+    outcome = nextOutcome;
+    try { storage?.setItem(OUTCOME_KEY, outcome); } catch { /* Keep the current outcome in memory. */ }
+  }
+
   return {
     get phase() { return phase; },
-    get coffeeClosed() { return phase === 'aftermath' && witnesses.has('maya'); },
+    get outcome() { return outcome; },
+    get coffeeClosed() { return phase === 'aftermath' && mayaSawClash; },
     assignment(id) {
       if (phase === 'aborted') return assignments.routine[id];
-      if (phase === 'aftermath' && !witnesses.has('maya')) {
+      if (phase === 'aftermath' && !mayaSawClash) {
         if (id === 'maya') return assignments.routine.maya;
         if (id === 'ines') return streetPatrol;
       }
-      if (phase === 'settled' && id === 'ines' && Math.floor(elapsed / 12) % 2 === 1) return streetPatrol;
+      if (phase === 'settled') {
+        if (outcome === 'truce' && hasArcade) {
+          return Math.floor(elapsed / 20) % 2 ? openShift[id] : assignments.community[id];
+        }
+        if (id === 'ines' && Math.floor(elapsed / 12) % 2 === 1) return streetPatrol;
+      }
       return assignments[phase][id];
     },
     tick(dt, arrived) {
@@ -125,16 +198,40 @@ export function makeDistrict() {
       if (phase === 'routine' && elapsed >= 9) enter('gathering');
       else if (phase === 'gathering') {
         if (elapsed >= 3 && DISTRICT_CAST.every(({ id }) => arrived(id))) {
-          for (const id of Object.keys(reports)) if (arrived(id)) witnesses.add(id);
+          witnessedClash = Object.keys(reports).filter(arrived);
+          mayaSawClash = witnessedClash.includes('maya');
           enter('clash');
         } else if (elapsed >= 45) enter('aborted');
-      } else if (phase === 'clash' && elapsed >= 7) enter('aftermath');
-      else if (phase === 'aftermath' && elapsed >= 75) enter('settled');
+      } else if (phase === 'aborted' && elapsed >= 45) enter('gathering');
+      else if (phase === 'clash' && elapsed >= 7) {
+        remember(reports, id => witnessedClash.includes(id));
+        settle('clash');
+        enter('aftermath');
+      } else if (phase === 'aftermath' && elapsed >= 75) enter('settled');
+      else if (phase === 'settled' && elapsed >= 40 && hasArcade) {
+        enter(outcome === 'truce' ? 'community' : 'mediation');
+      } else if (phase === 'mediation') {
+        const rivalsMet = arrived('roe') && arrived('jax');
+        const mediatorsMet = arrived('nia') && arrived('skye');
+        if (elapsed >= 12 && rivalsMet && mediatorsMet) {
+          remember(truceReports, arrived);
+          settle('truce');
+          enter('settled');
+        } else if (elapsed >= 150) {
+          if (rivalsMet) {
+            remember(walkoutReports, arrived);
+            settle('walkout');
+          }
+          enter('settled');
+        }
+      } else if (phase === 'community') {
+        const groupMet = ['jax', 'nia', 'skye', 'dex'].every(arrived);
+        if (elapsed >= 20 && groupMet) {
+          remember(communityReports, arrived);
+          enter('settled');
+        } else if (elapsed >= COMMUNITY_WINDOW) enter('settled');
+      }
     },
-    recall(id) {
-      if ((phase !== 'aftermath' && phase !== 'settled') || !witnesses.has(id) || heard.has(id)) return null;
-      heard.add(id);
-      return reports[id];
-    }
+    recall(id) { return pendingReports.get(id)?.shift() ?? null; }
   };
 }

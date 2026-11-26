@@ -26,3 +26,16 @@ The live Arena Zombies renderer in `client/arena/fx.js` builds its horde procedu
 - `?zombieModels=1` opts into a small animated-model pilot: up to eight zombies within 28 world units use the already-vendored Three.js GLTFLoader and SkeletonUtils. A deterministic selector chooses nearby models, mixes four distinct variants and per-clone grime/skin tints without shared-material color bleed. Distant zombies remain on the existing instanced renderer, limiting model cost on mobile. The standard renderer remains the default and is used as a fallback if loading fails. When a model leaves the near-player set, its animation mixer and per-instance cloned materials are cleaned up while shared geometry/textures remain cached.
 - The model experiment does not alter server-side combat, collision, enemy identity, or gameplay state. Validate orientation, animation timing, and mobile frame time before considering the flag for general play.
 - Model attribution and the upstream MIT license are recorded beside the asset in `assets/zombies/README.md`.
+
+## Implemented environment dressing (Mortuus-style map pass)
+
+Selected Kenney CC0 props are bundled under `assets/env/` and instanced by `zombies-wreckage.mjs` (placement plan in `zombies-wreckage-plan.mjs`). They dress the original Zombies maps with wrecked cars, fences, barricades, cones, dumpsters, crates, barrels, rubble and flicker lights. Placement is seeded and wall-hugging so doors, window breaks, wall-buys, perks, the Mystery Box, the Forge and the power switch stay clear. Low-graphics mode thins counts (fewer cars, fences, lamps and stains). Server collision, pathfinding and interactables are unchanged.
+
+Sources (all CC0 1.0, by Kenney):
+
+- Car Kit 3.1 — https://kenney.nl/assets/car-kit — sedan, taxi, van, tire/bumper/door debris
+- Survival Kit 2.0 — https://kenney.nl/assets/survival-kit — wood fences, barrels, crates
+- Graveyard Kit 5.0 — https://kenney.nl/assets/graveyard-kit — damaged wood/iron fences, rubble, lamp posts
+- City Kit (Roads) 2.2 — https://kenney.nl/assets/city-kit-roads — construction barriers, cones, work fences, work lights, dumpsters
+
+Each GLB is self-contained (colormap embedded), textures compressed to WebP, meshes welded with gltf-transform (MIT). License text and file-level provenance: `assets/env/ATTRIBUTION.md`. Credits page: `zombies-credits.html`. Fog, hemi dim, ground stains and flicker glows are original code in `cod.js` / `zombies-wreckage.mjs`.

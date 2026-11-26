@@ -19,6 +19,8 @@ import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
 import { estateRoadWaypoints, estateNextWaypoint } from './estates-road-waypoints.mjs';
 import { planEstatesPanel } from './estates-panel-layout.mjs';
+import { createEstatesWorldPrompt } from './estates-world-prompt.mjs';
+import { createEstatesInteriorHud } from './estates-interior-hud.mjs';
 import { searchEstateLots } from './estates-directory.mjs';
 
 const OFFSET_X = 650;
@@ -45,6 +47,7 @@ function makePanel() {
   const style = document.createElement('style');
   style.textContent = `
     body.bc-estates-active #tour,body.bc-estates-active #btns [data-m],body.bc-estates-active #bcMoveGamesOpen,body.bc-estates-active #bcMoveGamesWrap,body.bc-estates-active #bcMoveGamesPanel,body.bc-estates-active #vExit,body.bc-estates-active #vMenu,body.bc-estates-active #vHint{display:none!important}
+    body.bc-estates-interior #bcEstatesDirectoryButton,body.bc-estates-interior #bcEstatesWalkingGuidance,body.bc-estates-interior #bcEstatesExit,body.bc-estates-interior #bcEstatePropertyHint{display:none!important}
     #bcEstatesLivePrompt{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1200;width:min(92vw,430px);max-height:calc(100dvh - 210px);overflow:auto;box-sizing:border-box;padding:15px;border:1px solid #ffbd68aa;border-radius:14px;background:linear-gradient(145deg,#111a26f5,#080d15f5);box-shadow:0 12px 40px #0009;color:#f5e8d6;font:14px/1.45 system-ui,sans-serif;display:none}
     #bcEstatesLivePrompt h3{margin:0 0 7px;font-size:16px;color:#ffd49a;letter-spacing:.04em}
     #bcEstatesLivePrompt p{margin:0 0 12px;color:#d3dbe6}
@@ -124,6 +127,32 @@ export async function installEstatesIslandLive({
   let fpPrevious=false,fpPrevPitch=0;
   // Walk-in homes: front doors on every catalogued lot (Ember Bar style E/tap prompt).
   const doorSpots=homeDoorSpots(manifest.lots),doorPrompt=createHomeDoorPrompt();
+  const worldPrompt=createEstatesWorldPrompt();
+  const interiorHud=createEstatesInteriorHud();
+  const projectDoor=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(camera);return v;};
+  function doorWorld(property){
+    const lot=manifest.lots.find(l=>l.id===property?.lotId||l.propertyId===property?.propertyId);
+    const spot=doorSpots.find(s=>s.propertyId===(property?.propertyId||lot?.propertyId));
+    if(spot)return {x:OFFSET_X+spot.x,y:1.45,z:spot.z};
+    if(!lot?.buildingFootprint)return null;
+    const f=lot.buildingFootprint,W=f.width-.6,D=f.depth-.6,doorX=lot.tier==='apartment'?0:-W*.24;
+    return {x:OFFSET_X+lot.position.x+doorX,y:1.45,z:lot.position.z+D/2+.75};
+  }
+  function tickWorldPrompt(){
+    if(secretSession||!active){if(worldPrompt.visible)worldPrompt.tick({project:()=>({x:2,y:2,z:2})});return;}
+    if(camera&&window.innerHeight){
+      const aspect=window.innerWidth/Math.max(1,window.innerHeight);
+      if(Math.abs((camera.aspect||0)-aspect)>.001){camera.aspect=aspect;camera.updateProjectionMatrix();}
+      camera.updateMatrixWorld?.(true);
+    }
+    worldPrompt.tick({project:projectDoor,width:window.innerWidth,height:window.innerHeight,player:player.pos,camera});
+  }
+  function tickHouseNight(){
+    const tod=document.getElementById('tod');
+    const day=tod?Number(tod.value):0;
+    renderer.setNight?.(Number.isFinite(day)?day<.42:true);
+  }
+
   let ownershipKnown=false,ownedPropertyIds=new Set();
   const fade=document.createElement('div');
   fade.style.cssText='position:fixed;inset:0;background:#0b0907;opacity:0;pointer-events:none;transition:opacity .45s ease;z-index:1090';
@@ -330,7 +359,7 @@ export async function installEstatesIslandLive({
        {label:'Board estate helicopter',run:()=>void boardEstateHelicopter(property.propertyId)},
        {label:'Hangar logbook & customization',run:()=>showEstateHangar(property.propertyId)},
        {label:'Close',run:hidePanel}],
-      'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Borders: yellow = unowned; blue = purchased.');
+      'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Sign in with Xaman to check purchase availability. Borders: yellow = unowned; blue = purchased.');
     if(catalogued){
       const ownershipOptions={api:apiBase,onOwnership:properties=>renderer.setOwnership(properties)};
       let ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);
@@ -349,13 +378,17 @@ export async function installEstatesIslandLive({
   };
   const showLotPrompt = property => {
     if(directoryOpen)return;
-    const catalogued=Boolean(property.propertyId);
     if(property.confirmedInteraction){showLotInspection(property);return;}
-    showPanel('ESTATES · '+property.address,
-      catalogued?'Discover this home, preview its future finishes, and check purchase availability.':'This plot is reserved for a future home.',
-      [{label:'View home & upgrades',primary:true,run:()=>showLotInspection(property)},
-       {label:'Close',run:hidePanel}],
-      'Sign in with Xaman to buy a home or manage one you own.');
+    const world=doorWorld(property);if(!world)return;
+    const tour=showHomeAllowed(property.propertyId);
+    worldPrompt.set({
+      ...world,title:property.address||'',nearDistance:4,farDistance:11,
+      actions:[
+        {label:'Enter',icon:'⌂',primary:true,run:()=>void (tour?enterSecretRoom(property.propertyId,'home',{tour:true}):enterSecretRoom(property.propertyId,'home'))},
+        {label:'Edit',icon:'✎',run:()=>showLotInspection(property)}
+      ]
+    });
+    tickWorldPrompt();
   };
   const showLandmarkDetails = landmark => {
     showPanel(landmark.title,landmark.message,
@@ -407,7 +440,7 @@ export async function installEstatesIslandLive({
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
     onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
+    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;worldPrompt.hide();if(!directoryOpen)hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
       if(event.confirmedInteraction){leaveIsland();return;}
@@ -834,12 +867,15 @@ export async function installEstatesIslandLive({
       camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
       exitButton.textContent=roomId==='home'?'↩ Exit Home':'↩ Exit Secret Room';exitButton.setAttribute('aria-label',roomId==='home'?'Exit Home':'Exit Secret Room');
       secretPrompt=null;secretExitArmed=false;secretRecheckAt=Date.now();
-      hidePanel();
-      if(roomId==='home'&&tour)showPanel('SHOW HOME TOUR','This home is for sale. Walk through every room; stairs lead upstairs in Family and Mansion homes.',
-        [{label:'Start exploring',primary:true,run:hidePanel}],'Tour only · nothing is saved · step back through the front door to leave.');
-      else if(roomId==='home')showPanel('WELCOME HOME', 'Walk through every room of your home. Installed interior upgrades appear inside; stairs lead upstairs in Family and Mansion homes.',
-        [{label:'Open furnishing editor',primary:true,run:()=>void openHomeEditor(propertyId)},
-         {label:'Continue exploring',run:hidePanel}], 'Free layouts and furniture are available to every owner; invited guests can explore but cannot save changes.');
+      hidePanel();worldPrompt.hide();
+      interiorHud.show({
+        exit:()=>leaveSecretInterior(),
+        rooms:tour?()=>interiorHud.announce('Private rooms open for owners and invited guests'):()=>void openSecretRoomMenu(propertyId),
+        label:'Exit'
+      });
+      if(roomId==='home'&&tour)interiorHud.announce('Show home · tour only · use Exit or the front door');
+      else if(roomId==='home')interiorHud.announce('Walk the rooms · Exit or the front door to leave');
+      else interiorHud.announce('Private room · Exit to return outside');
       onStatus({state:'entered-secret-room',propertyId,roomId,role:data.role,privateRoomNetworked:false});
       return true;
     }catch(e){
@@ -855,7 +891,7 @@ export async function installEstatesIslandLive({
     fadeIn();
     root.visible=true;
     if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
-    directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';exitButton.setAttribute('aria-label','Return to BURN City');
+    interiorHud.hide();directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';exitButton.setAttribute('aria-label','Return to BURN City');
     const p=previous.returnAt;
     player.pos.set(p.x,p.y,p.z);
     firstPerson.exit();
@@ -869,22 +905,20 @@ export async function installEstatesIslandLive({
     return true;
   }
   function showSecretInteraction(interaction){
-    if(!interaction){if(secretPrompt)hidePanel();secretPrompt=null;return;}
+    if(!interaction){if(secretPrompt)hidePanel();secretPrompt=null;interiorHud.setContext({});return;}
     secretPrompt=interaction.id;
     const propertyId=secretSession?.propertyId;
     if(interaction.id==='stairs-up'||interaction.id==='stairs-down'){const up=interaction.id==='stairs-up';
-      showPanel(up?'STAIRS · UPSTAIRS':'STAIRS · DOWNSTAIRS',up?'Bedrooms and more are upstairs.':'Head back down to the ground floor.',
-      [{label:up?'Go upstairs':'Go downstairs',primary:true,run:()=>changeHomeFloor(up?1:0)},{label:'Stay here',run:hidePanel}],'Press E/USE at the stairs.');}
-    else if(interaction.id==='exit'&&secretSession?.roomId==='home')showPanel('FRONT DOOR','Step back outside onto the island.',
-      [{label:'Go outside',primary:true,run:()=>leaveSecretInterior()},{label:'Stay inside',run:hidePanel}],'Press E/USE at the door or use Exit Home.');
-    else if(secretSession?.tour&&(interaction.id==='portal'||interaction.id==='terminal'))showPanel('SHOW HOME',interaction.id==='portal'?'Private rooms and bunkers open for owners and their invited guests.':'Owners get a free furnishing editor to arrange this home.',
-      [{label:'Keep exploring',run:hidePanel}]);
-    else if(interaction.id==='exit')showPanel('SECRET EXIT','The concealed stairway leads back outside.',
-      [{label:'Return to property',primary:true,run:()=>leaveSecretInterior()},{label:'Stay here',run:hidePanel}],
-      'Press E/USE at the door or use Exit Secret Room.');
-    else if(interaction.id==='portal')showPanel('INTERIOR ACCESS HALL','Switch to another unlocked room inside this property.',
-      [{label:'Choose another room',primary:true,run:()=>void openSecretRoomMenu(propertyId)},{label:'Continue exploring',run:hidePanel}],
-      'Only verified owner/invited-wallet room access permits room changes.');
+      interiorHud.setContext({stairs:()=>changeHomeFloor(up?1:0),stairsLabel:up?'Upstairs':'Downstairs'});
+      interiorHud.announce(up?'Stairs · go up':'Stairs · go down',1800);}
+    else if(interaction.id==='exit'){
+      interiorHud.setContext({});
+      interiorHud.announce(secretSession?.roomId==='home'?'Front door · Exit or press E':'Exit · press E',1800);}
+    else if(secretSession?.tour&&(interaction.id==='portal'||interaction.id==='terminal')){
+      interiorHud.setContext({});interiorHud.announce('Show home · editor and private rooms unlock after purchase',2400);}
+    else if(interaction.id==='portal'){
+      interiorHud.setContext({extra:()=>void openSecretRoomMenu(propertyId),extraLabel:'Rooms'});
+      interiorHud.announce('Other rooms',1600);}
     else if(interaction.id==='power')showPanel('BACKUP POWER','Change the room lighting to emergency mode or restore full power.',
       [{label:secretInterior.powerOn?'Switch to emergency lighting':'Restore full lighting',primary:true,
         run:()=>{secretInterior.setPower(!secretInterior.powerOn);showSecretInteraction(interaction);}},{label:'Close',run:hidePanel}],
@@ -904,9 +938,14 @@ export async function installEstatesIslandLive({
   }
   function showHomeDoor(spot){
     const tour=showHomeAllowed(spot.propertyId);lastDoorPanel=true;
-    showPanel('FRONT DOOR · '+spot.address,tour?'This home is for sale. Step inside for a walk-through of every room.':'Private home. The owner and invited guests can walk right in.',
-      [{label:tour?'Tour this show home':'Enter home',primary:true,run:()=>void enterHomeDoor(spot)},{label:'Not now',run:()=>{lastDoorPanel=false;hidePanel();}}],
-      tour?'Press E/USE at the door · tour only, nothing is saved.':'Press E/USE at the door · sign in with the owning or invited Xaman wallet.');
+    worldPrompt.set({
+      x:OFFSET_X+spot.x,y:1.45,z:spot.z,title:spot.address||'',nearDistance:1.6,farDistance:4.5,
+      actions:[
+        {label:'Enter',icon:'⌂',primary:true,run:()=>void enterHomeDoor(spot)},
+        {label:'Edit',icon:'✎',run:()=>showLotInspection({lotId:manifest.lots.find(l=>l.propertyId===spot.propertyId)?.id,propertyId:spot.propertyId,address:spot.address,tier:spot.tier})}
+      ]
+    });
+    tickWorldPrompt();
   }
   function nearestVerifiedHatch(){
     const x=player.pos.x-OFFSET_X,z=player.pos.z;
@@ -1098,7 +1137,7 @@ export async function installEstatesIslandLive({
     if(disposed||!active)return;
     if(secretSession)leaveSecretInterior(false);
     if(flightSession)endHelicopterFlight(true,false);
-    active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);
+    active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);worldPrompt.hide();interiorHud.hide();
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
@@ -1133,6 +1172,7 @@ export async function installEstatesIslandLive({
       return false;
     }
     renderer.tickUpgrades?.(dt);
+    tickHouseNight();
     if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
     if(flightSession)return tickHelicopterFlight(dt,moveForward,moveSide,edge);
     hideCityScene();animatePeers(dt);void refreshAppearance();void refreshFreeStyles();void refreshOwnership();void refreshTycoon();
@@ -1164,7 +1204,7 @@ export async function installEstatesIslandLive({
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
         onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
+        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;worldPrompt.hide();if(!directoryOpen)hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;
           if(event.confirmedInteraction){leaveIsland();return;}
@@ -1179,7 +1219,7 @@ export async function installEstatesIslandLive({
     const hatch=nearestVerifiedHatch(),helipad=nearestVerifiedHelipad();
     const door=hatch?{spot:null,changed:false}:doorPrompt.update({x:player.pos.x-OFFSET_X,z:player.pos.z},doorSpots);
     if(door.changed&&door.spot&&!directoryOpen)showHomeDoor(door.spot);
-    else if(door.changed&&!door.spot&&lastDoorPanel){lastDoorPanel=false;hidePanel();}
+    else if(door.changed&&!door.spot&&lastDoorPanel){lastDoorPanel=false;worldPrompt.hide();if(!directoryOpen)hidePanel();}
     if(door.spot&&edge){void enterHomeDoor(door.spot);return true;}
     const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge&&!hatch,exitPressed:edge&&!hatch,desiredDelta});
     if(desiredDelta&&window.__skate?.active){
@@ -1206,6 +1246,7 @@ export async function installEstatesIslandLive({
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.
     }
+    tickWorldPrompt();
     return true;
   }
   // Public island is rendered at the city offset, with a continuous bridge; the city-side interaction is explicit.
@@ -1240,7 +1281,7 @@ export async function installEstatesIslandLive({
       if(disposed)return false;
       if(secretSession)leaveSecretInterior(false);
       if(flightSession)endHelicopterFlight(true,false);
-      disposed=true; firstPerson.exit(); islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();fade.remove();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);window.removeEventListener('blur',releasePilotInput);document.removeEventListener('visibilitychange',onPilotVisibility);
+      disposed=true; firstPerson.exit(); islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); worldPrompt.dispose(); interiorHud.dispose(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();fade.remove();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);window.removeEventListener('blur',releasePilotInput);document.removeEventListener('visibilitychange',onPilotVisibility);
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

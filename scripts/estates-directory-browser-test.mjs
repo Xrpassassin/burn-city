@@ -15,7 +15,7 @@ const catalog=await (await fetch('/data/estate-catalog.json')).json();
 const manifest=buildEstatesIslandScene({catalog});
 const scene=new THREE.Scene(),player={pos:new THREE.Vector3(445,.1,188),vel:new THREE.Vector3()},avatar=new THREE.Group(),camera=new THREE.PerspectiveCamera();
 scene.add(avatar,camera);let yaw=0,mode='explore',pressed=false;window.cityMoves=0;window.__setBurnMode=v=>mode=v;window.__walkTo=()=>{window.cityMoves++;return true;};
-window.fixture={manifest,player,scene};
+window.fixture={manifest,player,scene,camera,setYaw:v=>yaw=v};
 window.host=await installEstatesIslandLive({THREE,scene,player,avatar,camera,getYaw:()=>yaw,setYaw:v=>yaw=v,getMode:()=>mode,setMode:v=>mode=v,buildWalker:()=>new THREE.Group(),poseWalker:()=>{},isInteractPressed:()=>pressed});
 document.querySelector('#tUse').addEventListener('touchstart',e=>{pressed=true;e.preventDefault();},{passive:false});
 document.querySelector('#tUse').addEventListener('touchend',()=>{host.tick(.016,0,0,false);pressed=false;host.tick(.016,0,0,false);});
@@ -66,10 +66,17 @@ try {
   assert.equal(await page.evaluate(()=>fixture.scene.getObjectByName('estates-selected-property-beacon').visible),true);
   // Move to a navigable approach using the real navigation manifest. This tests
   // proximity/inspection, not the city app's joystick event-to-frame wiring.
-  await page.evaluate(l=>{fixture.player.pos.set(650+l.position.x,.1,l.position.z+l.buildingFootprint.depth/2+2);step();},selected);
-  await page.getByRole('button',{name:'View home & upgrades',exact:true}).waitFor();
+  await page.evaluate(l=>{
+    const doorX=650+l.position.x+(l.tier==='apartment'?0:-(l.buildingFootprint.width-.6)*.24);
+    const doorZ=l.position.z+l.buildingFootprint.depth/2+.75;
+    fixture.player.pos.set(doorX,.1,doorZ+1.2);
+    fixture.setYaw(0);
+    fixture.camera.aspect=innerWidth/Math.max(1,innerHeight);fixture.camera.updateProjectionMatrix();
+    step();step();
+  },selected);
+  await page.getByRole('button',{name:'Edit',exact:true}).waitFor();
   if(mobile){await page.getByRole('button',{name:'Use',exact:true}).tap();}
-  else await page.getByRole('button',{name:'View home & upgrades',exact:true}).click();
+  else await page.getByRole('button',{name:'Edit',exact:true}).click();
   await page.getByRole('button',{name:'Navigate to property',exact:true}).waitFor();await clear();
   await page.getByRole('button',{name:'Close',exact:true}).click();
   await page.getByRole('button',{name:'Browse Estates'}).click();
@@ -137,7 +144,8 @@ try {
      return {active:host.active,walkable:nav.isWalkable({x:p.x-650,y:p.y,z:p.z}),position:{x:p.x-650,y:p.y,z:p.z},expected:{...arrival,y:.1},outside:Math.abs(p.x-650-lot.position.x)>=lot.buildingFootprint.width/2||Math.abs(p.z-lot.position.z)>=lot.buildingFootprint.depth/2,velocity:fixture.player.vel.length(),presencePaused:window.__estatesCityPresencePaused};
     },selected.propertyId);
     assert.equal(check.active,true);assert.equal(check.walkable,true);assert.equal(check.outside,true);assert.equal(check.velocity,0);assert.equal(check.presencePaused,true);assert.deepEqual(check.position,check.expected);
-    await linked.getByRole('button',{name:'View home & upgrades',exact:true}).waitFor();
+    await linked.evaluate(()=>step());
+    await linked.getByRole('button',{name:'Edit',exact:true}).waitFor();
     // Another valid target works without a second admission; unknown IDs cannot move anyone.
     const arrivalCount=requests.filter(r=>r.url.includes('/instance/enter')).length;
     const last=await linked.evaluate(()=>host.manifest.lots.filter(l=>l.propertyId).at(-1).propertyId);

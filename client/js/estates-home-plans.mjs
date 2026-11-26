@@ -355,6 +355,15 @@ export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='coz
   else {add('preset-floor-lamp',ax,.02,az,.34,.04,.34,'home-brass',true,'cylinder');add('preset-floor-lamp-pole',ax,.78,az,.035,1.5,.035,'home-brass',false,'cylinder');
    add('preset-floor-lamp-shade',ax,1.56,az,.4,.3,.4,'home-warm',false,'cylinder');}
  }
+ for(const it of items){
+  const id=it.id||'';if(it.kit||it.model)continue;
+  if(/rug|runner/.test(id))it.kit={id:/round/.test(id)?'rug-round':'rug-rect'};
+  else if(/bed-lamp|desk-lamp/.test(id))it.kit={id:'lamp-table'};
+  else if(/pendant|ceiling-light/.test(id))it.kit={id:/pendant/.test(id)?'lamp-ceiling':'lamp-ceiling'};
+  else if(/coffee-table/.test(id))it.kit={id:/square/.test(id)?'table-coffee-square':'table-coffee'};
+  else if(/nightstand/.test(id))it.kit={id:'side-table'};
+  else if(/tv-screen$/.test(id)&&!/-bezel/.test(id))it.kit={id:'tv-modern'};
+ }
  const obstacles=items.filter(p=>p.solid).map(p=>{const r=rotHalf(p.w,p.d,p.ry||0);return {id:p.id,x:p.x,z:p.z,halfX:r.hx,halfZ:r.hz};});
  const interactions=[];
  if(floor===0){

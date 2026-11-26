@@ -43,6 +43,8 @@ export function estateHouseParts(item) {
     add(name+'-pane','glass',x+(side?.075:0),y,z+(side?0:(z<0?-.075:.075)),side?.06:width,height,side?width:.06);
     add(name+'-mullion','frame',x+(side?.115:0),y,z+(side?0:(z<0?-.115:.115)),side?.04:.07,height,side?.07:.04);
     add(name+'-sill','stone',x, y-height/2-.12,z,side?.25:width+.32,.12,side?width+.32:.25);
+    // Warm interior glow sits just inside the pane so it stays in the footprint.
+    add(name+'-glow','warm',x+(side?-.04:0),y,z+(side?0:(z<0?.11:-.11)),side?.04:width*.88,height*.86,side?width*.88:.04);
   }
   const floors=apartment?3:family||mansion?2:1;
   for(let floor=0;floor<floors;floor++) {
@@ -221,7 +223,7 @@ export function renderEstateHouses(THREE,parent,items) {
       color:estatePaletteColor(key,palette,HOUSE_MATERIALS[key]),
       roughness:key==='glass'?.22:key==='brass'?.43:key==='roof'?.69:key==='frame'?.52:key==='metal'?.5:key==='timber'||key==='door'?.75:key==='stone'?.92:.84,
       metalness:key==='brass'?.45:key==='copper'?.52:key==='frame'?.36:key==='metal'?.55:0,
-      emissive:key==='warm'?HOUSE_MATERIALS.warm:0,emissiveIntensity:.45,
+      emissive:key==='warm'||key==='glass'?HOUSE_MATERIALS.warm:0,emissiveIntensity:key==='warm'?.45:key==='glass'?.08:0,
       ...estateSurfaceProperties(THREE,key)
     });
     const geometry=(w=1,h=1,d=1)=>{
@@ -247,4 +249,16 @@ export function renderEstateHouses(THREE,parent,items) {
     }
   }
   return records;
+}
+
+// Night pass: rooms glow through the glass without rebuilding the neighbourhood.
+export function setEstateHouseNight(root,night=false){
+ if(!root)return false;
+ root.traverse?.(node=>{
+  const mat=node.material,name=node.name||'';
+  if(!mat)return;
+  if(name.includes('estates-houses-warm'))mat.emissiveIntensity=night?1.35:.45;
+  else if(name.includes('estates-houses-glass'))mat.emissiveIntensity=night?.9:.08;
+ });
+ return true;
 }

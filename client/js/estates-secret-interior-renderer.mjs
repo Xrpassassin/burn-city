@@ -2,6 +2,7 @@
 // Authenticated room admission is performed by the live controller before setRoom().
 import {createSecretRoomLayout,PRIVATE_ROOM_ORIGIN,resolveSecretRoomMotion,secretRoomInteraction} from './estates-secret-layout.mjs';
 import {createEstateInteriorModelCache} from './estates-interior-models.mjs';
+import {createEstateKitCache,fitEstateKitScale,estatesLowGraphics} from './estates-kit-models.mjs';
 const PALETTE={
  concrete:{color:0x575b62,roughness:.96},ceiling:{color:0x272f39,roughness:.92},
  wall:{color:0x3d454e,roughness:.87},steel:{color:0x596977,metalness:.68,roughness:.42},
@@ -69,6 +70,8 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
  root.position.set(origin.x,origin.y,origin.z);root.visible=false;scene.add(root);
  let active=null,materials=new Map(),illumination=[],powerOn=true,disposed=false,reveal=0,roomToken=0;
  const models=createEstateInteriorModelCache(THREE,{loader:modelLoader});
+ const kit=createEstateKitCache(THREE);
+ const lowGraphics=estatesLowGraphics();
  function disposeRoom(){
   const meshes=new Set(),mats=new Set();
   root.traverse?.(obj=>{if(obj.userData?.sharedModel)return;if(obj.geometry)meshes.add(obj.geometry);if(obj.material){
@@ -105,7 +108,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   disposeRoom();
   active=layout;
   // Build room only on entry, so island traversal has no interior draw-call burden.
-  const token=++roomToken,fallbacks=[];
+  const token=++roomToken,fallbacks=[],kitFallbacks=[];
   // Homes: merge static furnishing boxes per material (one draw call each) to stay
   // cheap on phones; the shell, windows, lights and model fallbacks stay separate.
   const merge=layout.roomId==='home'&&typeof THREE.BufferGeometry==='function'&&typeof THREE.Matrix4==='function';
@@ -123,6 +126,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
    mesh.name='secret-'+part.id;
    mesh.castShadow=false;mesh.receiveShadow=false;root.add(mesh);
    if(part.model)fallbacks.push([part,mesh]);
+   if(part.kit)kitFallbacks.push([part,mesh]);
   }
   for(const [mat,parts] of batches){
    const pos=[],nor=[],m=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),sc=new THREE.Vector3();
@@ -147,6 +151,20 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
     const group=new THREE.Group();group.name='home-model-'+part.model.id;group.userData.sharedModel=true;
     for(const {geometry,material} of parts){const m=new THREE.Mesh(geometry,material);m.userData.sharedModel=true;m.castShadow=false;m.receiveShadow=false;group.add(m);}
     group.position.set(part.x,part.model.y||0,part.z);group.rotation.y=part.ry||0;group.scale.set(part.model.sx||1,1,1);
+    root.add(group);mesh.visible=false;
+   }
+  });
+  // Kenney CC0 rugs, lamps, tables and screens; skip a few extras on low graphics.
+  const kitIds=kitFallbacks.map(([p])=>p.kit.id).filter(id=>!(lowGraphics&&/plant-small|pillow|stool/.test(id)));
+  if(kitIds.length)void kit.load(kitIds).then(found=>{
+   if(disposed||token!==roomToken)return;
+   for(const [part,mesh] of kitFallbacks){
+    const rec=found.get(part.kit.id);if(!rec)continue;
+    const group=new THREE.Group();group.name='home-kit-'+part.kit.id;group.userData.sharedModel=true;
+    for(const {geometry,material} of rec.parts){const m=new THREE.Mesh(geometry,material);m.userData.sharedModel=true;m.castShadow=false;m.receiveShadow=false;group.add(m);}
+    const sc=fitEstateKitScale(rec.bbox,part.w,part.h,part.d);
+    const foot=part.y-part.h/2;
+    group.position.set(part.x,foot,part.z);group.rotation.y=part.ry||0;group.scale.set(sc.x,sc.y,sc.z);
     root.add(group);mesh.visible=false;
    }
   });
@@ -217,7 +235,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   camera.lookAt?.(origin.x+localPosition.x-Math.sin(yaw)*squeeze*3.5,origin.y+1.28-squeeze*.35,origin.z+localPosition.z-Math.cos(yaw)*squeeze*3.5);
   return true;
  }
- function hide(){root.visible=false;roomToken++;disposeRoom();models.dispose();}
+ function hide(){root.visible=false;roomToken++;disposeRoom();models.dispose();kit.dispose();}
  function dispose(){if(disposed)return false;disposed=true;hide();scene.remove(root);return true;}
  return {
   root,origin,setRoom,hide,dispose,setPower,tickCamera,tickReveal,

@@ -142,8 +142,11 @@ export function addZombiesWreckage(root,layout,{low=false,g=x=>x,basic=(c,o)=>ne
    const mesh=new THREE.InstancedMesh(geo,mat,list.length);
    mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
    const target=TARGET[name]||2,axis=AXIS[name]||'x';
-   const sx0=axis==='y'?(src.size?.y||target):(axis==='z'?(src.size?.z||target):(src.size?.x||target));
-   const sc=sx0>0.01?target/sx0:1;
+   const sx=src.size?.x||0,sy=src.size?.y||0,sz=src.size?.z||0;
+   const sx0=axis==='y'?sy:Math.max(sx,sz,axis==='z'?sz:sx);
+   let sc=sx0>0.05?target/sx0:1;
+   if(!Number.isFinite(sc)||sc<=0)sc=1;
+   sc=Math.max(0.25,Math.min(2.6,sc));
    list.forEach((site,i)=>{
     const tilt=site.tilt||0,roll=site.roll||0;
     E.set(tilt,site.yaw||0,roll,'YXZ');

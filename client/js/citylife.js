@@ -377,11 +377,19 @@ function build() {
   const sidewalk = (f, k) => { const sp = L.shops[k ?? ((Math.random() * L.shops.length) | 0)]; const m = Math.max(2, Math.min(sp.len - 2, sp.m + (f - .5) * 44)), p = streetAt(sp.s, m / sp.len), rx = -p.tz * sp.side, rz = p.tx * sp.side; return { x: p.x + rx * 4.3, z: p.z + rz * 4.3 }; };
   shoppers.forEach((sh, i) => { const k = i % Math.max(1, L.shops.length), p = sidewalk(hsh(i, 2), k); sh.x = p.x; sh.z = p.z; sh.home = k; sh.tgt = i % 2 ? sidewalk(hsh(i, 5), k) : { x: L.shops[k].door.x - Math.sin(L.shops[k].yaw) * 2.2, z: L.shops[k].door.z - Math.cos(L.shops[k].yaw) * 2.2 }; if (!(i % 2)) { sh.state = 'toShop'; sh.shop = k; } });
   L.shopperMesh = shopIM; L.spawn = spawn;
+  L.setShopClosed = (id, closed) => {
+    const shop = L.shops.find(shop => shop.id === id);
+    if (shop) shop.closed = closed;
+  };
   L.shoppersInside = () => shoppers.filter(s => s.state === 'inside').length;
   L.shopperStates = () => shoppers.reduce((o, s) => (o[s.state] = (o[s.state] || 0) + 1, o), {});
   function updShoppers(dt, t) {
     if (!shopIM) return;
     shoppers.forEach((sh, i) => {
+      if (L.shops[sh.shop]?.closed && (sh.state === 'toShop' || sh.state === 'enter')) {
+        sh.state = 'walk';
+        sh.tgt = sidewalk(Math.random(), sh.shop);
+      }
       if (sh.state === 'inside') {
         sh.t -= dt; if (sh.t > 0) { m4.makeScale(0, 0, 0); shopIM.setMatrixAt(i, m4); return; }
         const sp = L.shops[sh.shop]; sh.x = sp.door.x; sh.z = sp.door.z; sh.state = 'walk'; sh.tgt = sidewalk(Math.random(), sh.shop); sh.exits = (sh.exits || 0) + 1;
@@ -391,7 +399,20 @@ function build() {
       if (d < .25) {
         if (sh.state === 'enter') { sh.state = 'inside'; sh.t = 6 + Math.random() * 14; L.entries = (L.entries || 0) + 1; m4.makeScale(0, 0, 0); shopIM.setMatrixAt(i, m4); return; }
         if (sh.state === 'toShop') { sh.state = 'enter'; sh.tgt = { ...L.shops[sh.shop].door }; }
-        else if (Math.random() < .55) { const near = L.shops.map((o, k) => k).filter(k => Math.hypot(L.shops[k].x - sh.x, L.shops[k].z - sh.z) < 40); sh.shop = near.length ? near[(Math.random() * near.length) | 0] : sh.home; sh.home = sh.shop; const sp = L.shops[sh.shop]; sh.state = 'toShop'; sh.tgt = { x: sp.door.x - Math.sin(sp.yaw) * 2.2, z: sp.door.z - Math.cos(sp.yaw) * 2.2 }; }
+        else if (Math.random() < .55) {
+          const nearby = [];
+          L.shops.forEach((sp, k) => {
+            if (!sp.closed && Math.hypot(sp.x - sh.x, sp.z - sh.z) < 40) nearby.push(k);
+          });
+          const k = nearby.length ? nearby[(Math.random() * nearby.length) | 0] : sh.home;
+          const sp = L.shops[k];
+          if (sp.closed) sh.tgt = sidewalk(Math.random(), sh.home);
+          else {
+            sh.shop = sh.home = k;
+            sh.state = 'toShop';
+            sh.tgt = { x: sp.door.x - Math.sin(sp.yaw) * 2.2, z: sp.door.z - Math.cos(sp.yaw) * 2.2 };
+          }
+        }
         else { sh.tgt = sidewalk(Math.random(), sh.home); if (Math.random() < .5) sh.pause = 1.5 + Math.random() * 4; }   // window shopping
         return;
       }

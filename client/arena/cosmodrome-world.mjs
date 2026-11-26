@@ -26,13 +26,20 @@ function tint(obj, hex, ember = 0.18) {
   obj.traverse(o => {
     if (!o.isMesh || !o.material) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
-    o.material = mats.map(m => {
-      const n = m.clone();
-      if (n.color) n.color.lerp(c, ember);
-      n.side = THREE.FrontSide;
+    const next = mats.map(m => {
+      // The Zombies world is unlit MeshBasic. Kenney GLBs ship as Standard/PBR
+      // and would otherwise render black, hiding the BURN-1 stack and props.
+      const n = new THREE.MeshBasicMaterial({
+        map: m.map || null,
+        color: m.color ? m.color.clone().lerp(c, ember) : c.clone(),
+        transparent: !!m.transparent,
+        opacity: m.opacity ?? 1,
+        side: THREE.FrontSide,
+        fog: true
+      });
       return n;
     });
-    if (!Array.isArray(o.material)) o.material = o.material[0];
+    o.material = next.length === 1 ? next[0] : next;
     o.castShadow = o.receiveShadow = false;
   });
 }
@@ -74,46 +81,53 @@ export function addCosmodromeWorld(root, L, { low, g, basic, label, scene }) {
   const launch = new THREE.Group();
   launch.position.set(rocketPos.x, 0, rocketPos.z);
   always.add(launch);
+  const rocketViz = new THREE.Group();
+  launch.add(rocketViz);
   const primitiveRocket = () => {
     const body = new THREE.Mesh(g(new THREE.CylinderGeometry(1.15, 1.45, 14.5, low ? 6 : 10)), hull);
-    body.position.y = 8.4; launch.add(body);
+    body.position.y = 8.4; rocketViz.add(body);
     const tip = new THREE.Mesh(g(new THREE.ConeGeometry(1.15, 3.2, low ? 6 : 10)), nose);
-    tip.position.y = 17.2; launch.add(tip);
+    tip.position.y = 17.2; rocketViz.add(tip);
     const band = new THREE.Mesh(g(new THREE.CylinderGeometry(1.5, 1.5, 0.4, low ? 6 : 10)), hazard);
-    band.position.y = 4.2; launch.add(band);
+    band.position.y = 4.2; rocketViz.add(band);
     const bell = new THREE.Mesh(g(new THREE.CylinderGeometry(0.7, 1.05, 1.4, low ? 6 : 10)), basic(0x22262b));
-    bell.position.y = 0.85; launch.add(bell);
+    bell.position.y = 0.85; rocketViz.add(bell);
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2;
       const fin = new THREE.Mesh(g(new THREE.BoxGeometry(0.18, 2.2, 1.6)), nose);
       fin.position.set(Math.cos(a) * 1.35, 2.0, Math.sin(a) * 1.35);
-      fin.rotation.y = -a; launch.add(fin);
+      fin.rotation.y = -a; rocketViz.add(fin);
     }
     const stripe = new THREE.Mesh(g(new THREE.BoxGeometry(0.08, 8.5, 0.35)), ember);
-    stripe.position.y = 8.4; launch.add(stripe);
+    stripe.position.y = 8.4; rocketViz.add(stripe);
     const tag = label('BURN-1', '#ffb060', 512, 3.2);
-    tag.position.set(0, 12.4, 1.6); launch.add(tag);
+    tag.position.set(0, 12.4, 1.6); rocketViz.add(tag);
   };
   primitiveRocket();
   if (!low) {
     Promise.all(['rocket_baseA', 'rocket_fuelA', 'rocket_sidesA', 'rocket_finsA', 'rocket_topA'].map(loadModel))
       .then(([base, fuel, sides, fins, top]) => {
         if (!base || !fuel || !top) return;
-        launch.clear();
+        rocketViz.clear();
         const stack = [base, fuel, fuel, fuel, sides, fins, top];
         let y = 0;
+        const s = 2.15;
         for (const part of stack) {
           if (!part) continue;
-          const s = 2.15;
-          const inst = stamp(part, 0, y, 0, 0, s);
+          // stamp() pins the bounding-box center at y, which buried the first
+          // segment and collapsed the stack. Sit each part on the previous rim.
+          const inst = part.root.clone(true);
+          inst.position.set(-part.center.x * s, y - (part.center.y - part.size.y / 2) * s, -part.center.z * s);
+          inst.scale.setScalar(s);
           tint(inst, 0xc45a20, 0.22);
-          launch.add(inst);
-          y += part.size.y * s * 0.92;
+          rocketViz.add(inst);
+          y += part.size.y * s * 0.98;
         }
+        if (y < 8 || y > 36) { rocketViz.clear(); primitiveRocket(); return; }
         const tag = label('BURN-1', '#ffb060', 512, 3.2);
-        tag.position.set(0, y * 0.72, 2.0); launch.add(tag);
+        tag.position.set(0, y * 0.72, 2.0); rocketViz.add(tag);
         const glow = new THREE.Mesh(g(new THREE.SphereGeometry(1.4, 8, 6)), basic(0xff6a22, { transparent: true, opacity: 0.35, depthWrite: false }));
-        glow.position.y = 0.8; launch.add(glow);
+        glow.position.y = 0.8; rocketViz.add(glow);
       }).catch(() => {});
   }
 

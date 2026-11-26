@@ -182,6 +182,7 @@ class Room {
       if (hit) for (const zb of this.zombies.values()) { if (zb === hit) hurt(zb, dmg, p, hit._lat < HS_LAT && hit._hv ? 2 : 0); else if (splash && Math.hypot(zb.x - ex, zb.z - ez) < splash) hurt(zb, dmg * 0.4, p); }
       ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(endY(p, Math.hypot(ex - p.x, ez - p.z))), ray: 1, ls: hot ? 2 : 1 }); };
     if ((this.flowT = (this.flowT || 0) - dt) <= 0) { this.flowT = 0.25; Z.flow(this, up); }   // refresh the zombie flow field 4x/s
+    if (this.lander) Z.tickLander(this, dt, ev);
     for (const p of ps) if (p.alive) {
       if (p.down) {   // downed: bleed out unless revived (teammate stands close) or Phoenix self-revive (solo)
         p.firing = false; p.in.use = false; p.in.pk = null; const helper = up.find(o => Math.hypot(o.x - p.x, o.z - p.z) < Z.REVIVE_R && Math.abs((o.y || 0) - (p.y || 0)) < 1.3);
@@ -198,11 +199,14 @@ class Room {
       { const mx = maxHp(p); if (p.hp < mx && this.t - (p.hurtT ?? -99) > REGEN_DELAY - 0.8 * bon(p, 'regen')) p.hp = Math.min(mx, p.hp + REGEN_RATE * (Z.has(p, 'jug') ? 1.5 : 1) * (1 + 0.35 * bon(p, 'regen')) * dt); }
       if (p.in.pk != null) { takeDraft(p, p.in.pk, ev); p.in.pk = null; }   // health regen after a few seconds without damage
       if (p.aboard) { Heli.rider(this, p, dt, ev, AIM); continue; }   // seated in the helicopter: vote / minigun only
+      if (!p.landerRide) {
       if (p.in.use) { p.in.use = false; if (!Quest.use(this, p, ev)) Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
-      const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? ZOMBIE_FAST_SPEED : ZOMBIE_WALK_SPEED;           // move relative to view
+      const SP = Z.has(p, 'speed') ? ZOMBIE_FAST_SPEED : ZOMBIE_WALK_SPEED;           // move relative to view
       const { x: vx, z: vz } = zombieMoveVector(p.in.mx, p.in.mz, p.yaw);
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
       if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
+      } else { p.in.use = false; }
+      const s = Math.sin(p.yaw), c = Math.cos(p.yaw);
       const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt); if (w0.kind !== 'rotary' && p.ravHeat > 0) { p.ravHeat = Math.max(0, p.ravHeat - dt * (p.ravLock > 0 ? 34 : 19)); p.ravSpin = Math.max(0, (p.ravSpin || 0) - dt * 1.1); p.ravLock = Math.max(0, (p.ravLock || 0) - dt); }
       if (w.kind === 'rotary') {
         const rot = Rotary.advance({ spin: p.ravSpin, heat: p.ravHeat, lock: p.ravLock, tracer: p.ravTracerT }, dt, p.in.fire && p.fuel > 0, p.fuel > 0);
@@ -304,7 +308,7 @@ class Room {
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;
       s.tl = [k.state, k.countdown == null ? 0 : Math.ceil(k.countdown), k.id, cr ?? 0, k.cfg.teams, k.cfg.ff ? 1 : 0, k.cfg.bo3 ? 1 : 0, k.round || 0, k.ranked ? 1 : 0, k.wins || {}]; }
-    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0), Math.round((z.stagger || 0) * 100) / 100, z.armorBroken ? 1 : 0, z.armorHp > 0 ? 1 : 0, z.maxhp > 0 ? Math.max(0, Math.min(1, z.hp / z.maxhp)) : 1]); s.w = this.wave; s.sc = this.score; s.wr = (this.toSpawn | 0) + this.zombies.size; if (this.quest) s.q = Quest.snap(this); if (this.heli) s.h = Heli.snap(this); }
+    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; if (this.lander) s.m.push([this.lander.pad, this.lander.st === 'fly' ? 2 : this.lander.st === 'call' ? 1 : 0, this.lander.from ?? 0, this.lander.to ?? 0, Math.round((this.lander.t || 0) * 10) / 10]); s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0), Math.round((z.stagger || 0) * 100) / 100, z.armorBroken ? 1 : 0, z.armorHp > 0 ? 1 : 0, z.maxhp > 0 ? Math.max(0, Math.min(1, z.hp / z.maxhp)) : 1]); s.w = this.wave; s.sc = this.score; s.wr = (this.toSpawn | 0) + this.zombies.size; if (this.quest) s.q = Quest.snap(this); if (this.heli) s.h = Heli.snap(this); }
     if (this.events.length) { s.ev = this.events; this.events = []; }
     return s;
   }

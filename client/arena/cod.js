@@ -8,6 +8,7 @@ import {addZombiesRuinedArchitecture} from './zombies-ruined-architecture.mjs';
 import {addZombiesWreckage} from './zombies-wreckage.mjs';
 import {addZombiesBioContainment} from './zombies-bio-containment.mjs';
 import {zombieWallFireDecision} from './zombies-room-dressing-plan.mjs';
+import {addCosmodromeWorld} from './cosmodrome-world.mjs';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
   x.font = 'bold 40px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = color; x.shadowBlur = 14; x.fillStyle = color;
@@ -28,7 +29,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   const winCell = new Set(L.windows.filter(w => !w.lv).map(w => w.r * GW + w.c)), obstH = new Map(), obstS = new Map();
   const UP = L.up || null, UPZ = new Set(UP ? UP.zones || [UP.zone] : []), UG = UP ? UP.grid : null, UH = UP ? UP.h : 0, H2 = UH + 3.2, RAMPAT = {}; if (UP) UP.ramps.forEach((rp, i) => { for (let r = rp.r[0]; r <= rp.r[1]; r++) for (let c = rp.c[0]; c <= rp.c[1]; c++) RAMPAT[r * GW + c] = i; });
   for (const [c0, c1, r0, r1, h, st] of L.obst) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { obstH.set(r * GW + c, h); obstS.set(r * GW + c, st); }
-  const STY = { support: [0x16120e, 0x3e342c], rail: [0x2a1a08, 0xc8901a], pillar: [0x241c18, 0x55453a], desk: [0x141c24, 0x3a5064], crate: [0x2a1a0c, 0x6a4824], bench: [0x10201a, 0x36604e], furnace: [0x1a0602, 0xc84a10], tank: [0x1a1028, 0x4a3478], pipe: [0x202024, 0x5a5a62] };
+  const STY = { support: [0x16120e, 0x3e342c], rail: [0x2a1a08, 0xc8901a], pillar: [0x241c18, 0x55453a], desk: [0x141c24, 0x3a5064], crate: [0x2a1a0c, 0x6a4824], bench: [0x10201a, 0x36604e], furnace: [0x1a0602, 0xc84a10], tank: [0x1a1028, 0x4a3478], pipe: [0x202024, 0x5a5a62], container: [0x2a2e32, 0xc45a1a], vehicle: [0x1a1c1e, 0x4a4e52], fence: [0x2a2418, 0x6a5a3a], scaffold: [0x3a3228, 0x8a7a4a], rubble: [0x3a342c, 0x5a5248], spinner: [0x2a2018, 0xc45a20], rocket: [0x3a3e42, 0xc8a040] };
   const TS = 3.4, uv = [], pos = [], col = [], C1 = new THREE.Color(), C2 = new THREE.Color();
   function boxV(x0, x1, y0, y1, z0, z1, bot, top) {   // 5 faces (no bottom); vertical gradient + per-face shade = cheap readable "lighting"
     const F = [[[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], 0.85], [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], 0.85], [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], 0.7],
@@ -84,7 +85,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (UG[r][c] === -1) upFlame.add(r * GW + c); }
   // time of day + weather for procedural maps (classic map: env null, unchanged look)
   const ENV = L.env, LF = !ENV ? 1 : ENV.tod === 'day' ? 1.3 : ENV.tod === 'dusk' ? 0.95 : 0.62; wallMat.color.setScalar(LF);
-  const SKY = !ENV ? null : ENV.tod === 'day' ? [0x9a8a76, 0x7a6a58, 20, 115] : ENV.tod === 'dusk' ? [0x3a160a, 0x2e140a, 14, 95] : [0x020208, 0x050409, 9, 68];
+  const SKY = !ENV ? null : L.kind === 'cosmodrome' ? [0x1a0804, 0x2a1008, 16, 130] : ENV.tod === 'day' ? [0x9a8a76, 0x7a6a58, 20, 115] : ENV.tod === 'dusk' ? [0x3a160a, 0x2e140a, 14, 95] : [0x020208, 0x050409, 9, 68];
   // floors: one plane per room, tinted by the room's colour (dark until opened); glowing trim line along the top of every wall
   const floors = L.zones.map((z, i) => { if (z.lv) return null; const [c0, c1, r0, r1] = z.r, fw = (c1 - c0 + 1) * CELL, fh = (r1 - r0 + 1) * CELL, fgeo = new THREE.PlaneGeometry(fw, fh).rotateX(-Math.PI / 2), fu = fgeo.attributes.uv; for (let k = 0; k < fu.count; k++) fu.setXY(k, fu.getX(k) * fw / 6, fu.getY(k) * fh / 6); const m = new THREE.Mesh(g(fgeo), basic(0x101010, { map: TEX('floor') }));
     m.position.set((WX(c0) + WX(c1)) / 2, 0.01, (WZ(r0) + WZ(r1)) / 2); root.add(m); m.userData.c = new THREE.Color(z.col);
@@ -117,7 +118,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     if (ri === undefined) { e.lv = e.lv ? 1 : 0; e.y = e.lv * UH; return e; } const rp = UP.ramps[ri], v = rp.ax === 'z' ? e.z : e.x, t = Math.max(0, Math.min(1, (v - rp.lo) / (rp.hi - rp.lo))); e.y = t * UH; e.lv = t > 0.5 ? 1 : 0; return e; };
   const onRamp = (x, z) => !!UP && RAMPAT[Math.floor(z / CELL + GH / 2) * GW + Math.floor(x / CELL + GW / 2)] !== undefined;
   // minimap (2D canvas, redrawn ~6x/s)
-  const mm = document.createElement('canvas'), MS = matchMedia('(pointer:coarse)').matches ? 3 : 4; mm.width = GW * MS; mm.height = GH * MS; mm.id = 'minimap'; mm.style.cssText = 'position:fixed;right:calc(8px + env(safe-area-inset-right));top:calc(52px + env(safe-area-inset-top));z-index:3;border:1px solid #f608;border-radius:6px;background:#000a;pointer-events:none;image-rendering:pixelated;width:' + GW * MS + 'px'; document.body.appendChild(mm);
+  const mm = document.createElement('canvas'), MS = GW > 50 ? 2 : (matchMedia('(pointer:coarse)').matches ? 3 : 4); mm.width = GW * MS; mm.height = GH * MS; mm.id = 'minimap'; mm.style.cssText = 'position:fixed;right:calc(8px + env(safe-area-inset-right));top:calc(52px + env(safe-area-inset-top));z-index:3;border:1px solid #f608;border-radius:6px;background:#000a;pointer-events:none;image-rendering:pixelated;width:' + GW * MS + 'px'; document.body.appendChild(mm);
   const mx = mm.getContext('2d'); let mmT = 0;
   function drawMini(open, players, myId, boxSpot, zombies, myY = 0, q = null) { mx.clearRect(0, 0, mm.width, mm.height);
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { const v = G[r][c]; if (v < 0) continue; mx.fillStyle = v >= 100 ? (walkable(WX(c), WZ(r), open) ? '#555' : '#ff3a10') : (open >> v) & 1 ? L.zones[v].col + '88' : '#ffffff14'; mx.fillRect(c * MS, r * MS, MS, MS); }
@@ -160,158 +161,10 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   const bioContainment=addZombiesBioContainment(root,L,{low,g});
   // Mortuus-style street dressing (Kenney CC0 props, instanced). Cosmetic only.
   const wreckage=addZombiesWreckage(root,L,{low,g,basic});
-  // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
-  if (L.kind === 'cosmodrome') {
-    const launch = new THREE.Group();
-    const hullMat = basic(0xb8c0c7), noseMat = basic(0xc74b36), towerMat = basic(0x454b52), hazardMat = basic(0xe3a33b), padMat = basic(0x30343a);
-    const pad = new THREE.Mesh(g(new THREE.CylinderGeometry(3.8, 3.8, 0.18, low ? 8 : 14)), padMat); pad.position.y = 0.12; launch.add(pad);
-    const body = new THREE.Mesh(g(new THREE.CylinderGeometry(0.78, 0.98, 7.2, low ? 6 : 10)), hullMat); body.position.y = 4.05; launch.add(body);
-    const nose = new THREE.Mesh(g(new THREE.ConeGeometry(0.79, 2.0, low ? 6 : 10)), noseMat); nose.position.y = 8.65; launch.add(nose);
-    const stripe = new THREE.Mesh(g(new THREE.CylinderGeometry(0.99, 0.99, 0.34, low ? 6 : 10)), hazardMat); stripe.position.y = 2.0; launch.add(stripe);
-    const postGeo = g(new THREE.BoxGeometry(0.22, 8.2, 0.22));
-    const beamGeo = g(new THREE.BoxGeometry(6.4, 0.22, 0.22));
-    const braceGeo = g(new THREE.BoxGeometry(4.4, 0.12, 0.12));
-    for (const x of [-2.8, 2.8]) for (const z of [-1.8, 1.8]) {
-      const post = new THREE.Mesh(postGeo, towerMat); post.position.set(x, 4.1, z); launch.add(post);
-    }
-    for (const y of [1.2, 4.2, 7.8]) {
-      const beamX = new THREE.Mesh(beamGeo, towerMat); beamX.position.set(0, y, -1.8); launch.add(beamX);
-      const beamZ = new THREE.Mesh(beamGeo, towerMat); beamZ.position.set(-2.8, y, 0); beamZ.rotation.y = Math.PI / 2; launch.add(beamZ);
-    }
-    for (const side of [-1, 1]) {
-      const brace = new THREE.Mesh(braceGeo, towerMat); brace.position.set(side * 2.8, 3.6, -1.8); brace.rotation.z = side * -0.9; launch.add(brace);
-    }
-    // Service gantry: cross-bracing, cable trays and small hazard lamps make the rocket read as infrastructure.
-    const cable = new THREE.Mesh(g(new THREE.BoxGeometry(0.16, 6.6, 0.16)), basic(0x252b31)); cable.position.set(-3.25, 3.5, 1.9); launch.add(cable);
-    const ladder = new THREE.Mesh(g(new THREE.BoxGeometry(0.08, 5.6, 0.08)), hazardMat); ladder.position.set(2.95, 3.0, 1.95); launch.add(ladder);
-    for (let y = 1.0; y < 6.0; y += 0.55) { const rung = new THREE.Mesh(g(new THREE.BoxGeometry(0.55, 0.055, 0.08)), hazardMat); rung.position.set(2.72, y, 1.95); launch.add(rung); }
-    // Painted launch-pad hazard arcs and service markings.
-    const ringMat = basic(0xe0a13b, { transparent: true, opacity: 0.75 });
-    for (const radius of [2.45, 3.05]) { const ring = new THREE.Mesh(g(new THREE.TorusGeometry(radius, 0.045, 4, low ? 16 : 32)), ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = 0.24; launch.add(ring); }
-    for (let i = 0; i < 12; i++) { const mark = new THREE.Mesh(g(new THREE.BoxGeometry(0.65, 0.025, 0.13)), hazardMat); const a = i * Math.PI / 6; mark.position.set(Math.cos(a) * 3.25, 0.24, Math.sin(a) * 3.25); mark.rotation.y = -a; launch.add(mark); }
-    // Four high-mounted floodlight poles and red aviation beacons; all unlit meshes to keep mobile rendering cheap.
-    const poleGeo = g(new THREE.CylinderGeometry(0.07, 0.11, 9.5, low ? 4 : 6));
-    for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) {
-      const pole = new THREE.Mesh(poleGeo, towerMat); pole.position.set(x, 4.75, z); launch.add(pole);
-      const arm = new THREE.Mesh(g(new THREE.BoxGeometry(1.1, 0.12, 0.12)), towerMat); arm.position.set(x + (x < 0 ? 0.35 : -0.35), 9.1, z); launch.add(arm);
-      const beacon = new THREE.Mesh(g(new THREE.SphereGeometry(0.18, low ? 5 : 8, low ? 4 : 6)), basic(0xe23c34, { transparent: true, opacity: 0.9, blending: add, depthWrite: false })); beacon.position.set(x, 9.2, z); launch.add(beacon);
-    }
-    // Grounded rocket exhaust hardware: four skirt fins and dark engine bells.
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; const fin = new THREE.Mesh(g(new THREE.BoxGeometry(0.16, 1.0, 1.1)), noseMat); fin.position.set(Math.cos(a) * 0.92, 1.25, Math.sin(a) * 0.92); fin.rotation.y = -a; launch.add(fin); }
-    const engine = new THREE.Mesh(g(new THREE.CylinderGeometry(0.34, 0.48, 0.6, low ? 6 : 10)), basic(0x22262b)); engine.position.y = 0.62; launch.add(engine);
-    launch.position.set(WX(33), 0, WZ(25)); root.add(launch);
+  const cosmo = L.kind === 'cosmodrome' ? addCosmodromeWorld(root, L, { low, g, basic, label, scene }) : null;
 
-    // Distinctive, low-cost cosmodrome dressing: fuel tanks, pipe runs, warning placards and debris.
-    const yard = new THREE.Group(), tankMat = basic(0x59636b), bandMat = basic(0xc47b37), concreteMat = basic(0x4a4d50), rustMat = basic(0x75412f);
-    const addTank = (x, z, radius, height) => {
-      const tank = new THREE.Mesh(g(new THREE.CylinderGeometry(radius, radius, height, low ? 6 : 10)), tankMat); tank.position.set(x, height / 2, z); yard.add(tank);
-      const cap = new THREE.Mesh(g(new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.14, low ? 6 : 10)), bandMat); cap.position.set(x, height * 0.72, z); yard.add(cap);
-      const foot = new THREE.Mesh(g(new THREE.BoxGeometry(radius * 2.5, 0.22, radius * 2.5)), concreteMat); foot.position.set(x, 0.11, z); yard.add(foot);
-    };
-    addTank(WX(29) - WX(28), WZ(5) - WZ(4), 0.85, 3.8);
-    addTank(WX(37) - WX(28), WZ(5) - WZ(4), 0.85, 3.2);
-    // Pipe rack is intentionally offset from the walkable centerline.
-    for (const z of [-0.8, 0, 0.8]) { const pipe = new THREE.Mesh(g(new THREE.CylinderGeometry(0.09, 0.09, 7.4, low ? 5 : 8)), basic(0x68747b)); pipe.rotation.z = Math.PI / 2; pipe.position.set(0, 2.5 + z * 0.35, 0); yard.add(pipe); }
-    // Warning chevrons at the fuel sector and battered concrete barriers at the yard edge.
-    for (let i = 0; i < 5; i++) { const barrier = new THREE.Mesh(g(new THREE.BoxGeometry(1.2, 0.75, 0.65)), concreteMat); barrier.position.set(-5.2 + i * 2.6, 0.38, 7.4); barrier.rotation.y = (i % 2 ? 0.04 : -0.04); yard.add(barrier); }
-    for (let i = 0; i < 4; i++) { const stripe = new THREE.Mesh(g(new THREE.BoxGeometry(0.75, 0.035, 0.14)), bandMat); stripe.position.set(-3.2 + i * 1.7, 0.79, 7.4); stripe.rotation.y = -0.45; yard.add(stripe); }
-    // Broken crates and a damaged utility cabinet sell abandonment without adding new collision.
-    for (const [x, z, rot] of [[-5.8, 3.4, 0.2], [5.2, 2.8, -0.3], [-4.6, -3.1, 0.7]]) {
-      const crate = new THREE.Mesh(g(new THREE.BoxGeometry(0.9, 0.8, 0.85)), basic(0x42372e)); crate.position.set(x, 0.4, z); crate.rotation.y = rot; yard.add(crate);
-      const slat = new THREE.Mesh(g(new THREE.BoxGeometry(0.98, 0.08, 0.9)), rustMat); slat.position.set(x, 0.77, z); slat.rotation.y = rot; yard.add(slat);
-    }
-    yard.position.set(WX(33), 0, WZ(25)); root.add(yard);
 
-    // Abandoned deep-space research complex: brutalist facades, dead observation windows,
-    // collapsed conduits, old cryogenic equipment and battered facility signage.
-    // These are lightweight decorative meshes only; gameplay collision stays server-authored.
-    const ruin = new THREE.Group();
-    const concrete = basic(0x555652), paleConcrete = basic(0x77776d), rust = basic(0x6b3928);
-    const glassDead = basic(0x172a30, { transparent: true, opacity: 0.82, metalness: 0.15, roughness: 0.8 });
-    const emergency = basic(0x9e3328), fadedCream = basic(0xb5a77d), cableMat = basic(0x292d30);
-    const boxMesh = (w, h, d, mat, x, y, z, rot = 0, parent = ruin) => {
-      const m = new THREE.Mesh(g(new THREE.BoxGeometry(w, h, d)), mat);
-      m.position.set(x, y, z); m.rotation.y = rot; parent.add(m); return m;
-    };
-    const cylinder = (radius, length, mat, x, y, z, rotZ = Math.PI / 2, parent = ruin) => {
-      const m = new THREE.Mesh(g(new THREE.CylinderGeometry(radius, radius, length, low ? 5 : 8)), mat);
-      m.position.set(x, y, z); m.rotation.z = rotZ; parent.add(m); return m;
-    };
-    // Low, windowed observation annexes sit against room edges, not across the combat lanes.
-    const annex = (cx, cz, width, depth, rot = 0) => {
-      const a = new THREE.Group(); a.position.set(cx, 0, cz); a.rotation.y = rot; ruin.add(a);
-      boxMesh(width, 2.8, depth, concrete, 0, 1.4, 0, 0, a);
-      boxMesh(width * 0.82, 0.10, depth * 1.04, rust, 0, 2.85, 0, 0, a);
-      const n = Math.max(2, Math.floor(width / 1.25));
-      for (let i = 0; i < n; i++) {
-        const x = -width * 0.36 + i * (width * 0.72 / Math.max(1, n - 1));
-        boxMesh(width / n * 0.68, 0.82, 0.06, glassDead, x, 1.92, depth / 2 + 0.035, 0, a);
-        boxMesh(0.07, 0.94, 0.10, paleConcrete, x, 1.92, depth / 2 + 0.08, 0, a);
-      }
-      // A broken corner and exposed rebar make the building look decades abandoned.
-      boxMesh(width * 0.22, 0.16, depth * 0.32, rust, width * 0.37, 2.2, -depth * 0.2, 0.22, a);
-      for (let i = 0; i < 3; i++) cylinder(0.035, 0.7, rust, width * 0.35 + i * 0.13, 2.45, -depth * 0.25, 0.6, a);
-    };
-    annex(WX(8), WZ(27), 6.8, 1.8, 0);
-    annex(WX(8), WZ(5), 6.8, 1.8, Math.PI);
-    annex(WX(20), WZ(5), 6.4, 1.6, Math.PI);
-    annex(WX(32), WZ(5), 6.5, 1.8, Math.PI);
-    // Old launch-control consoles: slanted monitor banks, cracked screens and dead indicator lamps.
-    const consoleBank = (x, z, count = 3) => {
-      for (let i = 0; i < count; i++) {
-        const px = x + (i - (count - 1) / 2) * 1.15;
-        boxMesh(0.95, 0.9, 0.58, concrete, px, 0.55, z);
-        const screen = boxMesh(0.72, 0.42, 0.08, glassDead, px, 1.03, z + 0.27, -0.12);
-        screen.material = glassDead;
-        boxMesh(0.8, 0.06, 0.62, rust, px, 1.15, z);
-        for (let j = 0; j < 3; j++) {
-          const lamp = new THREE.Mesh(g(new THREE.SphereGeometry(0.045, low ? 4 : 6, 4)), basic(j === 0 ? 0x9e3328 : 0x8a713d));
-          lamp.position.set(px - 0.2 + j * 0.2, 0.76, z + 0.33); ruin.add(lamp);
-        }
-      }
-    };
-    consoleBank(WX(19), WZ(7), 4);
-    consoleBank(WX(8), WZ(9), 3);
-    // Containment lab: obsolete cryo cylinders with cracked inspection bands and a leaking pipe.
-    for (const [x, z, h] of [[4.8, 7.2, 2.3], [11.8, 7.8, 2.6], [5.4, 13.2, 2.0]]) {
-      const pod = new THREE.Mesh(g(new THREE.CylinderGeometry(0.46, 0.52, h, low ? 6 : 10)), concrete);
-      pod.position.set(WX(x), h / 2, WZ(z)); ruin.add(pod);
-      const viewport = new THREE.Mesh(g(new THREE.CylinderGeometry(0.39, 0.39, 0.09, low ? 6 : 10)), glassDead);
-      viewport.position.set(WX(x), h * 0.67, WZ(z)); ruin.add(viewport);
-      const band = new THREE.Mesh(g(new THREE.CylinderGeometry(0.54, 0.54, 0.12, low ? 6 : 10)), rust);
-      band.position.set(WX(x), h * 0.28, WZ(z)); ruin.add(band);
-      boxMesh(0.55, 0.09, 0.12, emergency, WX(x) + 0.45, h * 0.58, WZ(z) + 0.02);
-    }
-    // Sagging overhead service lines and severed conduits along the wall edges.
-    for (const [x0, x1, z, y] of [[4, 13, 16.1, 2.6], [16, 24, 16.1, 2.3], [28, 37, 16.1, 2.7], [4, 12, 31.2, 2.4]]) {
-      cylinder(0.075, Math.abs(WX(x1) - WX(x0)), cableMat, (WX(x0) + WX(x1)) / 2, y, WZ(z));
-      for (const x of [x0, x1]) boxMesh(0.16, 0.75, 0.16, rust, WX(x), y - 0.45, WZ(z));
-    }
-    // Facility wayfinding plates: worn, faded blocks with emergency-red header bars.
-    const sign = (textLabel, x, z, w = 2.4) => {
-      const plate = new THREE.Group();
-      boxMesh(w, 0.72, 0.12, fadedCream, 0, 0, 0, 0, plate);
-      boxMesh(w * 0.94, 0.12, 0.14, emergency, 0, 0.25, 0, 0, plate);
-      const tag = label(textLabel, '#d8cba5', 512, 1.25);
-      tag.position.set(0, -0.02, 0.09); tag.scale.set(w * 0.88, 0.34, 1); plate.add(tag);
-      plate.position.set(WX(x), 3.0, WZ(z)); plate.rotation.y = Math.PI; ruin.add(plate);
-    };
-    sign('LAUNCH CONTROL', 19, 3.6, 3.4);
-    sign('CRYO / BIOHAZARD', 8, 3.6, 3.5);
-    sign('REACTOR ACCESS', 32, 3.6, 3.0);
-    sign('STAFF SHELTER', 8, 18.6, 2.8);
-    // Rubble piles, fallen panels and torn insulation: scattered to the sides of routes.
-    for (const [x, z, rot] of [[5, 20, 0.3], [12, 28, -0.5], [17, 13, 0.7], [23, 11, -0.25], [28, 20, 0.45], [36, 14, -0.7]]) {
-      boxMesh(1.0, 0.22, 0.7, paleConcrete, WX(x), 0.12, WZ(z), rot);
-      boxMesh(0.6, 0.12, 0.45, rust, WX(x) + 0.12, 0.28, WZ(z) - 0.08, rot + 0.3);
-      boxMesh(0.8, 0.07, 0.12, cableMat, WX(x) - 0.22, 0.38, WZ(z) + 0.18, rot - 0.2);
-    }
-    // A failed emergency bulkhead hangs crooked at the access spine.
-    boxMesh(1.6, 2.6, 0.18, emergency, WX(24.6), 1.3, WZ(20.5), -0.07);
-    boxMesh(1.2, 0.12, 0.22, fadedCream, WX(24.6), 2.45, WZ(20.5), -0.07);
-    ruin.position.set(0, 0, 0); root.add(ruin);
-  }
-  root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
+    root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
   let boards = WN.map(() => NB), flying = [];
   // mystery box
   const box = new THREE.Group(), boxBody = new THREE.Mesh(g(new THREE.BoxGeometry(2.2, 1, 1.1).translate(0, 0.5, 0)), basic(0x3a2614)), lid = new THREE.Mesh(g(new THREE.BoxGeometry(2.3, 0.15, 1.2)), basic(0x58e0ff));
@@ -448,7 +301,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
     board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
     quest(q, myId) { qState = q || null; myIdQ = myId; },
-    update(dt, m, b) { t += dt; roomDressing.update?.(dt); ruinedArchitecture.update?.(dt); bioContainment.update?.(dt); wreckage.update?.(dt); for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); enemyTracers.splice(i, 1); } } if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setHex(forgeTier === 2 ? 0x55ddff : 0xff5a10).multiplyScalar(1 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
+    update(dt, m, b) { t += dt; cosmo?.update(dt, m, t); roomDressing.update?.(dt); ruinedArchitecture.update?.(dt); bioContainment.update?.(dt); wreckage.update?.(dt); for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); enemyTracers.splice(i, 1); } }
       let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
         const y = 0.75 + k * 0.27 + (w.lv ? UH : 0), tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
         Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;
@@ -477,13 +330,30 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       for (let k = 1; k < n; k++) { const c = Math.floor((x0 + (x1 - x0) * k / n) / CELL + GW / 2), r = Math.floor((z0 + (z1 - z0) * k / n) / CELL + GH / 2); if (r < 0 || r >= GH || c < 0 || c >= GW) continue;
         const v = GG[r][c], i = r * GW + c; if (v >= 100) { const d = L.doors[v - 100]; if (!((open >> d.a) & 1 && (open >> d.b) & 1)) return false; }
         else if (v < 0 && !(l0 ? v === -2 || RAMPAT[i] !== undefined || L.windows.some(w => w.lv && w.r === r && w.c === c) : (obstH.get(i) ?? 9) < 1.5 || winCell.has(i))) return false; } return true; }, onRamp, upH: UH, hasUp: !!UP, zoneName: (x, z, lv = 0) => L.zones[zoneOf(x, z, lv)]?.n || (lv ? '' : L.zones[zoneOf(x, z, 1)]?.n) || '',
-    mini(st, myId, myY = 0) { jugOn = !!st.zombies?.some(z => z.ty === 3) || !!window.__jugTest; if ((mmT += 1) % 5 || !st.map) return; drawMini(st.map[0], st.players, myId, st.map[1], st.zombies, myY, st.quest); },
+    mini(st, myId, myY = 0) { jugOn = !!st.zombies?.some(z => z.ty === 3) || !!window.__jugTest; const meP = st.players?.find(p => p.id === myId); if (meP) cosmo?.setMe({ x: meP.x, z: meP.z, open: st.map?.[0] }); if ((mmT += 1) % 5 || !st.map) return; drawMini(st.map[0], st.players, myId, st.map[1], st.zombies, myY, st.quest); },
     prompt(me, m, pts, guns, perkBits, upBits = 0) { if (!m) return null; const [open, spot, st] = m;
       const op = m[0]; let bw = -1, bd = 2.6; WN.forEach((w, i) => { const on = ((op >> w.zone) & 1) && (w.behind == null || !((op >> w.behind) & 1)) && Math.abs((me.y || 0) - (w.lv ? UH : 0)) < 1.6, d = Math.hypot(me.x - w.ix, me.z - w.iz); if (on && d < bd && boards[i] < NB) { bd = d; bw = i; } });
       if (qState && qState[1] && qState[5] === myIdQ && near(me, qState[6], qState[7], 3, qState[8])) return { t: `${qState[0] >= 6 ? 'Pad beacon' : 'Flare console'}: fit the ${QITEM[qState[1]]?.n || 'part'}`, c: 0 };
       if (bw >= 0) return { t: `🔨 Rebuilding… (${boards[bw]}/${NB})`, c: 0, hold: 1 };
       for (const d of L.doors) { const ua = (open >> d.a) & 1, ub = (open >> d.b) & 1; if (ua === ub || Math.abs((me.y || 0) - (d.lv ? UH : 0)) > 1.6) continue; const along = d.ax === 'x' ? Math.abs(me.x - d.x) : Math.abs(me.z - d.z), across = d.ax === 'x' ? Math.abs(me.z - d.z) : Math.abs(me.x - d.x);
         if (along <= 3 && across <= 3 && (me.y || 0) < 1.6) return { t: `${d.deb ? 'Clear the debris to' : 'Open'} ${L.zones[ua ? d.b : d.a].n}`, c: d.cost }; }
+      const ln = m[4], pads = L.landers || [];
+      if (pads.length) {
+        let pad = null, pd = 3.2;
+        for (const s of pads) { const d = Math.hypot(me.x - s.x, me.z - s.z); if (d < pd && Math.abs(me.y || 0) < 1.8) { pd = d; pad = s; } }
+        if (pad) {
+          const pw = m[3] ?? 1;
+          if (!pw) return { t: 'No power. Find the Power Switch first', c: 0, no: 1 };
+          if (ln && ln[1]) return { t: 'Ash Pad in transit', c: 0, no: 1 };
+          if (ln && ln[0] !== pad.id) return { t: `Call the Ash Pad to ${pad.name}`, c: 0 };
+          if (pad.id === 0) {
+            const remotes = pads.filter(s => s.id && ((open >> s.zone) & 1));
+            if (!remotes.length) return { t: 'Open another sector to ride the Ash Pad', c: 0, no: 1 };
+            return { t: `Ride Ash Pad to ${remotes[0].name}`, c: L.landerCost || 250 };
+          }
+          return { t: 'Ride Ash Pad to Ember Well', c: L.landerCost || 250 };
+        }
+      }
       for (const w of L.wallbuys) if (near(me, w.x, w.z)) return guns.includes(w.w) ? { t: `Refill ${wname(w.w)}`, c: Math.round(w.cost / 2) } : { t: `Buy ${wname(w.w)}`, c: w.cost };
       const bs = L.box[spot]; if (st === 0 && bs && near(me, bs[0], bs[1])) return { t: 'Mystery Box: random weapon', c: L.boxCost };
       const pw = m[3] ?? 1; if (PW && near(me, PW.x, PW.z)) return pw ? { t: 'Power is on', c: 0, no: 1 } : { t: 'Power Switch: turn on the power', c: 0 };
@@ -496,6 +366,6 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },
-    dispose() { wreckage.dispose(); bioContainment.dispose(); ruinedArchitecture.dispose(); const hemi = scene.children.find(c => c.isHemisphereLight); if (hemi && hemi.userData.prev) { hemi.intensity = hemi.userData.prev.i; hemi.color.setHex(hemi.userData.prev.c); hemi.groundColor.setHex(hemi.userData.prev.g); }  for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
+    dispose() { cosmo?.dispose(); wreckage.dispose(); bioContainment.dispose(); ruinedArchitecture.dispose(); const hemi = scene.children.find(c => c.isHemisphereLight); if (hemi && hemi.userData.prev) { hemi.intensity = hemi.userData.prev.i; hemi.color.setHex(hemi.userData.prev.c); hemi.groundColor.setHex(hemi.userData.prev.g); }  for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
   };
 }

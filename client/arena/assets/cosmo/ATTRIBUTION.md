@@ -23,3 +23,16 @@ Selected, compressed-enough low-poly props used to dress **The Ashen Cosmodrome*
   gate_simple — blast-gate frames
 
 No other modifications: subset only, original GLB bytes. Materials may be tinted at runtime toward the map's ember palette. Credit Kenney / kenney.nl (requested, not required by CC0).
+
+## Kenney — Modular Space Kit 1.0 (CC0 1.0)
+
+- Source: https://kenney.nl/assets/modular-space-kit
+- License: Creative Commons Zero 1.0 (see `modular/LICENSE-kenney-modular-space-kit.txt`)
+- Creator: Kenney (www.kenney.nl)
+- Acquired: 2026-11-26
+- Files (subset of the official GLB export, in `modular/`, prefixed `kenney-ms-`):
+  template-wall, template-wall-corner, template-wall-top, template-wall-detail-a, template-wall-half,
+  gate, cables, template-floor-detail, template-detail
+
+Used as instanced visual cladding only. Runtime tint toward the ember palette. Full note in `modular/ATTRIBUTION.md`.
+

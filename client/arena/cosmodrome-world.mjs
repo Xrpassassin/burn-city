@@ -2,6 +2,7 @@
 // a stacked BURN rocket, spin well, and Ash Pad trams. Collision stays on the server obst list.
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import { addCosmodromeArchitecture } from './cosmodrome-architecture.mjs';
 
 const ASSET = n => new URL(`./assets/cosmo/kenney-${n}.glb`, import.meta.url).href;
 const CACHE = new Map();
@@ -275,6 +276,8 @@ export function addCosmodromeWorld(root, L, { low, g, basic, label, scene }) {
     }
   }).catch(() => {});
 
+  const arch = addCosmodromeArchitecture(group, L, { low, g, basic, zones, always, WX, WZ });
+
   // Ember lamps along unlocked-looking routes (culled with their zone).
   const lampGeo = g(new THREE.CylinderGeometry(0.07, 0.1, 3.6, low ? 4 : 6));
   const glowGeo = g(new THREE.SphereGeometry(0.16, 6, 5));
@@ -306,6 +309,7 @@ export function addCosmodromeWorld(root, L, { low, g, basic, label, scene }) {
     setMe(me) { cull(me); },
     update(dt, m, t) {
       if (spin) spin.rotation.y += dt * 0.55;
+      arch?.update(dt);
       for (const gl of lamps) gl.material.opacity = 0.45 + 0.3 * Math.abs(Math.sin((t || 0) * 3 + gl.id));
       const ln = m && m[4];
       if (pads.length) {
@@ -331,6 +335,6 @@ export function addCosmodromeWorld(root, L, { low, g, basic, label, scene }) {
       if (lastMe && m) lastMe.open = m[0];
       cull(lastMe);
     },
-    dispose() { group.removeFromParent(); }
+    dispose() { arch?.dispose(); group.removeFromParent(); }
   };
 }

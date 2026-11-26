@@ -43,3 +43,7 @@ Each GLB is self-contained (colormap embedded), textures compressed to WebP, mes
 ## Ashen Cosmodrome environment (map 2 rebuild)
 
 The rebuilt Cosmodrome is a larger, door-gated BURN / XRPL launch complex. Visual props come from a subset of [Kenney Space Kit 2.0](https://kenney.nl/assets/space-kit) (CC0 1.0), credited in `assets/cosmo/ATTRIBUTION.md` and `zombies-credits.html`. Server collision, doors, Ash Pads, and spawns are authored in `server/cosmodrome-map.js`. Low-graphics mode thins instanced props and skips the Kenney rocket stack (primitives still draw). Zone groups farther than ~72 m are hidden; the launch vehicle stays visible as a landmark.
+
+## Ashen Cosmodrome architecture pass (de-blockify)
+
+Map 2 walls were greedy-merged 2 m cubes. A visual-only architecture pass instances a subset of [Kenney Modular Space Kit 1.0](https://kenney.nl/assets/modular-space-kit) (CC0 1.0, confirmed on the official page and CC0 1.0 deed) as wall cladding, corners, door gates, floor plates and cable runs (`assets/cosmo/modular/`). Procedural instanced pieces add door frames with hazard stripes, window frames, indoor ceilings and beams (the Ember Well atrium stays open), emissive strips, light pools, outdoor parapets and antennae, curbs, and visual treads on the existing spawn ramp. Low-graphics mode keeps frames, corners, gates and a thinned set of panels/beams and drops cables, most floor plates, antennae and light pools. Server grid, collision, doors, windows, pads, buys and spawns are unchanged.

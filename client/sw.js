@@ -3,7 +3,7 @@
 // - Everything else on our origin (HTML, app code, data.js, data/*.json): NETWORK-FIRST,
 //   cache only used when offline -> nightly data refresh and new code always win when online.
 // - Live feed (wss://) and GoatCounter are never touched by the SW.
-const VERSION = 'bc-v197-visitors';
+const VERSION = 'bc-v198-avatar-npc';
 const SHELL = `${VERSION}-shell`, RUNTIME = `${VERSION}-runtime`;
 const PRECACHE = ['js/estate-ownership-ui.mjs', 'estate-properties.html', 'estate-theme.css', 'estate-buyer-preview.js', 'js/estate-portfolio-ui.mjs', 'js/estate-reward-scenario.mjs', 'js/estates-directory.mjs', 'js/estates-panel-layout.mjs', 'js/estates-walking-guidance.mjs', 'js/estate-prestige-ui.mjs', 'js/estate-tycoon-ui.mjs', 'js/estates-tycoon-decor.mjs', 'js/estates-tycoon-architecture.mjs', 'js/estates-secret-layout.mjs', 'js/estates-secret-interior-renderer.mjs', 'js/estates-home-layout.mjs', 'js/estates-home-plans.mjs', 'js/estates-home-door.mjs', 'js/estates-interior-models.mjs', 'js/estates-helicopter-flight.mjs', 'js/estates-helicopter-world.mjs', 'js/estates-hangar-ui.mjs', 'js/estates-house-design.mjs', 'js/estate-free-style-options.mjs', 'js/estate-free-style-ui.mjs', 'js/estates-material-fidelity.mjs', 'js/nft-avatar-placeholder.js', './', 'index.html', 'style.css', 'ui.css', 'burn-ui-tokens.css', 'ui-v8.css', 'aegis-news.css', 'estates-xaman-signin.css', 'data.js', 'burned.js', 'launchpad.js', 'ads.js', 'manifest.webmanifest',
   'js/aegis-news.mjs', 'js/estates-xaman-signin.mjs', 'js/trusted-server.mjs', 'js/trusted-server.js', 'js/safe-html.mjs', 'js/app.js', 'js/notify-lane.mjs', 'ui-forge.css', 'js/ui-forge.mjs', 'hud-zones.css', 'js/hud-zones.mjs', 'fonts/barlow/Barlow-500.woff2', 'fonts/barlow/Barlow-600.woff2', 'fonts/barlow/Barlow-700.woff2', 'fonts/barlow/BarlowCondensed-700.woff2', 'fonts/barlow/BarlowCondensed-800.woff2', 'js/city-space.mjs', 'js/city-space-core.mjs', 'space/flight.mjs', 'js/citizens.mjs', 'js/citizens-core.mjs', 'js/citizens-motion.mjs', 'js/citizens-life.mjs', 'js/cityprops.mjs', 'js/cityprops-core.mjs', 'js/pirate-party-barge.mjs', 'js/pirate-party-barge-layout.mjs', 'js/citybuildings2.mjs', 'js/citybuildings2-core.mjs', 'js/amm-gold-vein-profile.mjs', 'js/estate-purchase-ui.mjs', 'js/estate.js', 'js/drone.js', 'js/live.js', 'js/net.js', 'js/pwa.js', 'js/extras.js', 'js/city.js', 'js/nftchar.js', 'js/nft-avatar-adapters.js', 'js/nft-avatar-components.js', 'js/nft-avatar-reconstruction.js',  'js/walker.js', 'js/default-player-avatar.mjs', 'js/player-gait.mjs', 'js/hover-mage-avatar.mjs', 'js/player-model-choice.mjs', 'js/experience-avatar-policy.mjs', 'js/player-motion.mjs', 'js/jetpack-shop.mjs', 'js/jetpack-city.mjs', 'js/nftpick.js', 'js/fx2.js', 'js/retain.js', 'js/fish.js', 'js/fishing-rules.mjs', 'js/boat.js', 'js/fishing-boat-models.mjs', 'js/npc.js', 'js/debug.js', 'js/ui.js', 'js/replay.js', 'js/tower-interior.js', 'js/ember-bar.mjs', 'js/ember-bar-building.mjs', 'js/ember-bar-lot.mjs', 'js/skate.js', 'js/streetprops.js', 'js/citylife.js', 'js/events.js', 'js/airport.js', 'js/airport-shuttle.mjs', 'js/experience-registry.mjs', 'js/estates-city-lake-geometry.mjs', 'js/estates-entry-adapter.mjs', 'js/estates-island-scene.mjs', 'js/estates-neighborhood-data.mjs', 'js/estates-neighborhood-renderer.mjs', 'js/estates-island-renderer.mjs', 'js/estates-island-runtime.mjs', 'js/estates-island-navigation.mjs', 'js/estates-island-controller.mjs', 'js/estates-island-live.mjs', 'js/skategear.js', 'js/aegis.js', 'js/aegis-pyramid.js', 'js/rainbow.js', 'js/goldlock.js', 'js/amm-lock.js', 'js/wilds-gate.js',   // The Wilds: only the tiny gate stub is precached; wilds*.js, data/wilds/*.json are runtime-cached on demand, music/ is never cached
@@ -15,12 +15,19 @@ const PRECACHE = ['js/estate-ownership-ui.mjs', 'estate-properties.html', 'estat
     'shaders/LuminosityHighPassShader.js','shaders/OutputShader.js','utils/BufferGeometryUtils.js','loaders/GLTFLoader.js','utils/SkeletonUtils.js'].map(p => 'vendor/three/examples/jsm/' + p)];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(PRECACHE.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting()));
+  // Add files individually so one missing URL cannot abort install (addAll is atomic and would
+  // leave phones on a stale worker). Then take over immediately.
+  e.waitUntil((async () => {
+    const c = await caches.open(SHELL);
+    await Promise.all(PRECACHE.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {})));
+    await self.skipWaiting();
+  })());
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => !k.startsWith(VERSION + '-')).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
+self.addEventListener('message', e => { if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting(); });
 const isImmutable = u => u.pathname.includes('/vendor/') || u.pathname.includes('/icons/');
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;

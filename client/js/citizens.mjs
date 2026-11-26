@@ -93,7 +93,9 @@ async function init() {
     agents.push(initMotion({ named: s, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
-  if (peds) peds.visible = false; if (shop) shop.visible = false;
+  const hideCapsules = () => { if (c.pedMesh) c.pedMesh.visible = false; if (L && L.shopperMesh) L.shopperMesh.visible = false; };
+  hideCapsules();
+  CC.far = FAR;   // mark that 3D people are in the scene so a later failure must not bring the capsules back
   // near LOD pool: each model's rigged glTF is fetched only the first time someone of that model comes close.
   // Phones get 512 px textures (<id>-tex-512/) instead of 1024 px.
   const lm = new THREE.LoadingManager(); if (c.MOBILE || c.TIER === 'low') lm.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
@@ -135,6 +137,7 @@ async function init() {
   function tick() {
     requestAnimationFrame(tick); if (window.__cityPaused) return;
     const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; if (dt <= 0) return;
+    hideCapsules();   // keep the legacy capsule crowd hidden; anything that re-shows it would overlay the 3D people
     const cam = c.C; cam.updateMatrixWorld(); pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); fr.setFromProjectionMatrix(pm);
     const cx = cam.position.x, cz = cam.position.z;
     // GTA-style locomotion: the crowd sims say where people are headed; each body eases, turns, leans and sidesteps.
@@ -203,6 +206,11 @@ const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMin
 
 if (Q.get('citizens') !== '0') (function wait(n = 0) {
   const c = window.__city, L = window.__cityLife;
-  if (c && c.pedMesh && c.S && c.C && L && L.ready) init().catch(e => { console.warn('citizens: falling back to capsules', e); if (c.pedMesh) c.pedMesh.visible = true; if (L.shopperMesh) L.shopperMesh.visible = true; CC.error = String(e); });
+  if (c && c.pedMesh && c.S && c.C && L && L.ready) init().catch(e => {
+    console.warn('citizens: falling back to capsules', e); CC.error = String(e);
+    // Only bring capsules back if the 3D crowd never made it into the scene. Re-showing them after
+    // FAR meshes exist is what stacked the old capsule people on top of the current citizens.
+    if (!CC.ready && !CC.far) { if (c.pedMesh) c.pedMesh.visible = true; if (L.shopperMesh) L.shopperMesh.visible = true; }
+  });
   else if (n < 240) setTimeout(() => wait(n + 1), 500);
 })();

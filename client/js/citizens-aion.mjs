@@ -38,7 +38,7 @@ export function recallLine(state, place) {
   const key = 'visit:' + place;
   if (visits >= 2 && !state.spoken.has(key) && histories[state.id]?.some(m => m.place === place)) {
     state.spoken.add(key);
-    return "I've been back here a few times today. It's becoming a familiar stop.";
+    return "I've been back here a few times lately. It's becoming a familiar stop.";
   }
   return null;
 }

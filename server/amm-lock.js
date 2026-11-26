@@ -14,6 +14,7 @@ const BURN_KEY = BURN_ISSUER + '-' + BURN_CURRENCY;
 const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');
 
 const REFRESH_MS = 2 * 3600e3;        // full re-verification every 2 h
+const BURN_RECOVERY_DELAYS_MS = [30e3, 120e3, 300e3]; // BURN-only retries after an unverified full refresh
 const STALE_MS = 6 * 3600e3;          // anything older than 6 h is served as UNVERIFIED (stale)
 const ACCT_TTL = 6 * 3600e3;          // account_info cache
 const MIN_GAP_MS = 150;               // rate limit: >= 150 ms between our XRPL calls (~6/s, single flight)
@@ -114,8 +115,37 @@ function create(opts = {}) {
   // Reviewed, server-owned evidence only. No launch number is inferred from market snapshots.
   const ecosystemEvidence = opts.ecosystemSupplyEvidence instanceof Map ? opts.ecosystemSupplyEvidence : new Map();
   const rpc0 = opts.rpc, now = opts.now || (() => Date.now()), gap = opts.gap != null ? opts.gap : MIN_GAP_MS;
+  const defer = opts.setTimeout || setTimeout;
   const S = { pools: {}, tokens: {}, run: null, last_ok: null, last_err: null, calls: 0, started: null }, acct = new Map();
+  const burnRecovery = [];
   let lastCall = 0; const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function clearBurnRecovery() {
+    while (burnRecovery.length) {
+      const t = burnRecovery.pop();
+      if (typeof clearTimeout === 'function') clearTimeout(t);
+    }
+  }
+  function scheduleBurnRecovery(data) {
+    // Full pool refresh is every 2h. If BURN alone failed closed, keep trying a
+    // cheap BURN-only audit so the singularity can recover without waiting.
+    // Never loosen pin rules; never invent a burned %.
+    if (burnRecovery.length) return;
+    for (const ms of BURN_RECOVERY_DELAYS_MS) {
+      const t = defer(() => {
+        if (S.tokens.BURN && S.tokens.BURN.status === 'verified') return Promise.resolve();
+        if (S.run) return Promise.resolve();
+        return (async () => {
+          try {
+            const d = data(); if (!d) return;
+            const pools = d.pools.filter(p => p.amm && !p.gone);
+            S.tokens.BURN = await auditBurnToken(pools);
+          } catch (_) {}
+        })();
+      }, ms);
+      if (t && typeof t.unref === 'function') t.unref();
+      burnRecovery.push(t);
+    }
+  }
   async function call(m, p) { const w = lastCall + gap - Date.now(); if (w > 0) await sleep(w); lastCall = Date.now(); S.calls++;
     try { const r = await rpc0(m, p); if (r && r.error && r.error !== 'actNotFound') return { __err: r.error }; return r || { __err: 'empty' }; } catch (e) { return { __err: e.message || String(e) }; } }
   async function info(a) { const c = acct.get(a); if (c && now() - c.t < ACCT_TTL) return c.r; const r = await call('account_info', { account: a, ledger_index: 'validated', signer_lists: true });
@@ -132,22 +162,30 @@ function create(opts = {}) {
     let esc = null; if (ai.amm) { const r = await call('account_objects', { account: p.amm, type: 'escrow', ledger_index: 'validated', limit: 200 }); if (!r.__err) esc = r.account_objects || []; }
     return computePoolLock(ai, lines, infos, esc, { amm: p.amm, pair: p.a + '/' + p.b, reported_pct: p.locked_pct, now: now() });
   }
-  async function token(n, pools) {
-    if(n.key === BURN_KEY) {
-      let record;
-      // Read-only ledger gateways occasionally return an inconsistent snapshot
-      // between server_info, account_info, escrow and gateway_balances.
-      // Retry with a NEW pinned ledger, never loosen reconciliation rules or
-      // preserve an unverified percentage. A successful first try costs no extra RPC.
-      for (let attempt=0; attempt<3; attempt++) {
-        try { record = await auditBurnSupply({rpc:call,now:now()}); }
-        catch(e) { record = {status:'unverified',reason:e.message}; }
-        if (record?.status === 'verified') break;
-      }
-      return {name:n.name,issuer:BURN_ISSUER,currency:BURN_CURRENCY,status:record.status,
-        t_ms:now(),ts:iso(now()),issuer_keys_disabled:record.status==='verified'?true:null,
-        supply_reconciliation:record,pools:pools.filter(p=>p.a===n.name||p.b===n.name).map(p=>p.amm)};
+  // auditBurnSupply must see real RPC failures. `call` swallows them into
+  // `{__err}`, which reconcileBurnSupply mislabels as a pin mismatch.
+  async function auditRpc(m, p) {
+    const r = await call(m, p);
+    if (r && r.__err) throw new Error(String(r.__err));
+    return r;
+  }
+  async function auditBurnToken(pools) {
+    let record;
+    // Read-only ledger gateways occasionally return an inconsistent snapshot
+    // between server_info, account_info, escrow and gateway_balances.
+    // Retry with a NEW pinned ledger, never loosen reconciliation rules or
+    // preserve an unverified percentage. A successful first try costs no extra RPC.
+    for (let attempt=0; attempt<3; attempt++) {
+      try { record = await auditBurnSupply({rpc:auditRpc,now:now()}); }
+      catch(e) { record = {status:'unverified',reason:e.message}; }
+      if (record?.status === 'verified') break;
     }
+    return {name:'BURN',issuer:BURN_ISSUER,currency:BURN_CURRENCY,status:record.status,
+      t_ms:now(),ts:iso(now()),issuer_keys_disabled:record.status==='verified'?true:null,
+      supply_reconciliation:record,pools:pools.filter(p=>p.a==='BURN'||p.b==='BURN').map(p=>p.amm)};
+  }
+  async function token(n, pools) {
+    if(n.key === BURN_KEY) return auditBurnToken(pools);
     const i = n.key.indexOf('-'), issuer = n.key.slice(0, i), currency = n.key.slice(i + 1);
     const gw = await call('gateway_balances', { account: issuer, ledger_index: 'validated' });
     const lines = []; let marker, pages = 0, ok = true;
@@ -170,6 +208,7 @@ function create(opts = {}) {
   }
   async function refresh(data) {
     if (S.run) return S.run;
+    clearBurnRecovery();
     S.run = (async () => { S.started = iso(now());
       try { const d = data(); if (!d) throw new Error('no eco data');
         const pools = d.pools.filter(p => p.amm && !p.gone);
@@ -192,6 +231,8 @@ function create(opts = {}) {
           S.tokens[n.name] = await token(n, pools);
         }
         S.last_ok = iso(now()); S.last_err = null;
+        if (S.tokens.BURN && S.tokens.BURN.status !== 'verified') scheduleBurnRecovery(data);
+        else clearBurnRecovery();
       } catch (e) { S.last_err = e.message; } finally { S.run = null; } })();
     return S.run;
   }
@@ -222,4 +263,4 @@ function handle(req, res, url, { json }) {
   const s = inst.snapshot(); if (!s.last_ok && !Object.keys(s.pools).length) { json(res, 503, { ...s, error: 'warming_up' }); return true; }
   json(res, 200, s); return true;
 }
-module.exports = { start, handle, create, classifyAccount, computePoolLock, computeTokenBurn, servable, REFRESH_MS, STALE_MS, LP_CHECK_MIN, _inst: () => inst };
+module.exports = { start, handle, create, classifyAccount, computePoolLock, computeTokenBurn, servable, REFRESH_MS, STALE_MS, LP_CHECK_MIN, BURN_RECOVERY_DELAYS_MS, _inst: () => inst };

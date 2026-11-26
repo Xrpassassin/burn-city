@@ -134,6 +134,30 @@
    "height": 1.82,
    "sex": "m",
    "enabled": true
+  },
+  {
+   "id": "patrol-officer",
+   "title": "Realistic Male Police Officer",
+   "artist": "Realistic 3d",
+   "artistUrl": "https://sketchfab.com/Mystery101",
+   "uid": "5378137d69c34df3bedf334af58a7950",
+   "url": "https://sketchfab.com/3d-models/realistic-male-police-officer-5378137d69c34df3bedf334af58a7950",
+   "height": 1.8,
+   "sex": "m",
+   "enabled": true,
+   "namedOnly": true
+  },
+  {
+   "id": "army-officer",
+   "title": "Army Officer",
+   "artist": "Nasser (Box Games in the source archive)",
+   "artistUrl": "https://sketchfab.com/Nasser_",
+   "uid": "1ccd699c3f9c4cb4a015aac924ba3e84",
+   "url": "https://sketchfab.com/3d-models/army-officer-1ccd699c3f9c4cb4a015aac924ba3e84",
+   "height": 1.82,
+   "sex": "m",
+   "enabled": true,
+   "namedOnly": true
   }
  ]
 }

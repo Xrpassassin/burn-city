@@ -1,0 +1,18 @@
+{
+  "schema": "burn-city-citizen/1",
+  "id": "airport-officer",
+  "name": "Captain Adrian Mercer",
+  "modelId": "army-officer",
+  "faction": "Airfield Security",
+  "personality": "A patient airfield officer who remembers regular travelers and always makes one last round before dark.",
+  "schedule": [
+    { "time": "06:00", "place": "airport:west", "activity": "Checking the west terminal curb" },
+    { "time": "12:00", "place": "airport:east", "activity": "Checking arrivals" },
+    { "time": "18:00", "place": "airport:west", "activity": "Walking the evening round" },
+    { "time": "23:00", "place": "airport:east", "activity": "Keeping watch at the terminal" }
+  ],
+  "dialogue": [
+    "First flight or last, there’s always someone running for the gate.",
+    "The evening shuttle is my favorite. You can see the whole city light up on approach."
+  ]
+}

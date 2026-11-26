@@ -1,7 +1,7 @@
 // Pure (DOM/three-free) helpers for the City citizens: life-script validation, daily schedules,
 // named-place resolution and near-LOD slot selection. Tested in citizens-core.test.mjs.
 export const SCHEMA = 'burn-city-citizen/1';
-export const PLACE_KINDS = ['spawn', 'police', 'fire', 'ems', 'power', 'shop', 'tower'];
+export const PLACE_KINDS = ['spawn', 'police', 'fire', 'ems', 'power', 'shop', 'tower', 'airport'];
 export const SHOP_IDS = ['mart', 'smoke', 'disp', 'coffee', 'arcade'];
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -31,6 +31,7 @@ export function placeOk(p) {
   const [k, arg] = p.split(':');
   if (!PLACE_KINDS.includes(k)) return false;
   if (k === 'shop') return SHOP_IDS.includes(arg);
+  if (k === 'airport') return (arg === 'west' || arg === 'east') && p === k + ':' + arg;
   if (k === 'tower') return /^[A-Za-z0-9$._-]{1,20}$/.test(arg || '');
   return arg === undefined;
 }
@@ -50,6 +51,7 @@ export function resolvePlace(place, w) {
   const [k, arg] = place.split(':');
   if (k === 'spawn') return w.spawn ? { x: w.spawn.x, z: w.spawn.z } : null;
   if (k === 'police' || k === 'fire' || k === 'ems') { const o = w[k]; return o && o.door ? { x: o.door.x, z: o.door.z } : null; }
+  if (k === 'airport') return w.airport?.[arg] ?? null;
   if (k === 'power') return w.power ? { x: w.power.x + 22, z: w.power.z + 22 } : null;
   if (k === 'shop') { const s = (w.shops || []).find(o => o.id === arg); return s ? { x: s.door.x - Math.sin(s.yaw) * 2.2, z: s.door.z - Math.cos(s.yaw) * 2.2 } : null; }
   if (k === 'tower') {

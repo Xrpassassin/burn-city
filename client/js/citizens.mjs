@@ -21,7 +21,8 @@ const gaitAsset = file => new URL(file + '?gait=3', ASSETS);
 const CC = window.__cityCitizens = { ready: false, stats: {} };
 
 function farMaterial(meta, tex, vatP, vatN) {
-  const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .85, metalness: 0, emissive: 0x101418 });
+  const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .85, metalness: 0, emissive: 0x101418,
+    alphaTest: meta.alphaCutoff ?? 0, side: meta.alphaCutoff ? THREE.DoubleSide : THREE.FrontSide });
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, { vatP: { value: vatP }, vatN: { value: vatN } });
     sh.vertexShader = `attribute float vid;\nattribute vec2 aAnim;\nuniform sampler2D vatP;\nuniform sampler2D vatN;\n` + sh.vertexShader
@@ -78,12 +79,15 @@ async function init() {
   const arcade = coffee && L.shops.find(shop => shop.id === 'arcade');
   const district = coffee ? makeDistrict(aionStorage, !!arcade) : null;
   const man = await fetch(new URL('models.json', ASSETS)).then(r => r.json());
-  const models = man.models, ids = models.map(m => m.id);
+  const ids = man.models.map(m => m.id);
+  const crowdIds = man.models.filter(m => !m.namedOnly).map(m => m.id);
   const peds = c.pedMesh, shop = L && L.shopperMesh;
   const named = [];
   try {
     const idx = await fetch(new URL('index.json', DATA)).then(r => r.json());
-    for (const id of idx.citizens || []) {
+    const roster = idx.citizens || [];
+    const airportGuard = aionMode === '3' && !Q.has('noairport') && window.__airport?.citizenPosts;
+    for (const id of airportGuard ? [...roster, 'airport-officer'] : roster) {
       const s = await fetch(new URL(id + '.json', DATA)).then(r => r.json());
       const err = validateCitizen(s, ids); if (err.length) { console.warn('citizen', id, err); continue; } named.push(s);
     }
@@ -95,17 +99,18 @@ async function init() {
       named.push(profile);
     }
   }
+  const models = man.models.filter(m => !m.namedOnly || named.some(profile => profile.modelId === m.id));
   const cap = (peds ? peds.count : 0) + (shop ? shop.count : 0) + named.length;
   const FAR = {}; await Promise.all(models.map(async m => { FAR[m.id] = await loadFar(m, Math.max(1, cap)); }));
   // agents: crowd copies read their source instance; named ones run their own schedule
   const agents = [], rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
   const tint = i => new THREE.Color().setHSL(rnd(i, 3) * .1, .06 + rnd(i, 4) * .1, .5).multiplyScalar(1.6 + rnd(i, 5) * .35);
   // even mix: crowd member k uses model k mod N
-  const add = (src, i, k) => agents.push(initMotion({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, walkWeight: 0, hidden: true }, rnd(k, 7), rnd(k, 2), rnd(k, 9)));
+  const add = (src, i, k) => agents.push(initMotion({ src, i, model: crowdIds[k % crowdIds.length], tint: tint(k), x: 0, z: 0, yaw: 0, walkWeight: 0, hidden: true }, rnd(k, 7), rnd(k, 2), rnd(k, 9)));
   let k = 0;
   if (peds) for (let i = 0; i < peds.count; i++) add(peds, i, k++);
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
-  const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
+  const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, airport: window.__airport?.citizenPosts, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
   const districtPoints = district ? districtTargets(coffee, c.colliders) : null;
   if (districtPoints && arcade) Object.assign(districtPoints, districtTargets(arcade, c.colliders, 'arcade-'));
   const targetFor = place => districtPoints?.[place] ?? resolvePlace(place, world());
@@ -113,7 +118,7 @@ async function init() {
     const p = targetFor(district?.assignment(s.id)?.place ?? activeEntry(s.schedule, nowMin()).place) || { x: 0, z: 52 };
     agents.push(initMotion({ named: s, memory: aionEnabled ? makeCitizenMemory(s.id, aionStorage) : null, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
   }
-  for (const id of ids) c.S.add(FAR[id].mesh);
+  for (const { id } of models) c.S.add(FAR[id].mesh);
   const hideCapsules = () => { if (c.pedMesh) c.pedMesh.visible = false; if (L && L.shopperMesh) L.shopperMesh.visible = false; };
   hideCapsules();
   CC.far = FAR;   // mark that 3D people are in the scene so a later failure must not bring the capsules back
@@ -210,6 +215,7 @@ async function init() {
       const push = close ? avoidPush(a, grid, P && Math.hypot(P.x - a.x, P.z - a.z) < 4 ? P : null, a.push || (a.push = { x: 0, z: 0 })) : null;
       const prevYaw = a.yaw;
       const step = stepMotion(a, tx, tz, tyaw, dt, push);
+      a.y = a.place?.startsWith('airport:') ? (c.groundAt?.(a.x, a.z, 0) || 0) : 0;
       // feet step while pivoting on the spot, so turns are not a slide
       const pivot = a.v < .35 ? Math.abs(wrap(a.yaw - prevYaw)) * .22 : 0;
       a.ph = (a.ph + (step + pivot) / FAR[a.model].stride) % 1;
@@ -224,7 +230,7 @@ async function init() {
       nearSet = slots.filter(s => s.agent).length;
     }
     for (const s of slots) if (s.agent) {
-      const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.set(a.scuffling ? Math.sin(now * .009) * .13 : 0, a.yaw, a.lean);
+      const a = s.agent; s.root.position.set(a.x, a.y, a.z); s.root.rotation.set(a.scuffling ? Math.sin(now * .009) * .13 : 0, a.yaw, a.lean);
       s.root.visible = !a.hidden;
       if (a.hidden) continue;
       s.walk.time = a.ph * s.walk.getClip().duration;
@@ -238,7 +244,7 @@ async function init() {
       if (a.hidden || a.slot) continue;
       const dx = a.x - cx, dz = a.z - cz; if (dx * dx + dz * dz > B.farR * B.farR || !vis(a)) continue;
       const F = FAR[a.model], n = F.mesh.count++;
-      q.setFromEuler(eu.set(0, a.yaw, a.lean)); m4.compose(pv.set(a.x, 0, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
+      q.setFromEuler(eu.set(0, a.yaw, a.lean)); m4.compose(pv.set(a.x, a.y, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
       F.anim.array[n * 2] = a.ph; F.anim.array[n * 2 + 1] = a.walkWeight; drawn++;
     }
     for (const id in FAR) { const M = FAR[id].mesh; M.visible = M.count > 0; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }
@@ -251,7 +257,7 @@ async function init() {
       closureSign.style.transform = `translate(${(v.x + 1) * W / 2}px,${(1 - v.y) * H / 2}px) translate(-50%,-100%)`;
     } else if (closureSign) closureSign.hidden = true;
     for (const a of agents) if (a.named) {
-      const d = Math.hypot(a.x - cx, a.z - cz); v.set(a.x, 2.15, a.z).project(cam); const on = d < 28 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+      const d = Math.hypot(a.x - cx, a.z - cz); v.set(a.x, a.y + 2.15, a.z).project(cam); const on = d < 28 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       a.tag.style.display = a.bub.style.display = on ? '' : 'none'; if (!on) continue;
       const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H; a.tag.textContent = a.named.name + (a.named.faction ? ' · ' + a.named.faction : '') + (a.entry && a.entry.activity ? ' · ' + a.entry.activity : '');
       a.tag.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`; a.bub.style.transform = `translate(${x}px,${y - 16}px) translate(-50%,-100%)`;

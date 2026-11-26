@@ -1,0 +1,36 @@
+{
+ "id": "patrol-officer",
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "nearTris": 9000,
+ "sourceTris": 35916,
+ "height": 1.8,
+ "unweightedFixed": 6358,
+ "limbWeightsCleaned": 89,
+ "legSideFixed": 0,
+ "legWebFacesCut": 0,
+ "armsOutRest": [
+  "L",
+  "R"
+ ],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.44,
+ "verts": 1458,
+ "indices": 4449,
+ "frames": 17,
+ "uvOffset": 0,
+ "idxOffset": 11664,
+ "posOffset": 20564,
+ "nrmOffset": 169280,
+ "min": [
+  -0.24351203441619873,
+  -0.020678818225860596,
+  -0.5972499251365662
+ ],
+ "size": [
+  0.4769558161497116,
+  1.802377164363861,
+  1.1430113911628723
+ ],
+ "tris": 1483
+}

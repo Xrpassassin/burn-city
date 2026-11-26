@@ -8,7 +8,7 @@ export const DISTRICT_CAST = [
     dialogue: ["Maya knows everyone on this block. If something changes, she'll know first."]
   },
   {
-    id: 'roe', name: 'Officer Elias Roe', modelId: 'exec-navy', faction: 'Precinct 1',
+    id: 'roe', name: 'Officer Elias Roe', modelId: 'patrol-officer', faction: 'Precinct 1',
     personality: 'An impatient patrol officer who has a running feud with Jax.',
     dialogue: ["Jax likes an audience. I know where he'll go when he loses one."]
   },

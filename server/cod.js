@@ -228,6 +228,7 @@ const upBits = p => ((p.up && p.up.includes(p.guns[p.slot]) || p.up2 && p.up2.in
 const has = (p, k) => p.perks & PB[k];
 function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fuel = 100; return; } if (p.guns.length < 2) { p.guns.push(w); p.slot = 1; } else { if (p.up) p.up = p.up.filter(u => u !== p.guns[p.slot]); if (p.up2) p.up2 = p.up2.filter(u => u !== p.guns[p.slot]); p.guns[p.slot] = w; } p.fuel = 100; p.cd = 0; }
 function spend(p, c) { if (p.pts < c) return false; p.pts -= c; return true; }
+function award(p, n) { const k = Math.round(+n || 0); if (!p || !k) return 0; p.pts = (p.pts | 0) + k; return k; }
 // one "use" press: the nearest interactable in range, validated here
 function use(room, p, ev) {
   const py = p.y || 0, near = (x, z, r = USE_R, lv = 0) => Math.hypot(p.x - x, p.z - z) <= r && Math.abs(py - lv * (UH || 0)) < 1.6;
@@ -238,7 +239,7 @@ function use(room, p, ev) {
   for (const w of WALLBUYS) if (near(w.x, w.z)) { const own = p.guns.includes(w.w), c = own ? Math.round(w.cost / 2) : w.cost; if (!spend(p, c)) return ev.push({ e: 'nopts', id: p.id }); give(p, w.w); return ev.push({ e: 'buy', id: p.id, w: w.w }); }
   const b = room.box, bs = BOX_SPOTS[b.spot];
   if (b.state === 0 && near(bs[0], bs[1])) { if (!spend(p, BOX_COST)) return ev.push({ e: 'nopts', id: p.id }); b.uses++;
-    if (b.uses >= b.moveAfter && (Math.random() < 0.5 || b.uses >= b.moveAfter + 3)) { p.pts += BOX_COST; b.state = 2; b.t = 8; b.uses = 0; b.moveAfter = 4 + Math.floor(Math.random() * 4); return ev.push({ e: 'box_move', id: p.id, spot: b.spot }); }
+    if (b.uses >= b.moveAfter && (Math.random() < 0.5 || b.uses >= b.moveAfter + 3)) { award(p, BOX_COST); b.state = 2; b.t = 8; b.uses = 0; b.moveAfter = 4 + Math.floor(Math.random() * 4); return ev.push({ e: 'box_move', id: p.id, spot: b.spot }); }
     const pool = BOX_POOL.filter(w => !p.guns.includes(w)), w = pool[Math.floor(Math.random() * pool.length)] || 'dragon';
     b.state = 1; b.t = 2.5; b.by = p.id; b.w = w; return ev.push({ e: 'box_roll', id: p.id, w, spot: b.spot }); }
   if (POWER && near(POWER.x, POWER.z)) { if (room.power) return; room.power = 1; return ev.push({ e: 'power', id: p.id }); }
@@ -269,6 +270,6 @@ function atWindow(room, zb, dt, ev) { if (zb.win == null) return false; const w 
 function repair(room, p, dt, ev) { if (!p.alive || p.down || p.in.fire) { p.repT = 0; return; }   // automatic: stand near a damaged window, not firing
   let best = -1, bd = 2.6; WINDOWS.forEach((w, i) => { const d = Math.hypot(p.x - w.ix, p.z - w.iz); if (d < bd && room.boards[i] < BOARDS && winOn(room, i) && Math.abs((p.y || 0) - (w.lv || 0) * (UH || 0)) < 1.6) { bd = d; best = i; } });
   if (best < 0) { p.repT = 0; return; } if ((p.repT = (p.repT || 0) + dt) < REPAIR_T) return; p.repT = 0;
-  room.boards[best]++; if (p.repWave !== room.wave) { p.repWave = room.wave; p.repPts = 0; } const pts = Math.min(BOARD_PTS, REPAIR_CAP - p.repPts); p.pts += pts; p.repPts += pts;
+  room.boards[best]++; if (p.repWave !== room.wave) { p.repWave = room.wave; p.repPts = 0; } const pts = Math.min(BOARD_PTS, REPAIR_CAP - p.repPts); award(p, pts); p.repPts += pts;
   ev.push({ e: 'board', i: best, n: room.boards[best], by: p.id, pts }); }
-module.exports = { winOn, lift, lvOf, onRamp, get UH() { return UH || 0; }, get UPG() { return UPG; }, get QDEF() { return M.QDEF; }, get M() { return M; }, GW, GH, WX, WZ, unlocked, PERKINFO, RUNNER, scaleN, hpN, waveGap, los, flow, nextStep, walk, cellAt, CELL, get WINDOWS() { return WINDOWS; }, windowSpawn, atWindow, repair, WEAPONS, WI, get ZONES() { return ZONES; }, get DOORS() { return DOORS; }, get PERKS() { return PERKS; }, PB, bind, MAX_PERKS, START_PTS, REVIVE_R, layout, resetMap, inside, zoneSpawn, initPlayer, wpn, upBits, has, use, tickBox, get BOX_SPOTS() { return BOX_SPOTS; }, get FORGE() { return FORGE; }, get POWER() { return POWER; } };
+module.exports = { spend, award, winOn, lift, lvOf, onRamp, get UH() { return UH || 0; }, get UPG() { return UPG; }, get QDEF() { return M.QDEF; }, get M() { return M; }, GW, GH, WX, WZ, unlocked, PERKINFO, RUNNER, scaleN, hpN, waveGap, los, flow, nextStep, walk, cellAt, CELL, get WINDOWS() { return WINDOWS; }, windowSpawn, atWindow, repair, WEAPONS, WI, get ZONES() { return ZONES; }, get DOORS() { return DOORS; }, get PERKS() { return PERKS; }, PB, bind, MAX_PERKS, START_PTS, REVIVE_R, layout, resetMap, inside, zoneSpawn, initPlayer, wpn, upBits, has, use, tickBox, get BOX_SPOTS() { return BOX_SPOTS; }, get FORGE() { return FORGE; }, get POWER() { return POWER; } };

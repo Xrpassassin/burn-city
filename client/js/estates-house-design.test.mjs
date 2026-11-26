@@ -16,15 +16,25 @@ assert(parent.children.some(x=>x.name==='estates-houses-leaf-sphere'),'landscape
 assert(parent.children.some(x=>x.name==='estates-houses-stone-cylinder'),'mansion entrance has real round columns');
 const textured=parent.children.find(x=>x.name==='estates-houses-plaster-box');
 assert(textured?.material.map?.image?.data?.length===64*64*4,'masonry has a tiny self-contained procedural material texture');
-const signatures=new Set();
+const signatures=new Map();
 for(let level=0;level<=5;level++) for(const original of lots) {
  const lot={...original,prestigeLevel:level};
  const parts=estateHouseParts(lot),f=lot.buildingFootprint;
- assert(parts.some(p=>p.name==='entry-door'));
- if(level===0)signatures.add(lot.tier+':'+parts.map(p=>p.name).join(','));
+ const door=parts.find(p=>p.name==='entry-door');
+ assert(door);
+ const W=f.width-.6;
+ assert.equal(door.x,lot.tier==='apartment'?0:-W*.24,lot.id+' door stays on the established entry axis');
+ if(level===0 && !String(lot.propertyId||lot.id||'').startsWith('cabin-')){
+  const sig=parts.map(p=>p.name).join(',');
+  if(!signatures.has(lot.tier))signatures.set(lot.tier,sig);
+  else assert.equal(signatures.get(lot.tier),sig,lot.tier+' lots share one construction kit');
+ }
  assert.equal(parts.some(p=>p.name==='landmark-crest'),level===5);
  if(level>0)assert(parts.length>estateHouseParts({...lot,prestigeLevel:level-1}).length,'every stage adds visible detail');
- for(const p of parts) {
+ const owned=estateHouseParts({...lot,owned:true});
+ assert(owned.some(p=>p.name==='owned-door-plaque'),lot.id+' owned houses show a door plaque');
+ assert(!parts.some(p=>p.name==='owned-door-plaque'),'unowned houses do not carry owner hardware');
+ for(const p of [...parts,...owned]) {
   const halfX=(Math.abs(Math.cos(p.rz))*p.width+Math.abs(Math.sin(p.rz))*p.height)/2;
   assert(Math.abs(p.x)+halfX<=f.width/2+.001,lot.id+' '+p.name+' must stay within collision width');
   assert(Math.abs(p.z)+p.depth/2<=f.depth/2+.001,lot.id+' '+p.name+' must stay within collision depth');
@@ -50,6 +60,17 @@ assert(colored.children.some(x=>x.name.includes('-coastal')),'coastal houses hav
 assert(colored.children.some(x=>x.name.includes('-forest')),'forest houses have distinct material batches');
 assert(colored.children.some(x=>x.name.includes('-charcoal')),'charcoal houses have distinct material batches');
 assert.equal(signatures.size,5,'all five tiers have a distinct design');
+assert.equal(new Set(signatures.values()).size,5,'tiers do not share a silhouette');
+for(const [tier,prefix] of [['trailer','trailer-'],['apartment','apartment-'],['starter','starter-'],['family','family-'],['mansion','mansion-']]){
+ assert(signatures.get(tier).includes(prefix),tier+' has unique architectural members');
+}
+const cabin=lots.find(l=>String(l.propertyId||l.id||'').startsWith('cabin-'));
+if(cabin){
+ const names=estateHouseParts({...cabin,prestigeLevel:0}).map(p=>p.name).join(',');
+ assert(names.includes('cabin-'),'woodland cabins use a log-cabin silhouette');
+ assert.notEqual(names,signatures.get('starter'),'cabins stay visually distinct from starter cottages');
+}
+
 const scene=new THREE.Scene(),view=createEstatesIslandRenderer({THREE,scene,manifest});
 view.root.updateMatrixWorld(true);
 const architecture=view.root.children.find(x=>x.name==='estates-property-architecture'),before=[...architecture.children];

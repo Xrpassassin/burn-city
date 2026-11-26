@@ -200,6 +200,15 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     const x=sideX,z=-4.2;
     p(id,'slab',x,.13,z,2.4,.2,2.45,'stone');
     for(const side of [-1,1])p(id,'concrete-edge-'+side,x+side*1.13,.25,z,.12,.22,2.45,'metal');
+    // Rim hardware stays on the slab edge so a hatch can still sit on the centre.
+    for(const sx of [-1,1])for(const sz of [-1,1]){
+     p(id,'corner-plate-'+sx+'-'+sz,x+sx*1.12,.27,z+sz*1.14,.16,.08,.16,'metal');
+     p(id,'corner-bolt-'+sx+'-'+sz,x+sx*1.12,.33,z+sz*1.14,.07,.06,.07,'brass','yard','cylinder');
+    }
+    for(const side of [-1,1])p(id,'hazard-lip-'+side,x+side*1.15,.245,z,.08,.05,1.85,'ember');
+    p(id,'access-plaque',x,.26,z+1.14,.62,.05,.16,'slate');
+    p(id,'access-lamp',x,.4,z+1.14,.11,.12,.11,'warm','yard','cylinder');
+    halo(id,'slab-halo',x,.4,z+1.14,.3);
     break;
    }
    case 'grow-lounge':{
@@ -207,6 +216,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     const z=-shellD*.25;
     p(id,'concealed-vent',-wallX-.07,.8,z,.14,.42,1.0,'metal','attached');
     for(const [k,dy] of [-.12,0,.12].entries())p(id,'vent-slat-'+k,-wallX-.15,.8+dy,z,.04,.05,.86,'slate','attached');
+    p(id,'vent-plaque',-wallX-.12,.48,z-.62,.06,.16,.28,'slate','attached');
     break;
    }
    case 'hobby-workshop':{
@@ -280,8 +290,10 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     const x=sideX,z=-4.2,base=(purchased.has('reinforced-floor')?slabTop:0)+(purchased.has('hidden-hatch')?.2:0);
     p(id,'hatch-armored-lid',x,base+.11,z,1.6,.22,1.7,'slate');
     p(id,'lid-wheel',x,base+.25,z,.5,.06,.5,'metal','yard','cylinder');
+    p(id,'lid-spoke',x,base+.29,z,.08,.04,.62,'brass');
     p(id,'hatch-access-light',x+.72,.42,z+1.05,.16,.18,.16,'warm','yard','cylinder');
     halo(id,'access-halo',x+.72,.42,z+1.05,.36);
+    p(id,'warning-ring',x,base+.24,z,1.95,.03,2.05,'ember');
     p(id,'air-intake-riser',x,.7,z-1.55,.36,1.2,.36,'metal','yard','cylinder');
     p(id,'riser-cap',x,1.36,z-1.55,.66,.16,.66,'slate','yard','cylinder');
     break;

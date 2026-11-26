@@ -4,6 +4,8 @@ import { renderEstateHouses } from './estates-house-design.mjs';
 import {createEstateNeighborhoodDecor} from './estates-neighborhood-renderer.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
 import { createEstateLotDressing } from './estates-lot-dressing.mjs';
+import { createEstateOwnerMarkers } from './estates-owner-markers.mjs';
+import { isPublicEstateOwner,estateOwnerTag } from './estates-owner-tag.mjs';
 import { setEstateHouseNight } from './estates-house-design.mjs';
 import { estatesLowGraphics } from './estates-kit-models.mjs';
 import { loadEstateUpgradeModels } from './estates-upgrade-models.mjs';
@@ -138,6 +140,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const houseRoot=new THREE.Group();houseRoot.name='estates-property-architecture';root.add(houseRoot);
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
   const lotDressing=createEstateLotDressing({THREE,parent:root,lots,low:estatesLowGraphics()});
+  const ownerMarkers=createEstateOwnerMarkers({THREE,parent:root,lots});
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
   const tycoonDecor=createEstateTycoonDecor({THREE,parent:root,lots});
   // CC BY authored models are progressive enhancement: primitives render
@@ -145,23 +148,38 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const upgradeModels=typeof window!=='undefined'&&typeof fetch==='function'
     ?loadEstateUpgradeModels(THREE).then(m=>{if(!disposed)tycoonDecor.setModels?.(m);return m;},()=>new Map())
     :Promise.resolve(new Map());
-  let disposed=false,appearanceKey=null;
+  let disposed=false,appearanceKey=null,lastAppearance=[],ownedMap=new Map(),upgradeMap=new Map();
+  function applyYardPresentation(){
+    const owned=new Set(ownedMap.keys());
+    lotDressing.setPresentation?.({owned,upgrades:upgradeMap});
+    ownerMarkers.setOwners?.([...ownedMap.entries()].map(([propertyId,v])=>({propertyId,owner:v.owner})),{upgradeIdsByLot:upgradeMap});
+  }
   function setOwnership(properties=[]){
     if(disposed)return false;
-    const owned=new Set(properties.filter(p=>typeof p?.propertyId==='string'&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(p.owner||'')).map(p=>p.propertyId));
+    const next=new Map();
+    for(const p of Array.isArray(properties)?properties:[]){
+      if(typeof p?.propertyId==='string'&&isPublicEstateOwner(p.owner))next.set(p.propertyId,{owner:p.owner,tag:estateOwnerTag(p.owner)});
+    }
+    const owned=new Set(next.keys());
+    const changed=[...owned].join(',')!==[...ownedMap.keys()].join(',')||[...owned].some(id=>ownedMap.get(id)?.owner!==next.get(id)?.owner);
+    ownedMap=next;
     for(const {propertyId,mesh} of ownershipBoundaries){
       const purchased=typeof propertyId==='string'&&owned.has(propertyId);
       mesh.material.color.set(purchased?0x4a9fff:PALETTE['lot-boundary']);mesh.userData.owned=purchased;
     }
+    applyYardPresentation();
+    if(changed){appearanceKey=null;setAppearance(lastAppearance);}
     return true;
   }
   function setAppearance(properties=[]){
     if(disposed)return false;
-    const settings=new Map(properties.filter(p=>typeof p?.propertyId==='string').map(p=>[p.propertyId,p]));
+    lastAppearance=Array.isArray(properties)?properties:[];
+    const settings=new Map(lastAppearance.filter(p=>typeof p?.propertyId==='string').map(p=>[p.propertyId,p]));
     const visual=lots.map(l=>{const p=settings.get(l.propertyId)||{},style=estateFreeStyle(p);
       const level=Number.isInteger(p.level)&&p.level>=0&&p.level<=5?p.level:0;
-      return {...l,prestigeLevel:level,...style};});
-    const key=visual.map(v=>[v.prestigeLevel,v.architecture,v.palette].join(':')).join(',');
+      const own=ownedMap.get(l.propertyId);
+      return {...l,prestigeLevel:level,...style,owned:!!own,ownerTag:own?.tag||''};});
+    const key=visual.map(v=>[v.prestigeLevel,v.architecture,v.palette,v.owned?'1':'0'].join(':')).join(',');
     if(key===appearanceKey)return false;
     appearanceKey=key;
     const geometries=new Set(),materials=new Set();
@@ -180,7 +198,12 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     setNight:night=>setEstateHouseNight(houseRoot,night),
     setOwnership,
     get neighborhood(){return neighborhood;},
-    setUpgrades:tycoonDecor.setUpgrades,
+    setUpgrades:properties=>{
+      const result=tycoonDecor.setUpgrades(properties);
+      upgradeMap=new Map((Array.isArray(properties)?properties:[]).filter(p=>p?.propertyId).map(p=>[p.propertyId,Array.isArray(p.unlockedItemIds)?p.unlockedItemIds:[]]));
+      applyYardPresentation();
+      return result;
+    },
     previewUpgrade:tycoonDecor.previewUpgrade,
     clearUpgradePreview:tycoonDecor.clearUpgradePreview,
     tickUpgrades:dt=>tycoonDecor.tick?.(dt),
@@ -189,7 +212,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     get objectCount(){return objects.size;},
     dispose(){
       if(disposed)return false;
-      disposed=true; tycoonDecor.dispose(); lotDressing.dispose(); scene.remove(root);
+      disposed=true; tycoonDecor.dispose(); ownerMarkers.dispose(); lotDressing.dispose(); scene.remove(root);
       root.traverse?.(node=>{
         node.geometry?.dispose?.();
         if(Array.isArray(node.material)) node.material.forEach(disposeEstateSurfaceMaterial); else disposeEstateSurfaceMaterial(node.material);

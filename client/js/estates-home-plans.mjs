@@ -14,8 +14,8 @@ const FALLBACK_MAT={sofa:'home-fabric',armchair:'home-fabric',bed:'home-cream',b
 export const HOME_FOOTPRINT=Object.freeze({trailer:[6,5],apartment:[7,8],starter:[8,7],family:[10,9],mansion:[13,11]});
 export const HOME_FLOORS=Object.freeze({trailer:1,apartment:1,starter:1,family:2,mansion:2});
 const EXTERIOR_HEIGHT={trailer:3,apartment:10,starter:5,family:6,mansion:8};
-const FLOOR_MAT={trailer:'home-floor-vinyl',apartment:'home-floor',starter:'home-floor',family:'home-floor-oak',mansion:'home-floor-marble'};
-const WALL_MAT={trailer:'home-wall-panel',apartment:'home-wall',starter:'home-wall',family:'home-wall-sage',mansion:'home-wall-ivory'};
+const FLOOR_MAT={trailer:'home-floor-vinyl',apartment:'home-floor-tile',starter:'home-floor-oak',family:'home-floor-oak',mansion:'home-floor-marble'};
+const WALL_MAT={trailer:'home-wall-panel',apartment:'home-wall-brick',starter:'home-wall-cream',family:'home-wall-sage',mansion:'home-wall-ivory'};
 const T=.12,DOOR_H=2.15,rad=d=>d*Math.PI/180;
 // Same formulas as estates-house-design.mjs (exterior shell = footprint - .6).
 export function exteriorOpenings(tier){
@@ -227,7 +227,12 @@ function upgradeParts(add,slot,kind,deluxe){
   add('upgrade-hatch-frame',x,.012,y,1.1,.02,1.1,'home-metal');
   add('upgrade-hatch-door',x,.024,y,.9,.02,.9,'home-steel');
   for(const s of [-1,1])add('upgrade-hatch-stripe-'+s,x+s*.5,.03,y,.06,.01,1.0,'home-hazard');
-  if(deluxe)add('upgrade-vault-glow',x,.035,y,.5,.01,.5,'home-neon');
+  add('upgrade-hatch-wheel',x,.06,y,.28,.05,.28,'home-steel',false,'cylinder');
+  add('upgrade-hatch-handle',x,.09,y,.08,.04,.34,'home-brass');
+  if(deluxe){
+   add('upgrade-vault-glow',x,.035,y,.5,.01,.5,'home-neon');
+   add('upgrade-vault-collar',x,.04,y,1.2,.02,1.2,'home-metal');
+  }
  }
 }
 // Returns fixed (non-owner) parts for one floor, collision obstacles and metadata.
@@ -305,6 +310,7 @@ export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='coz
  if(S.secure&&(installed.has('security-upgrade')||layoutId==='bunker-suite'))upgradeParts(upAdd,[S.secure[0],S.secure[1],hz-.09],'secure');
  const hatch=!!S.hatch&&(installed.has('hidden-hatch')||installed.has('underground-bunker'));
  if(hatch)upgradeParts(upAdd,S.hatch,'hatch',installed.has('bunker-arcade'));
+ if(floor===0&&installed.has('reinforced-floor')&&S.hatch){const [hx,hz]=S.hatch;upAdd('upgrade-reinforced-plate',hx,.006,hz,1.35,.01,1.35,'home-steel');}
  const upSolid=up.filter(p=>p.solid).map(p=>({x:p.x,z:p.z,...rotHalf(p.w,p.d,p.ry||0)}));
  const clashes=(x,z,w,d,ry)=>{const r=rotHalf(w,d,ry);return upSolid.some(o=>Math.abs(o.x-x)<o.hx+r.hx-.02&&Math.abs(o.z-z)<o.hz+r.hz-.02);};
  for(const [id,x,z,rot,opt={}] of F.furniture){

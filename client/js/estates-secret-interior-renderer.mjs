@@ -27,8 +27,8 @@ const PALETTE={
  'home-metal':{color:0x68716d,metalness:.48,roughness:.52},
  'home-glass':{color:0x93b3b2,metalness:.1,roughness:.25,transparent:true,opacity:.76},
  'home-warm':{color:0xffd9a0,emissive:0xffbc78,emissiveIntensity:.7,roughness:.5},
- 'home-wall-panel':{color:0xd6cbb6,roughness:.85},'home-wall-sage':{color:0xbdc4ae,roughness:.92},'home-wall-ivory':{color:0xe6dccb,roughness:.9},
- 'home-floor-vinyl':{color:0xa98f70,roughness:.7},'home-floor-oak':{color:0x9a7652,roughness:.72},'home-floor-marble':{color:0xc9bfae,roughness:.38},
+ 'home-wall-panel':{color:0xd6cbb6,roughness:.85},'home-wall-sage':{color:0xbdc4ae,roughness:.92},'home-wall-ivory':{color:0xe6dccb,roughness:.9},'home-wall-brick':{color:0xb48a76,roughness:.9},'home-wall-cream':{color:0xe8dcc6,roughness:.92},
+ 'home-floor-vinyl':{color:0xa98f70,roughness:.7},'home-floor-oak':{color:0x9a7652,roughness:.72},'home-floor-marble':{color:0xc9bfae,roughness:.38},'home-floor-tile':{color:0xb7aea0,roughness:.55},
  'home-tile':{color:0xcfd5d4,roughness:.45},'home-white':{color:0xeeeae2,roughness:.4},'home-dark-wood':{color:0x5a3f2c,roughness:.72},
  'home-brass':{color:0xc6a35d,metalness:.7,roughness:.35},'home-stone':{color:0xb8b0a0,roughness:.6},'home-mat':{color:0x5d4a3a,roughness:1},
  'home-red':{color:0x9c3b30,roughness:.6},'home-steel':{color:0x6f7a80,metalness:.6,roughness:.45},'home-shadow':{color:0x1d1a17,roughness:1},
@@ -56,8 +56,8 @@ const INDIRECT_BOUNCE=Object.freeze({
  velvet:{color:0x5f5472,power:.28},accent:{color:0x796952,power:.26},
  'home-wall':{color:0x8f806f,power:.24},'home-ceiling':{color:0x9c8e78,power:.22},
  'home-floor':{color:0x675849,power:.12},
- 'home-wall-panel':{color:0x8f806f,power:.22},'home-wall-sage':{color:0x7c8270,power:.22},'home-wall-ivory':{color:0x968a76,power:.22},
- 'home-floor-vinyl':{color:0x675849,power:.12},'home-floor-oak':{color:0x5e4632,power:.12},'home-floor-marble':{color:0x7d776c,power:.12}
+ 'home-wall-panel':{color:0x8f806f,power:.22},'home-wall-sage':{color:0x7c8270,power:.22},'home-wall-ivory':{color:0x968a76,power:.22},'home-wall-brick':{color:0x8a6a5a,power:.22},'home-wall-cream':{color:0x9a8c74,power:.22},
+ 'home-floor-vinyl':{color:0x675849,power:.12},'home-floor-oak':{color:0x5e4632,power:.12},'home-floor-marble':{color:0x7d776c,power:.12},'home-floor-tile':{color:0x6f6a62,power:.12}
 });
 function requireThree(THREE){
  for(const name of ['Group','Mesh','BoxGeometry','MeshStandardMaterial'])

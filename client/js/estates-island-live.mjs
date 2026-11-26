@@ -1133,6 +1133,22 @@ export async function installEstatesIslandLive({
     onStatus({state:'teleported-to-property',propertyId:lot.propertyId,lotId:lot.id});
     return true;
   }
+  // Reposition the visitor for a clear 3/4 or side-yard view of a lot. Uses the
+  // same island yaw/player hooks as teleport; does not change ownership state.
+  function frameProperty(propertyId,{side=false}={}){
+    const lot=manifest.lots.find(l=>l.propertyId===propertyId);
+    if(disposed||!active||!lot?.position||!lot.buildingFootprint)return false;
+    const ox=OFFSET_X+lot.position.x,oz=lot.position.z,oy=ISLAND_SPAWN.y;
+    const fp=lot.buildingFootprint;
+    // Stay on the front setback / near the approach so the follow camera cannot
+    // fall off the island, and offset so the avatar does not hide the facade.
+    const px=ox+(side?Math.min(8.2,fp.width/2+5.5):3.1);
+    const pz=oz+(side?fp.depth/2+2.2:fp.depth/2+5.4);
+    const yaw=Math.atan2(px-ox,pz-oz);
+    player.pos.set(px,oy,pz);player.vel?.set(0,0,0);player.fp=false;player.onGround=true;
+    setYaw(yaw);avatar.position.copy(player.pos);avatar.rotation.y=yaw;
+    return true;
+  }
   function leaveIsland() {
     if(disposed||!active)return;
     if(secretSession)leaveSecretInterior(false);
@@ -1275,6 +1291,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     teleportToProperty,
+    frameProperty,
     returnToCity(){if(disposed||!active)return false;leaveIsland();return true;},
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){

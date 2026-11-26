@@ -6,7 +6,7 @@ export const HOUSE_MATERIALS = Object.freeze({
   plaster:0xd3c7b6, stone:0xaaa291, siding:0x889390, timber:0x89694f,
   roof:0x474b4a, slate:0x535856, metal:0x6a746f, frame:0x444744, glass:0x647e80, warm:0xffc982,
   brass:0xada079, leaf:0x50694c, flower:0xb87e7c, copper:0x98775d, ivory:0xe3dbca,
-  trim:0xe5dfd0, door:0x6d4d38, earth:0x594d40
+  trim:0xe5dfd0, door:0x6d4d38, earth:0x594d40, brick:0x8a5e4e, tile:0x7a4536
 });
 export function estateHouseParts(item) {
   const f=item.buildingFootprint;
@@ -14,13 +14,14 @@ export function estateHouseParts(item) {
   const {width:w,depth:d,height:h}=f, tier=item.tier;
   const freeStyle=estateFreeStyle(item),architecture=freeStyle.architecture;
   const trailer=tier==='trailer', apartment=tier==='apartment', mansion=tier==='mansion', family=tier==='family';
+  const cabin=typeof (item.propertyId||item.id)==='string'&&String(item.propertyId||item.id).startsWith('cabin-');
   const level=Number.isInteger(item.prestigeLevel)&&item.prestigeLevel>=0&&item.prestigeLevel<=5?item.prestigeLevel:0;
   const parts=[];
   const add=(name,mat,x,y,z,width,height,depth,rz=0,shape='box')=>parts.push({name,mat,x,y,z,width,height,depth,rz,shape});
   // Recess the shell to leave room for frames, eaves and an entry terrace within collision bounds.
   const W=w-.6,D=d-.6, bodyH=apartment?h-.55:trailer?h-.55:h*.72;
   add('foundation','stone',0,.15,0,w,.3,d);
-  add('shell',level>=5?'ivory':trailer?'siding':'plaster',0,.3+bodyH/2,0,W,bodyH,D);
+  add('shell',level>=5?'ivory':trailer?'siding':apartment?'brick':cabin?'timber':mansion?'stone':'plaster',0,.3+bodyH/2,0,W,bodyH,D);
   const front=D/2, top=.3+bodyH;
   const doorX=apartment?0:-W*.24, doorH=Math.min(2.2,bodyH*.78);
   add('entry-frame','trim',doorX,.3+doorH/2,front+.035,1.35,doorH+.18,.16);
@@ -62,7 +63,7 @@ export function estateHouseParts(item) {
     // Shallow pitched standing-seam roof, not a featureless black cube.
     const rise=.22,half=(w-.08)/2,angle=Math.atan2(rise,half),span=Math.hypot(half,rise);
     for(const side of [-1,1]){
-      add('low-roof-panel-'+side,'roof',side*half/2,top+rise/2,0,span,.16,d-.12,-side*angle);
+      add('low-roof-panel-'+side,'metal',side*half/2,top+rise/2,0,span,.16,d-.12,-side*angle);
       for(let k=1;k<=4;k++){
         const t=k/5;
         add('low-roof-standing-seam-'+side+'-'+k,'frame',side*(t*half),top+rise*(1-t)+.09,0,.043,.045,d-.28);
@@ -72,9 +73,13 @@ export function estateHouseParts(item) {
     add('low-roof-ridge','slate',0,top+rise+.06,0,.18,.09,d-.13);
     for(const y of [.75,1.2,1.65,2.1]) if(y<top) add('siding-seam-'+y,'stone',0,y,front+.04,W,.035,.045);
     add('skirt','stone',0,.43,front+.04,W,.22,.08);
+    add('trailer-chrome-belt','metal',0,1.02,front+.05,W,.045,.06);
+    add('trailer-roof-vent','metal',W*.22,top+rise+.22,-D*.18,.28,.18,.28,0,'cylinder');
+    add('trailer-utility-hatch','metal',W/2-.04,.78,-D*.2,.1,.46,.42);
     for(const side of [-1,1]){
       add('skirting-vent-'+side,'frame',side*W*.34,.49,front+.1,.53,.13,.065);
       add('roof-end-trim-'+side,'timber',side*(W/2-.12),top-.05,front+.08,.09,.16,.08);
+      add('trailer-window-hood-'+side,'metal',side*W*.28,.3+(.57)*bodyH+Math.min(1.5,bodyH*.43)/2+.1,front+.1,W*.3,.07,.18);
     }
   } else if(apartment||mansion) {
     add('flat-roof','roof',0,top+.12,0,w,.24,d);
@@ -93,6 +98,10 @@ export function estateHouseParts(item) {
         add('balcony-rail','frame',x,y+.85,front+.2,W*.32,.07,.06);
         for(const s of [-1,0,1]) add('balcony-upright','frame',x+s*W*.13,y+.43,front+.2,.045,.82,.045);
       }
+      add('apartment-cornice','stone',0,top+.08,front+.08,W,.12,.16);
+      for(let i=0;i<7;i++) add('apartment-dentil-'+i,'trim',-W/2+.4+i*((W-.8))/6,top-.02,front+.11,.16,.1,.1);
+      for(const side of [-1,1]) add('apartment-downspout-'+side,'metal',side*(W/2-.1),top*.5,front+.09,.07,top-.4,.07);
+      add('apartment-lobby-transom','glass',0,Math.min(top-.3,doorH+.55),front+.18,.9,.16,.05);
     } else {
       add('upper-pavilion','stone',W*.2,top+.56,-D*.14,W*.44,.8,D*.52);
       add('pavilion-cap','slate',W*.2,top+1.015,-D*.14,W*.47,.11,D*.55);
@@ -100,11 +109,16 @@ export function estateHouseParts(item) {
       add('pavilion-glass','glass',W*.2,top+.58,D*.12,W*.36,.48,.08);
       for(const x of [-W*.43,W*.43]) add('entry-pier','stone',x,1.55,front+.05,.4,2.5,.4,0,'cylinder');
       add('arrival-lintel','timber',0,2.85,front-.06,W,.2,.5);
+      add('mansion-pediment','stone',doorX,Math.min(top-.2,doorH+.85),front+.08,Math.min(W*.7,4.2),.18,.22);
+      add('mansion-keystone','brass',doorX,.3+doorH+.16,front+.16,.22,.16,.08);
+      for(const side of [-1,1]) add('mansion-urn-'+side,'copper',side*(W*.43),2.95,front+.05,.22,.3,.22,0,'cylinder');
+      for(let i=0;i<6;i++) add('mansion-parapet-baluster-'+i,'stone',-W/2+.5+i*(W-1)/5,top+.55,front-.08,.08,.32,.08);
     }
   } else {
     const rise=h-top-.18, half=W/2, slope=Math.atan2(rise,half), length=Math.hypot(half,rise);
-    for(const side of [-1,1]) add('pitched-roof-'+side,'roof',side*half/2,top+rise/2,0,length,.22,d,side*-slope);
-    add('ridge','roof',0,top+rise,0,.22,.22,d);
+    const roofMat=family?'slate':cabin?'timber':'tile';
+    for(const side of [-1,1]) add('pitched-roof-'+side,roofMat,side*half/2,top+rise/2,0,length,.22,d,side*-slope);
+    add('ridge',roofMat,0,top+rise,0,.22,.22,d);
     // Standing seams are aligned to the actual pitched roof, not loose in
     // the air. Use thin strips parallel to the fall, bounded by the eave.
     for(const side of [-1,1])for(let i=1;i<=5;i++){
@@ -114,6 +128,23 @@ export function estateHouseParts(item) {
     // Gable slats close the end without a solid block projecting through the pitched roof.
     for(let i=0;i<5;i++) { const y=rise*(i+.5)/5, span=W*(1-y/rise); for(const side of [-1,1]) add('gable-'+i+'-'+side,'timber',0,top+y,side*front,span,rise/5+.015,.1); }
     add('chimney','stone',-W*.28,top+rise*.8,-D*.2,.55,1.1,.65);
+    if(!family) add('chimney-cap','slate',-W*.28,top+rise*.8+.49,-D*.2,.62,.12,.72);
+    if(cabin){
+      for(let i=0;i<5;i++) add('cabin-log-course-'+i,'timber',0,.55+i*((top-.7)/5),front+.06,W,.07,.08);
+      add('cabin-porch-beam','timber',doorX,Math.min(top-.2,doorH+.5),front+.14,Math.min(W*.7,3.2),.14,.16);
+      for(const side of [-1,1]) add('cabin-rafter-tail-'+side,'timber',side*(W/2-.2),top-.12,front+.12,.28,.1,.14);
+      add('cabin-door-brace','timber',doorX,.85,front+.17,1.0,.06,.05);
+    }else if(family){
+      add('family-water-table','stone',0,.62,front+.08,W,.14,.14);
+      add('family-entry-beam','timber',doorX,Math.min(top-.28,doorH+.62),front+.14,Math.min(W*.58,3.6),.16,.16);
+      add('family-sidelight','glass',doorX+(.65), .3+doorH*.45,front+.16,.16,doorH*.55,.05);
+      for(const side of [-1,1]) add('family-eave-return-'+side,'slate',side*(W/2-.25),top-.05,front+.1,.4,.1,.16);
+    }else{
+      add('starter-bargeboard','timber',0,top-.08,front+.12,W*.96,.08,.12);
+      add('starter-collar-tie','timber',0,top+rise*.35,front+.08,W*.55,.08,.1);
+      add('starter-door-crossbuck','timber',doorX,.85,front+.17,.9,.06,.04);
+      for(const side of [-1,1]) add('starter-corner-board-'+side,'trim',side*(W/2-.06),top*.5,front+.08,.1,top-.4,.1);
+    }
   }
   // Distinct *free* base-model accents are generated for all tiers. They stay
   // inside the existing collision shell and never assume a paid unlock.
@@ -204,6 +235,10 @@ export function estateHouseParts(item) {
     add('landmark-crest','brass',0,crestY,0,.42,.42,.42,Math.PI/4);
     for(const side of [-1,1]) add('landmark-corner-inlay','copper',side*(W/2-.12),top/2,front+.18,.055,top-.35,.04);
   }
+  if(item.owned){
+    add('owned-door-plaque','brass',doorX-.72,1.18,front+.18,.22,.14,.04);
+    add('owned-entry-lamp','warm',doorX+.86,doorH+.08,front+.14,.12,.2,.08);
+  }
   return parts;
 }
 
@@ -221,7 +256,7 @@ export function renderEstateHouses(THREE,parent,items) {
     const [key,shape,palette]=bucket.split('|');
     const mat=new THREE.MeshStandardMaterial({
       color:estatePaletteColor(key,palette,HOUSE_MATERIALS[key]),
-      roughness:key==='glass'?.22:key==='brass'?.43:key==='roof'?.69:key==='frame'?.52:key==='metal'?.5:key==='timber'||key==='door'?.75:key==='stone'?.92:.84,
+      roughness:key==='glass'?.22:key==='brass'?.43:key==='roof'||key==='tile'?.69:key==='frame'?.52:key==='metal'?.5:key==='timber'||key==='door'?.75:key==='stone'||key==='brick'?.92:.84,
       metalness:key==='brass'?.45:key==='copper'?.52:key==='frame'?.36:key==='metal'?.55:0,
       emissive:key==='warm'||key==='glass'?HOUSE_MATERIALS.warm:0,emissiveIntensity:key==='warm'?.45:key==='glass'?.08:0,
       ...estateSurfaceProperties(THREE,key)

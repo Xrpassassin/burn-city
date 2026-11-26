@@ -15,3 +15,6 @@ Provenance:
 - At runtime the models are recentred, uniformly scaled to fit existing furnishings or lot setbacks, and instanced. Low graphics mode thins yard flowers and extra bushes. Box primitives remain as instant fallbacks if a file cannot load.
 
 Existing Sketchfab CC BY sofas, beds, kitchens and large plants inside homes are credited separately in `client/city-credits.html` and `client/assets/estates-interiors/CREDITS.md`.
+
+## Reviewed but not bundled
+Kenney City Kit (Suburban) and Building Kit (CC0, kenney.nl) were reviewed for whole-house meshes. They are not shipped in this folder so Estates collision footprints and door positions stay compatible with the door-anchored Enter/Edit chip. Yard and furniture pieces above remain in use.

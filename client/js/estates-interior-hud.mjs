@@ -9,8 +9,9 @@ export function createEstatesInteriorHud({doc=typeof document!=='undefined'?docu
   body.bc-estates-interior #bcEstatesDirectoryButton,
   body.bc-estates-interior #bcEstatesWalkingGuidance,
   body.bc-estates-interior #bcEstatesExit,
-  body.bc-estates-interior #bcEstatePropertyHint{display:none!important}
-  #bcEstatesInteriorHud{position:fixed;right:max(8px,env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));z-index:1190;display:none;pointer-events:none}
+  body.bc-estates-interior #bcEstatePropertyHint,
+  body.bc-estates-interior #gearBar{display:none!important}
+  #bcEstatesInteriorHud{position:fixed;right:max(8px,env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom));z-index:1190;display:none;pointer-events:none}
   #bcEstatesInteriorHud .cluster{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
   #bcEstatesInteriorHud .announce{max-width:min(220px,70vw);padding:5px 9px;border-radius:11px;background:#12161ce8;border:1px solid #ffc48a66;color:#f3e6d2;font:600 11px/1.3 system-ui;pointer-events:none}
   #bcEstatesInteriorHud .row{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;pointer-events:auto}

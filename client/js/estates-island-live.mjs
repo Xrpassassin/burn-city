@@ -140,6 +140,11 @@ export async function installEstatesIslandLive({
   }
   function tickWorldPrompt(){
     if(secretSession||!active){if(worldPrompt.visible)worldPrompt.tick({project:()=>({x:2,y:2,z:2})});return;}
+    if(camera&&window.innerHeight){
+      const aspect=window.innerWidth/Math.max(1,window.innerHeight);
+      if(Math.abs((camera.aspect||0)-aspect)>.001){camera.aspect=aspect;camera.updateProjectionMatrix();}
+      camera.updateMatrixWorld?.(true);
+    }
     worldPrompt.tick({project:projectDoor,width:window.innerWidth,height:window.innerHeight,player:player.pos,camera});
   }
   function tickHouseNight(){
@@ -383,6 +388,7 @@ export async function installEstatesIslandLive({
         {label:'Edit',icon:'✎',run:()=>showLotInspection(property)}
       ]
     });
+    tickWorldPrompt();
   };
   const showLandmarkDetails = landmark => {
     showPanel(landmark.title,landmark.message,
@@ -864,8 +870,8 @@ export async function installEstatesIslandLive({
       hidePanel();worldPrompt.hide();
       interiorHud.show({
         exit:()=>leaveSecretInterior(),
-        rooms:tour?null:()=>void openSecretRoomMenu(propertyId),
-        label:roomId==='home'?'Exit':'Exit'
+        rooms:tour?()=>interiorHud.announce('Private rooms open for owners and invited guests'):()=>void openSecretRoomMenu(propertyId),
+        label:'Exit'
       });
       if(roomId==='home'&&tour)interiorHud.announce('Show home · tour only · use Exit or the front door');
       else if(roomId==='home')interiorHud.announce('Walk the rooms · Exit or the front door to leave');
@@ -939,6 +945,7 @@ export async function installEstatesIslandLive({
         {label:'Edit',icon:'✎',run:()=>showLotInspection({lotId:manifest.lots.find(l=>l.propertyId===spot.propertyId)?.id,propertyId:spot.propertyId,address:spot.address,tier:spot.tier})}
       ]
     });
+    tickWorldPrompt();
   }
   function nearestVerifiedHatch(){
     const x=player.pos.x-OFFSET_X,z=player.pos.z;

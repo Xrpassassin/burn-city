@@ -132,7 +132,9 @@ for(const [name,mapId] of [['refinery','refinery'],['cosmodrome','cosmodrome'],[
  Cod.bind(room);
  const actual=Cod.layout();
  assert.equal(actual.kind,name==='random'?'proc':name==='refinery'?'classic':'cosmodrome');
- assert(actual.grid.length===32&&actual.zones.length>0);
+ const expectGh=name==='cosmodrome'?56:32, expectGw=name==='cosmodrome'?72:40;
+ assert.equal(actual.gh,expectGh);assert.equal(actual.gw,expectGw);
+ assert(actual.grid.length===expectGh&&actual.grid[0].length===expectGw&&actual.zones.length>0);
  const places=planZombiesRoomDressing(actual);
  assert(places.length>0,'live server '+name+' must place some high-detail fixtures');
  assert(places.every(site=>actual.grid[site.r]?.[site.c]===site.zone));

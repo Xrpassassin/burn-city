@@ -39,3 +39,7 @@ Sources (all CC0 1.0, by Kenney):
 - City Kit (Roads) 2.2 — https://kenney.nl/assets/city-kit-roads — construction barriers, cones, work fences, work lights, dumpsters
 
 Each GLB is self-contained (colormap embedded), textures compressed to WebP, meshes welded with gltf-transform (MIT). License text and file-level provenance: `assets/env/ATTRIBUTION.md`. Credits page: `zombies-credits.html`. Fog, hemi dim, ground stains and flicker glows are original code in `cod.js` / `zombies-wreckage.mjs`.
+
+## Ashen Cosmodrome environment (map 2 rebuild)
+
+The rebuilt Cosmodrome is a larger, door-gated BURN / XRPL launch complex. Visual props come from a subset of [Kenney Space Kit 2.0](https://kenney.nl/assets/space-kit) (CC0 1.0), credited in `assets/cosmo/ATTRIBUTION.md` and `zombies-credits.html`. Server collision, doors, Ash Pads, and spawns are authored in `server/cosmodrome-map.js`. Low-graphics mode thins instanced props and skips the Kenney rocket stack (primitives still draw). Zone groups farther than ~72 m are hidden; the launch vehicle stays visible as a landmark.

@@ -11,6 +11,7 @@ import { NFT_PLAYER_AVATARS_ENABLED } from './experience-avatar-policy.mjs';
 import { buildPlayerWalker, poseWalker, setWalkerModel } from './walker.js';
 import { getPlayerModel, modelToWire, modelFromWire } from './player-model-choice.mjs';
 import { trustedServer } from './trusted-server.mjs';   // ?citysrv= only via the shared allowlist (sends the bearer token)
+import { pingCityVisit } from './visit-stats.mjs';
 const Q=new URLSearchParams(location.search);
 const SRV=trustedServer(Q.get('citysrv'));
 const WS=SRV.replace(/^http/,'ws')+'/?mode=city';
@@ -144,7 +145,7 @@ let fr=0,lastLoop=0;function loop(now){requestAnimationFrame(loop);const c=W();c
     if(!vis){if(p.tag.style.display!=='none')p.tag.style.display='none';continue}if(p.tag.style.display)p.tag.style.display='';
     p.tag.style.transform=`translate3d(${((_v.x+1)/2*w).toFixed(1)}px,${((1-_v.y)/2*h).toFixed(1)}px,0) translate(-50%,-100%) scale(${Math.max(.75,Math.min(1,160/dist)).toFixed(2)})`}}
 if(/[?&]debug=1/.test(location.search))window.__cityChat={bubble,upsert,peers,me:()=>myId};
-(function boot(){if(!window.__ready||!W())return setTimeout(boot,500);setTimeout(()=>{connect();requestAnimationFrame(loop)},MOB?1500:400)})();
+(function boot(){if(!window.__ready||!W())return setTimeout(boot,500);setTimeout(()=>{connect();pingCityVisit({server:SRV,token:token()});requestAnimationFrame(loop)},MOB?1500:400)})();
 window.__cityNet={peers,get ws(){return ws},open:setOpen,setPaused(paused){
   window.__estatesCityPresencePaused=Boolean(paused);
   if(paused){if(ws){ws.onopen=null;ws.onclose=null;ws.onmessage=null;ws.close();ws=null;}online=0;badge();for(const id of [...peers.keys()])drop(id);if(IB)for(const k in IB)IB[k].count=0;}

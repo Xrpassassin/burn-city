@@ -46,6 +46,7 @@ setInterval(() => homefrontGuests.sweep(), 60000).unref();
 const Jetpack = require('./jetpack');
 const EmberBar = require('./ember-bar');   // Ember Bar 1 XRP cosmetic drinks (/api/ember-bar), on unless EMBER_BAR_PAYMENTS=0
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
+const VisitStats = require('./visit-stats').createVisitStats({ db: Pay.sdb, cityCount: () => City.count() });   // anonymous city visits + peak concurrency (/api/stats/visit, /api/stats/visitors)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
@@ -146,6 +147,16 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/eco') return json(res, 200, Eco.status());
     if (url.pathname === '/api/amm-lock' && AmmLock.handle(req, res, url, { json })) return;
     if (url.pathname === '/api/status') return json(res, 200, { signin: !!C.XUMM_KEY, shop: !!(C.XUMM_KEY && C.TREASURY), dryRun: C.DRY_RUN, social: true, ranked: Ranked.status(), payoutsPaused: require('./guard').paused() });
+    if (url.pathname === '/api/stats/visit' && req.method === 'POST') {
+      if (gate('visit:' + ip, 8, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const q = await body();
+      return json(res, 200, VisitStats.record({ id: q.id, signedIn: !!who(), ip }));
+    }
+    if (url.pathname === '/api/stats/visitors' && req.method === 'GET') {
+      if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+      const days = Math.max(1, Math.min(90, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+      return json(res, 200, VisitStats.summary({ days }));
+    }
     if (url.pathname.startsWith('/nftimg/')) { if (Nft.image(req, res, url.pathname)) return; }
     // PYRETHEUM (BURN Tower interior) private floor: server-side gate. Allowlist comes only from the MIDNIGHTBLUFF_WALLETS env/Fly secret
     // (comma-separated r-addresses) and is never sent to the browser. Empty/unset = locked for everyone.

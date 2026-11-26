@@ -32,6 +32,14 @@ for (const m of models.models) {
   }
   assert.ok(far.tris <= 2000, m.id + ' far LOD <= 2k tris'); assert.ok(far.nearTris <= 10000, m.id + ' near LOD <= 10k tris');
 }
+const airportOfficer = JSON.parse(readFileSync(new URL('data/citizens/airport-officer.json', root)));
+assert.deepEqual(validateCitizen(airportOfficer, ids), []);
+for (const id of ['army-officer', 'patrol-officer']) {
+  assert.equal(models.models.find(m => m.id === id)?.namedOnly, true, id + ' is reserved for named NPCs');
+}
+assert.ok(placeOk('airport:west') && placeOk('airport:east') && !placeOk('airport:west:extra'));
+assert.deepEqual(resolvePlace('airport:east', { airport: { east: { x: -90, z: -526 } } }), { x: -90, z: -526 });
+assert.equal(resolvePlace('airport:east', {}), null);
 // excluded non-commercial items never appear
 const all = JSON.stringify(models);
 for (const banned of ['pJOHL', 'pPXzp', 'Contemplative', 'ANIMAL PACK', 'skibidi']) assert.ok(!all.includes(banned), banned);

@@ -20,6 +20,10 @@ const merge = a => mergeGeometries(a, false);
 
 // layout (world metres). Runway along x; city is to the north (+z).
 const RW = { z: -720, x0: -550, x1: 550, w: 45 }, TW = { z: -672 }, APRON = { z0: -655, z1: -585 }, TERM = { x: 0, z: -560, w: 230, d: 40 };
+A.citizenPosts = {
+  west: { x: -120, z: TERM.z + TERM.d / 2 + 14 },
+  east: { x: -90, z: TERM.z + TERM.d / 2 + 14 }
+};
 const ROAD = { x: 0, z0: -335, z1: -515 }, CURB = { z: -522 };
 
 function runwayTex(low) {   // weathered asphalt + rubber build-up only; markings are real geometry (sharp at any distance)

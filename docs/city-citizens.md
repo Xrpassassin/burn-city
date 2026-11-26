@@ -131,3 +131,9 @@ Open the City with `?aion=3`. Head to Hot Beans on Main Street to see two Precin
 If Maya witnessed the scuffle, Hot Beans closes for 75 seconds of simulation time. The shop displays a closure notice and the shopper simulation stops sending people in. After it reopens, Ines patrols Hot Beans and Main Street, while Roe reports to the station. Once Hot Beans reopens, Nia and Skye try to broker a truce at Pixel Arcade. Whether Roe and Jax reach an agreement depends on who makes it to the meeting. If a meeting fails, the participants can try again on another shift. After a truce, Roe keeps his beat away from the arcade and Skye, Nia and Jax host friendly matches that draw in Dex. Civilian schedules outside these assignments still follow their existing life scripts.
 
 The latest district outcome is saved in the current browser and changes the starting assignments on reload. Individual eyewitness lines are retained for the current City load. The district simulates while the City is active. The three autobiography subjects retain ordinary place visits as in `?aion=2`.
+
+#### Uniformed officers
+
+With `?aion=3`, Officer Roe uses the Realistic Male Police Officer model. Captain Adrian Mercer patrols the terminal curb at BURN City International using the Army Officer model. The two models are reserved for their named roles, and their distant and mobile assets follow the citizen rendering budgets.
+
+The police source needed a new rig. The airport officer's four diffuse maps are packed into one atlas, and his source skin weights are mapped to the City skeleton for the same walk and idle clips. The Army Officer archive credits Box Games. The current listing for the same Sketchfab model credits Nasser. The City credits record both names.

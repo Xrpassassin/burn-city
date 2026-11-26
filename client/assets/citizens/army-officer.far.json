@@ -1,0 +1,37 @@
+{
+ "id": "army-officer",
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "nearTris": 9000,
+ "sourceTris": 32890,
+ "height": 1.82,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 0,
+ "legSideFixed": 12,
+ "legWebFacesCut": 0,
+ "armsOutRest": [
+  "L",
+  "R"
+ ],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.456,
+ "alphaCutoff": 0.35,
+ "verts": 1976,
+ "indices": 5841,
+ "frames": 17,
+ "uvOffset": 0,
+ "idxOffset": 15808,
+ "posOffset": 27492,
+ "nrmOffset": 229044,
+ "min": [
+  -0.39953184127807617,
+  0.004200292751193047,
+  -0.57071852684021
+ ],
+ "size": [
+  0.7742787599563599,
+  1.7668294180184603,
+  1.1801981925964355
+ ],
+ "tris": 1947
+}

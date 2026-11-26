@@ -23,6 +23,10 @@ for o in meshes: o.select_set(True)
 bpy.context.view_layer.objects.active = meshes[0]
 if len(meshes) > 1: bpy.ops.object.join()
 ob = bpy.context.view_layer.objects.active
+# Imported skinning belongs to the source skeleton. Bake the City's own rig from its bind mesh.
+for modifier in tuple(ob.modifiers):
+    if modifier.type == 'ARMATURE':
+        ob.modifiers.remove(modifier)
 bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 for o in list(bpy.context.scene.objects):
@@ -133,7 +137,38 @@ bpy.ops.object.mode_set(mode='OBJECT')
 # ---- skin: automatic (bone heat) weights, nearest-bone fallback for anything left unweighted
 for o in bpy.context.scene.objects: o.select_set(False)
 ob.select_set(True); arm_ob.select_set(True); bpy.context.view_layer.objects.active = arm_ob
-bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+# Reuse authored skin weights from Mixamo sources mapped onto the City's simpler skeleton.
+source_bones = {'Hips': 'hips', 'Spine': 'spine', 'Spine1': 'spine', 'Spine2': 'chest', 'Neck': 'neck',
+                'Head': 'head', 'HeadTop': 'head', 'LeftEye': 'head', 'RightEye': 'head'}
+for side, prefix in [('L', 'Left'), ('R', 'Right')]:
+    for original, city in [('Shoulder', 'chest'), ('Arm', 'upperarm'), ('ForeArm', 'forearm'),
+                           ('Hand', 'hand'), ('UpLeg', 'thigh'), ('Leg', 'shin'),
+                           ('Foot', 'foot'), ('ToeBase', 'foot'), ('Toe', 'foot')]:
+        source_bones[prefix + original] = city if city == 'chest' else city + '.' + side
+mapped = {}
+for group in ob.vertex_groups:
+    if not group.name.startswith('mixamorig:'):
+        continue
+    joint = group.name.removeprefix('mixamorig:').split('_', 1)[0]
+    if joint.startswith(('LeftHand', 'RightHand')):
+        joint = 'LeftHand' if joint.startswith('Left') else 'RightHand'
+    if joint in source_bones:
+        mapped[group.index] = source_bones[joint]
+if mapped:
+    ob.parent = arm_ob
+    ob.modifiers.new('Armature', 'ARMATURE').object = arm_ob
+    targets = {name: ob.vertex_groups.new(name=name) for name in set(mapped.values())}
+    for vertex in ob.data.vertices:
+        weights = {}
+        for assignment in vertex.groups:
+            name = mapped.get(assignment.group)
+            if name:
+                weights[name] = weights.get(name, 0) + assignment.weight
+        total = sum(weights.values())
+        for name, weight in weights.items():
+            targets[name].add([vertex.index], weight / total, 'REPLACE')
+else:
+    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 names = [b.name for b in arm_ob.data.bones]
 def segd(p, b):
     h, t = arm_ob.matrix_world @ b.head_local, arm_ob.matrix_world @ b.tail_local
@@ -149,7 +184,7 @@ for v in ob.data.vertices:
 limb = [n for n in names if n.split('.')[0] in ('upperarm', 'forearm', 'hand', 'thigh', 'shin', 'foot')]
 R = {'upperarm': .075, 'forearm': .06, 'hand': .06, 'thigh': .11, 'shin': .08, 'foot': .07}
 cleaned = 0
-for v in ob.data.vertices:
+for v in ([] if mapped else ob.data.vertices):
     p = ob.matrix_world @ v.co
     for g in list(v.groups):
         n = ob.vertex_groups[g.group].name
@@ -234,7 +269,34 @@ arm_ob.animation_data.action = None
 
 # ---- far LOD: duplicate near skin, decimate, bake Walk into vertex table
 far = ob.copy(); far.data = ob.data.copy(); scn.collection.objects.link(far); far.name = MID + '_far'
+source_material = json.loads((Path(SRC) / 'scene.gltf').read_text())['materials'][0]
 decimate(far, FAR_TRIS)
+if source_material.get('alphaMode') == 'MASK' and tris(far) > 2000:
+    # Drop the smallest detached cutout details only at the far LOD.
+    mesh = bmesh.new()
+    mesh.from_mesh(far.data)
+    unseen = set(mesh.verts)
+    islands = []
+    while unseen:
+        group = [unseen.pop()]
+        for vertex in group:
+            for edge in vertex.link_edges:
+                other = edge.other_vert(vertex)
+                if other in unseen:
+                    group.append(other)
+                    unseen.remove(other)
+        faces = {face for vertex in group for face in vertex.link_faces}
+        area = sum(face.calc_area() for face in faces)
+        if faces and area < .004:
+            islands.append((area, group, sum(len(face.verts) - 2 for face in faces)))
+    remaining = tris(far)
+    for _, vertices, count in sorted(islands, key=lambda island: island[0]):
+        if remaining <= 1950:
+            break
+        bmesh.ops.delete(mesh, geom=vertices, context='VERTS')
+        remaining -= count
+    mesh.to_mesh(far.data)
+    mesh.free()
 arm_ob.animation_data.use_nla = False
 def frames_of(act, n, span):
     arm_ob.animation_data.action = act
@@ -252,6 +314,8 @@ if base_img:
 meta = {'id': MID, 'walkFrames': FAR_FRAMES, 'idleFrame': FAR_FRAMES,
         'nearTris': tris(ob), 'sourceTris': src_tris, 'height': H, 'unweightedFixed': unweighted, 'limbWeightsCleaned': cleaned, 'legSideFixed': side_fixed, 'legWebFacesCut': webs_cut, 'armsOutRest': sorted(ARMS_OUT),
         'walkCycleSec': WALK_FRAMES / 24, 'strideMetersPerCycle': stride_for(H, MID)}
+if source_material.get('alphaMode') == 'MASK':
+    meta['alphaCutoff'] = source_material.get('alphaCutoff', .5)
 write_vat(Path(OUT) / (MID + '.far.json'), far.data, F, meta)
 bpy.data.objects.remove(far)
 

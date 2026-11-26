@@ -215,7 +215,7 @@ async function init() {
       const push = close ? avoidPush(a, grid, P && Math.hypot(P.x - a.x, P.z - a.z) < 4 ? P : null, a.push || (a.push = { x: 0, z: 0 })) : null;
       const prevYaw = a.yaw;
       const step = stepMotion(a, tx, tz, tyaw, dt, push);
-      a.y = a.place?.startsWith('airport:') ? (c.groundAt?.(a.x, a.z) || 0) : 0;
+      a.y = a.place?.startsWith('airport:') ? (c.groundAt?.(a.x, a.z, 0) || 0) : 0;
       // feet step while pivoting on the spot, so turns are not a slide
       const pivot = a.v < .35 ? Math.abs(wrap(a.yaw - prevYaw)) * .22 : 0;
       a.ph = (a.ph + (step + pivot) / FAR[a.model].stride) % 1;

@@ -3,6 +3,9 @@ import {estateFreeStyle} from './estate-free-style-options.mjs';
 import { renderEstateHouses } from './estates-house-design.mjs';
 import {createEstateNeighborhoodDecor} from './estates-neighborhood-renderer.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
+import { createEstateLotDressing } from './estates-lot-dressing.mjs';
+import { setEstateHouseNight } from './estates-house-design.mjs';
+import { estatesLowGraphics } from './estates-kit-models.mjs';
 import { loadEstateUpgradeModels } from './estates-upgrade-models.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
 // Pass the same THREE namespace already used by the host experience; no new CDN or bundle dependency.
@@ -134,6 +137,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const neighborhood=createEstateNeighborhoodDecor({THREE,parent:root,manifest:source});
   const houseRoot=new THREE.Group();houseRoot.name='estates-property-architecture';root.add(houseRoot);
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
+  const lotDressing=createEstateLotDressing({THREE,parent:root,lots,low:estatesLowGraphics()});
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
   const tycoonDecor=createEstateTycoonDecor({THREE,parent:root,lots});
   // CC BY authored models are progressive enhancement: primitives render
@@ -173,6 +177,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   return Object.freeze({
     root,
     setAppearance,
+    setNight:night=>setEstateHouseNight(houseRoot,night),
     setOwnership,
     get neighborhood(){return neighborhood;},
     setUpgrades:tycoonDecor.setUpgrades,
@@ -184,7 +189,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     get objectCount(){return objects.size;},
     dispose(){
       if(disposed)return false;
-      disposed=true; tycoonDecor.dispose(); scene.remove(root);
+      disposed=true; tycoonDecor.dispose(); lotDressing.dispose(); scene.remove(root);
       root.traverse?.(node=>{
         node.geometry?.dispose?.();
         if(Array.isArray(node.material)) node.material.forEach(disposeEstateSurfaceMaterial); else disposeEstateSurfaceMaterial(node.material);

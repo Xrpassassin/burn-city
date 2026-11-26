@@ -11,6 +11,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { validateCitizen, activeEntry, resolvePlace, pickNear, budgetFor } from './citizens-core.mjs';
 import { initMotion, stepMotion, makeGrid, avoidPush, wrap } from './citizens-motion.mjs';
+import { DISTRICT_CAST, districtTargets, makeDistrict } from './citizens-district.mjs';
 import { makeLifeLayer } from './citizens-life.mjs';
 import { makeCitizenMemory, observeVisit, recallLine } from './citizens-aion.mjs';
 
@@ -68,9 +69,11 @@ async function init() {
   const c = window.__city, L = window.__cityLife;
   const B = budgetFor(c.TIER, c.MOBILE);
   const aionMode = Q.get('aion');
-  const aionEnabled = aionMode === '1' || aionMode === '2';
+  const aionEnabled = aionMode === '1' || aionMode === '2' || aionMode === '3';
+  const coffee = aionMode === '3' && L.shops.find(shop => shop.id === 'coffee');
+  const district = coffee ? makeDistrict() : null;
   let aionStorage = null;
-  if (aionMode === '2') {
+  if (aionMode === '2' || aionMode === '3') {
     try { aionStorage = window.localStorage; } catch { /* Fall back to session recall. */ }
   }
   const man = await fetch(new URL('models.json', ASSETS)).then(r => r.json());
@@ -84,6 +87,13 @@ async function init() {
       const err = validateCitizen(s, ids); if (err.length) { console.warn('citizen', id, err); continue; } named.push(s);
     }
   } catch (e) { console.warn('citizens: life scripts', e); }
+  if (district) {
+    for (const profile of DISTRICT_CAST) {
+      const errors = validateCitizen(profile, ids);
+      if (errors.length) throw new Error('Invalid district cast member: ' + profile.id);
+      named.push(profile);
+    }
+  }
   const cap = (peds ? peds.count : 0) + (shop ? shop.count : 0) + named.length;
   const FAR = {}; await Promise.all(models.map(async m => { FAR[m.id] = await loadFar(m, Math.max(1, cap)); }));
   // agents: crowd copies read their source instance; named ones run their own schedule
@@ -95,8 +105,10 @@ async function init() {
   if (peds) for (let i = 0; i < peds.count; i++) add(peds, i, k++);
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
   const world = () => ({ spawn: L.spawn || { x: 0, z: 52 }, police: L.police, fire: L.fire, ems: L.ems, power: L.power, shops: L.shops, towers: (c.E && c.E.nodes) || [], colliders: c.colliders });
+  const districtPoints = district ? districtTargets(coffee, c.colliders) : null;
+  const targetFor = place => districtPoints?.[place] ?? resolvePlace(place, world());
   for (const s of named) {
-    const p = resolvePlace(activeEntry(s.schedule, nowMin()).place, world()) || { x: 0, z: 52 };
+    const p = targetFor(district?.assignment(s.id)?.place ?? activeEntry(s.schedule, nowMin()).place) || { x: 0, z: 52 };
     agents.push(initMotion({ named: s, memory: aionEnabled ? makeCitizenMemory(s.id, aionStorage) : null, model: s.modelId, tint: new THREE.Color(1.8, 1.8, 1.8), x: p.x + 3, z: p.z + 3, yaw: 0, n: { x: p.x + 3, z: p.z + 3, yaw: 0 }, walkWeight: 0, hidden: false, place: null, tgt: null, stuck: 0, last: 0 }, rnd(named.indexOf(s), 7), rnd(named.indexOf(s), 2), rnd(named.indexOf(s), 9)));
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
@@ -126,16 +138,41 @@ async function init() {
 .czBub{position:fixed;left:0;top:0;pointer-events:none;z-index:4;max-width:220px;background:#16101ae6;border:1px solid #ff9b4a88;color:#fff;border-radius:10px;padding:6px 9px;font:12px/1.3 system-ui;opacity:0;transition:opacity .4s}.czBub.on{opacity:1}
 @media (max-width:600px){.czBub{max-width:160px;font-size:10.5px}.czTag{font-size:9.5px}}`; document.head.append(css);
   for (const a of agents) if (a.named) { a.tag = document.createElement('div'); a.tag.className = 'czTag'; a.bub = document.createElement('div'); a.bub.className = 'czBub'; document.body.append(a.tag, a.bub); a.next = 0; }
+  const districtAgents = district ? new Map(agents.filter(a => a.named).map(a => [a.named.id, a])) : null;
+  const closureSign = district ? document.createElement('div') : null;
+  if (closureSign) {
+    closureSign.className = 'czTag';
+    closureSign.textContent = 'Hot Beans · Closed early';
+    closureSign.hidden = true;
+    document.body.append(closureSign);
+  }
   const fr = new THREE.Frustum(), pm = new THREE.Matrix4(), sph = new THREE.Sphere(new THREE.Vector3(), 1.2), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
   let nearSet = [], pickT = 0, last = performance.now(), fpsN = 0;
   const grid = makeGrid(2);
   const vis = a => fr.intersectsSphere(sph.set(v.set(a.x, 1, a.z), 1.2));
   function stepNamed(a, dt, now) {
-    const e = activeEntry(a.named.schedule, nowMin());
-    if (a.place !== e.place) { a.place = e.place; a.entry = e; a.tgt = resolvePlace(e.place, world()); a.arrived = false; if (e.say) a.pending = e.say; }
+    const e = district?.assignment(a.named.id) ?? activeEntry(a.named.schedule, nowMin());
+    if (a.entry !== e) {
+      a.entry = e;
+      a.pending = e.say;
+      if (a.place !== e.place) {
+        a.place = e.place;
+        a.tgt = targetFor(e.place);
+        a.arrived = false;
+      }
+    }
+    a.scuffling = district?.phase === 'clash' && (a.named.id === 'roe' || a.named.id === 'jax');
+    if (a.scuffling) {
+      const other = districtAgents.get(a.named.id === 'roe' ? 'jax' : 'roe');
+      a.n.yaw = Math.atan2(other.n.x - a.n.x, other.n.z - a.n.z);
+    }
     if (!a.tgt || a.arrived) return;
     const n = a.n, dx = a.tgt.x - n.x, dz = a.tgt.z - n.z, d = Math.hypot(dx, dz);
-    if (d < 1.2) { a.arrived = true; observeVisit(a.memory, a.place, aionStorage); return; }
+    if (d < (districtPoints?.[a.place] ? .35 : 1.2)) {
+      a.arrived = true;
+      if (!districtPoints?.[a.place]) observeVisit(a.memory, a.place, aionStorage);
+      return;
+    }
     const s = Math.min(d, 1.35 * dt); n.x += dx / d * s; n.z += dz / d * s; n.yaw = Math.atan2(dx, dz);
     for (const o of c.colliders) { if (!o.r) continue; const ex = n.x - o.x, ez = n.z - o.z, mm = o.r + .5; if (Math.abs(ex) > mm || Math.abs(ez) > mm) continue; const ee = Math.hypot(ex, ez); if (ee < mm) { n.x += ex / (ee || 1) * (mm - ee); n.z += ez / (ee || 1) * (mm - ee); } }
     if (now - a.last > 3000) { if (a.lp && Math.hypot(n.x - a.lp.x, n.z - a.lp.z) < .6) { n.x += (Math.random() - .5) * 4; n.z += (Math.random() - .5) * 4; a.stuck++; if (a.stuck > 6) { n.x = a.tgt.x; n.z = a.tgt.z; a.stuck = 0; } } a.lp = { x: n.x, z: n.z }; a.last = now; }
@@ -147,6 +184,14 @@ async function init() {
     hideCapsules();   // keep the legacy capsule crowd hidden; anything that re-shows it would overlay the 3D people
     const cam = c.C; cam.updateMatrixWorld(); pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); fr.setFromProjectionMatrix(pm);
     const cx = cam.position.x, cz = cam.position.z;
+    if (district) {
+      const wasClosed = district.coffeeClosed;
+      district.tick(dt, id => {
+        const agent = districtAgents.get(id);
+        return agent?.arrived && agent.entry === district.assignment(id);
+      });
+      if (district.coffeeClosed !== wasClosed) L.setShopClosed?.('coffee', district.coffeeClosed);
+    }
     // GTA-style locomotion: the crowd sims say where people are headed; each body eases, turns, leans and sidesteps.
     const P = c.getMode && c.getMode() === 'explore' && c.P && c.P.pos ? c.P.pos : null;
     grid.clear(); for (const a of agents) if (!a.hidden && Math.abs(a.x - cx) < 70 && Math.abs(a.z - cz) < 70) grid.add(a);
@@ -177,7 +222,7 @@ async function init() {
       nearSet = slots.filter(s => s.agent).length;
     }
     for (const s of slots) if (s.agent) {
-      const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.set(0, a.yaw, a.lean);
+      const a = s.agent; s.root.position.set(a.x, 0, a.z); s.root.rotation.set(a.scuffling ? Math.sin(now * .009) * .13 : 0, a.yaw, a.lean);
       s.root.visible = !a.hidden;
       if (a.hidden) continue;
       s.walk.time = a.ph * s.walk.getClip().duration;
@@ -197,17 +242,23 @@ async function init() {
     for (const id in FAR) { const M = FAR[id].mesh; M.visible = M.count > 0; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }
     // named-citizen tags & dialogue
     const W = innerWidth, H = innerHeight;
+    if (closureSign && district.coffeeClosed) {
+      v.set(coffee.door.x, 2.7, coffee.door.z).project(cam);
+      closureSign.hidden = Math.hypot(coffee.door.x - cx, coffee.door.z - cz) >= 35 ||
+        v.z >= 1 || Math.abs(v.x) >= 1 || Math.abs(v.y) >= 1;
+      closureSign.style.transform = `translate(${(v.x + 1) * W / 2}px,${(1 - v.y) * H / 2}px) translate(-50%,-100%)`;
+    } else if (closureSign) closureSign.hidden = true;
     for (const a of agents) if (a.named) {
       const d = Math.hypot(a.x - cx, a.z - cz); v.set(a.x, 2.15, a.z).project(cam); const on = d < 28 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       a.tag.style.display = a.bub.style.display = on ? '' : 'none'; if (!on) continue;
-      const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H; a.tag.textContent = a.named.name + (a.entry && a.entry.activity ? ' · ' + a.entry.activity : '');
+      const x = (v.x + 1) / 2 * W, y = (1 - v.y) / 2 * H; a.tag.textContent = a.named.name + (a.named.faction ? ' · ' + a.named.faction : '') + (a.entry && a.entry.activity ? ' · ' + a.entry.activity : '');
       a.tag.style.transform = `translate(${x}px,${y}px) translate(-50%,-100%)`; a.bub.style.transform = `translate(${x}px,${y - 16}px) translate(-50%,-100%)`;
-      if (d < 10 && now > a.next) { const D = a.named.dialogue || []; const line = a.pending || (a.arrived && recallLine(a.memory, a.place)) || D[(Math.random() * D.length) | 0]; a.pending = null; if (line) { a.bub.textContent = line; a.bub.classList.add('on'); a.hideAt = now + 5000; } a.next = now + 9000 + Math.random() * 6000; }
+      if (d < 10 && now > a.next) { const D = a.named.dialogue || []; const line = district?.recall(a.named.id) || a.pending || (a.arrived && recallLine(a.memory, a.place)) || D[(Math.random() * D.length) | 0]; a.pending = null; if (line) { a.bub.textContent = line; a.bub.classList.add('on'); a.hideAt = now + 5000; } a.next = now + 9000 + Math.random() * 6000; }
       if (a.hideAt && now > a.hideAt) { a.bub.classList.remove('on'); a.hideAt = 0; }
     }
     CC.stats = { agents: agents.length, far: drawn, near: nearSet, named: named.length, budget: B };
   }
-  CC.agents = agents; CC.slots = slots; CC.far = FAR; CC.ready = true; tick();
+  CC.district = district; CC.agents = agents; CC.slots = slots; CC.far = FAR; CC.ready = true; tick();
 }
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 

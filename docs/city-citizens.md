@@ -123,3 +123,9 @@ Open the City with `?aion=1` (or append `&aion=1` to an existing query). Maya, S
 ### Browser-local visit history
 
 Use `?aion=2` to keep the last 12 completed visits per pilot citizen across reloads in the same browser. A return to a familiar stop can draw on visits from before the reload. Reloading at the same stop does not add another visit. Dialogue repetition limits still reset for each page load. The browser stores City place IDs keyed by the fictional citizen's ID. Use one active City tab for this mode, since parallel tabs can overwrite each other's saved history. Clearing the site's data clears the experiment's saved visits. If browser storage is unavailable, the pilot uses session recall. Use `?aion=1` to run the session-only pilot, or omit the option to run the standard City.
+
+### Living district pilot
+
+Open the City with `?aion=3`. Head to Hot Beans on Main Street to see two Precinct 1 officers and two Cinder Crew members in their usual spots. A confrontation develops as they converge. The incident runs as long as the City is active, even with the player elsewhere on the map. Officer Ines checks on Maya while Officer Roe follows the departing crew. Nia talks Jax into leaving. Maya and Skye can give different accounts when you come within conversation range after the incident.
+
+If Maya witnessed the scuffle, Hot Beans closes for 75 seconds of simulation time. The shop displays a closure notice and the shopper simulation stops sending people in. After it reopens, Ines patrols Hot Beans and Main Street, while Roe reports to the station. The district runs one incident per City load. Incident memories last for that load. The three autobiography subjects retain their ordinary place visits through browser-local storage as in `?aion=2`.

@@ -32,6 +32,16 @@ export function makeLifeLayer(THREE) {
       const dx = P.x - a.x, dz = P.z - a.z, d = Math.hypot(dx, dz), rel = wrap(Math.atan2(dx, dz) - a.yaw);
       if (d < 7 * a.curious + 1.5 && Math.abs(rel) < 1.9) look = Math.max(-1.05, Math.min(1.05, rel));
     }
+    if (a.scuffling) {
+      s.root.updateMatrixWorld(true);
+      right.set(-Math.cos(a.yaw), 0, Math.sin(a.yaw));
+      const sway = Math.sin(t * 7) * .22;
+      turn(B.upperarmL, right, .65 + sway);
+      turn(B.forearmL, right, .7);
+      turn(B.upperarmR, right, .65 - sway);
+      turn(B.forearmR, right, .7);
+      return;
+    }
     const w = a.idleW, h = a.habit;
     const glance = h === 2 ? w * Math.max(0, Math.min(1, (Math.sin(t * .6) - .45) * 6)) : 0;
     if (!look && w > .01) {

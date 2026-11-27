@@ -7,6 +7,7 @@
 'use strict';
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const Score = require('./memes-circle-score');
+const XrplTo = require('./xrplto');   // X-Api-Key when XRPLTO_API_KEY is set
 
 const API = 'https://api.xrpl.to/v1/tokens';
 const EVERY = 60 * 60e3, RETRY = 5 * 60e3, PAGE = 100;
@@ -31,7 +32,7 @@ function setCache(c) {
 
 async function pull(sortBy, start) {
   const u = `${API}?start=${start}&limit=${PAGE}&sortBy=${sortBy}&sortType=desc&tag=Memes`;
-  const r = await fetchImpl(u, { headers: { 'user-agent': 'burn-city/1' }, signal: AbortSignal.timeout(20e3) });
+  const r = await fetchImpl(u, { headers: XrplTo.headers({ 'user-agent': 'burn-city/1' }), signal: AbortSignal.timeout(20e3) });
   if (!r.ok) throw new Error('xrpl.to ' + r.status);
   const j = await r.json(); if (!j || !Array.isArray(j.tokens)) throw new Error('xrpl.to bad body'); return j.tokens;
 }
@@ -66,11 +67,12 @@ function start() {
   return true;
 }
 
-// GET /api/memes-circle  (optional ?top=N trims the token list; the Alpha List order is the list order)
+// GET /api/memes-circle  (?status=1 = refresh health incl. `keyed`; optional ?top=N trims the token list; the Alpha List order is the list order)
 function handle(req, res, url, { json }) {
   if (url.pathname !== '/api/memes-circle') return false;
+  if (url.searchParams.get('status') === '1') { json(res, 200, { ...status, enabled: enabled(), keyed: XrplTo.keyed() }); return true; }   // ?status=1: refresh health (never the key itself)
   if (!enabled()) { json(res, 200, { ok: false, enabled: false }); return true; }
-  if (!out) { json(res, 503, { ok: false, enabled: true, error: 'warming_up' }); return true; }
+  if (!out) { json(res, 503, { ok: false, enabled: true, error: 'warming_up', keyed: XrplTo.keyed(), err: status.err }); return true; }
   const top = Math.max(0, Math.min(150, parseInt(url.searchParams.get('top') || '0', 10) || 0));
   if (top) { json(res, 200, { ...cache, tokens: cache.tokens.slice(0, top) }); return true; }
   if (req.headers['if-none-match'] === out.etag) { res.writeHead(304, { etag: out.etag }); res.end(); return true; }
@@ -80,5 +82,5 @@ function handle(req, res, url, { json }) {
   res.end(out.body); return true;
 }
 
-module.exports = { start, refresh, handle, status: () => ({ ...status, enabled: enabled() }), data: () => cache,
+module.exports = { start, refresh, handle, status: () => ({ ...status, enabled: enabled(), keyed: XrplTo.keyed() }), data: () => cache,
   _setFetch: f => { fetchImpl = f; }, _setCache: setCache, _reset: () => { cache = null; out = null; if (timer) clearTimeout(timer); timer = null; Object.assign(status, { ok: false, ts: null, err: null }); }, ATTRIBUTION, PULLS };

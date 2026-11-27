@@ -93,15 +93,15 @@ function buildHeroActor(model, race, H = G.save.hero, cls) {
   a.root.position.set(P.x, 0, P.z); a.root.rotation.y = P.yaw;
   const vis = H ? (R.equipped(H, 'weapon') || R.ITEMS.rusty_blade) : R.ITEMS[C.weapon];
   const wid = H ? H.eq.weapon && H.inv.find(i => i.u === H.eq.weapon).id : C.weapon; const gear = G.assets.gear;
-  const wmap = { sword: ['sword', .53, .18], axe: ['axe', .6, .14], dagger: ['dagger', .5, .1], staff: ['staff', .8, .05] }; let [gname, gs, gg] = wmap[vis.vis] || wmap.sword;
+  const wmap = { sword: ['sword', .53, .18], axe: ['axe', .6, .14], dagger: ['dagger', .5, .1], staff: ['staff', .72, .1, 1.15] }; let [gname, gs, gg, ga] = wmap[vis.vis] || wmap.sword;
   if (wid === 'hollow_cleaver') { gname = 'greataxe'; gs = .58; gg = .22; } if (wid === 'lumen_edge') { gname = 'greatsword'; gs = .52; gg = .22; }
-  const w = a.attach(gear[gname], true, GRIP.r(gs, gg)); if (wid === 'lumen_edge') w.traverse(m => { if (m.isMesh) { m.material.emissive = new THREE.Color(0x5aa8ff); m.material.emissiveIntensity = .6; m.material.userData.e0 = m.material.emissive.clone(); m.material.userData.ei0 = .6; } });
+  const w = a.attach(gear[gname], true, GRIP.r(gs, gg, ga)); if (wid === 'lumen_edge') w.traverse(m => { if (m.isMesh) { m.material.emissive = new THREE.Color(0x5aa8ff); m.material.emissiveIntensity = .6; m.material.userData.e0 = m.material.emissive.clone(); m.material.userData.ei0 = .6; } });
   if (C.shield) a.attach(gear[armorId === 'iron_plate' || armorId === 'wardens_mail' ? 'shield_badge' : 'shield'], false, GRIP.l(.58));
   a.play(G.mode === 'create' ? 'Preview' : 'Idle'); P.weaponVis = vis.vis; return a;
 }
 // weapon / shield placement in the UAL hand bones (tuned on screenshots)
 // hand bones: fingers +y, thumb side +z, palm -x (right) / +x (left); gear is authored blade-up (+y)
-const GRIP = { r: (s, g) => ({ s, rx: Math.PI / 2, ry: 0, rz: 0, x: -.03, y: .085, z: .015 + g * s }), l: s => ({ s, rx: 0, ry: -Math.PI / 2, rz: 0, x: -.07, y: .02, z: 0 }) };
+const GRIP = { r: (s, g, a = 0) => ({ s, rx: Math.PI / 2 + a, ry: 0, rz: 0, x: -.03, y: .085 - Math.sin(a) * g * s, z: .015 + Math.cos(a) * g * s }), l: s => ({ s, rx: 0, ry: -Math.PI / 2, rz: 0, x: -.07, y: .02, z: 0 }) };
 // ------------------------------------------------------------------ play
 function startPlay(fresh) {
   G.mode = 'play'; document.body.classList.remove('creating'); const H = G.save.hero, S = G.stats = R.stats(H), P = G.player;

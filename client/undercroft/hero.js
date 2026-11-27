@@ -21,7 +21,7 @@ export const SEXES = { m: 'Masculine', f: 'Feminine' };
 
 // armor item -> outfit + colour treatment
 const OUTFIT = {
-  ragged_robe: { o: 'peasant', tint: 0xb8a890 }, lumenweave_robe: { o: 'peasant', tint: 0x9cb0ff, glow: 0x2040a0 }, scribes_mantle: { o: 'peasant', tint: 0xd07a52 },
+  ragged_robe: { o: 'peasant', tint: 0xb8a890 }, lumenweave_robe: { o: 'peasant', tint: 0xa8b8f0, glow: 0x3050c0 }, scribes_mantle: { o: 'peasant', tint: 0xd07a52 },
   leather_cuirass: { o: 'ranger', tint: 0xffffff }, iron_plate: { o: 'ranger', steel: 0xb8c0cc, pauldron: 1 }, wardens_mail: { o: 'ranger', steel: 0xd8b878, pauldron: 1, glow: 0x302008 },
 };
 
@@ -83,7 +83,7 @@ export class Hero {
     // outfit
     const of = OUTFIT[look.armor] || OUTFIT.leather_cuirass; this.outfit = rebind(src.parts[of.o]);
     this.outfit.traverse(o => { if (!o.isMesh) return; if (/Pauldron/.test(o.name) && !of.pauldron) { o.visible = false; return; } if (isSkin(o.material)) return own(o, skinMat);
-      own(o, m => { if (of.steel) { m.map = steelMap(m.map); m.color.set(of.steel); m.metalness = .55; m.roughness = .45; } else m.color.set(of.tint || 0xffffff); if (of.glow) { m.emissive = new THREE.Color(of.glow); m.emissiveIntensity = .5; } }); });
+      own(o, m => { if (of.steel) { m.map = steelMap(m.map); m.color.set(of.steel); m.metalness = .55; m.roughness = .45; } else m.color.set(of.tint || 0xffffff); if (of.glow) { m.emissive = new THREE.Color(of.glow); m.emissiveMap = m.map; m.emissiveIntensity = .45; } }); });
     // hair + beard
     const hl = fk.hair[sex] || ['none'], hname = hl[(look.hair | 0) % hl.length], hc = fk.hairCol[(look.hairCol | 0) % fk.hairCol.length];
     const hairMat = m => { m.color.set(hc); m.roughness = .7; };

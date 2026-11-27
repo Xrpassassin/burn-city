@@ -113,7 +113,7 @@ try{
   facts.push({viewport:v.name,...state,closeup:junction,busy});
   await context.close();
  }
- assert.equal(issues.length,0,'no WebGL shader compilation errors');
+ assert.equal(issues.length,0,'no WebGL shader compilation errors: '+issues.join(' | ').slice(0,6000));
  console.log(JSON.stringify({browser:process.env.AMM_BROWSER,results:facts,shaderErrors:issues},null,2));
  await writeFile(output+'/'+process.env.AMM_BROWSER+'-qa.json',JSON.stringify({results:facts,issues},null,2));
 }finally{await browser.close();}

@@ -21,6 +21,7 @@ import './airport.js';
 import './airport-shuttle.mjs';   // BURN Air 1: shared scenic flight, ride + cabin/cockpit camera, quiet WebAudio sounds (?shuttle=0 disables)
 import './city-space.mjs';   // CC BY ISS (BlendRuN) + CB1 (Keremz) in the City sky and on the airport pad, in-City docking flight; ?space=0 disables, see city-credits.html
 import './ember-bar-building.mjs';   // THE EMBER BAR: its own tavern on the BURN ring road (procedural exterior; interior = tower-interior.js 'ember' venue); ?emberbar=0 disables
+import './memes-circle.mjs';   // CIRCLE OF XRPL MEMES quarter + downtown ALPHA LIST (data /api/memes-circle; ?memes=0 disables; zone atmosphere never touches the weather)
 import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
 import { installEstatesIslandLive } from './estates-island-live.mjs';
 import {makeRainbow} from './rainbow.js';
@@ -1162,7 +1163,8 @@ const autoKey=()=>moodWeather;   // Auto weather follows the market only (the AE
 const setW=()=>{wRate=.5;wMode=$('weather').value;if(wMode==='auto')wTarget=W[autoKey()];else if(wMode!=='cycle')wTarget=W[wMode]};
 function wchip(){const el=$('wchip');if(!el)return;const k=wMode==='auto'?moodWeather:null;el.textContent=k?`${WTIERS[k][0]} Market ${moodNow>=0?'+':''}${moodNow.toFixed(1)}% · ${WTIERS[k][1].split(' · ')[1]}`:`🌤 Weather: ${wMode} (manual)`;el.title=k?`${Math.round(greenNow*100)}% of city tokens green in 24h. Tap for weather settings.`:'Manual weather override. Tap for settings.'}
 window.setMarketMood=(m,g)=>{if(m==null||!isFinite(m))return;moodNow=+m;if(g!=null&&isFinite(g))greenNow=+g;const k=tierFor(moodNow,greenNow);if(k!==moodWeather){moodWeather=k}if(wMode==='auto')wTarget=W[autoKey()];wchip()};
-window.setAegisWeather=()=>false;window.__weatherMode=()=>wMode;   // setAegisWeather: kept as a no-op (AEGIS never changes the weather)
+window.setAegisWeather=()=>false;window.__weatherMode=()=>wMode;window.__marketMood=()=>({mood:moodNow,green:greenNow,tier:moodWeather});   // read-only (memes-circle.mjs fireworks on green days)
+   // setAegisWeather: kept as a no-op (AEGIS never changes the weather)
 if(Q.get('weather'))$('weather').value=Q.get('weather');setW();$('weather').onchange=()=>{setW();wchip()};wchip();$('wchip').onclick=()=>{$('hud').classList.add('open');$('weather').focus()};let wCur={...(Q.get('weather')?wTarget:W.clear)};
 const rain=(()=>{const n=LV.rain,pos=new Float32Array(n*6),tail=new Float32Array(n*2);for(let i=0;i<n;i++){const x=(Math.random()-.5)*260,y=Math.random()*140,z=(Math.random()-.5)*260;pos.set([x,y,z,x,y,z],i*6);tail[i*2+1]=1}
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('tail',new THREE.BufferAttribute(tail,1));

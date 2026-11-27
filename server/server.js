@@ -45,6 +45,7 @@ const homefrontGuests = HomefrontGuest.createGuestHandler({ overworld: homefront
 setInterval(() => homefrontGuests.sweep(), 60000).unref();
 const Jetpack = require('./jetpack');
 const EmberBar = require('./ember-bar');   // Ember Bar 1 XRP cosmetic drinks (/api/ember-bar), on unless EMBER_BAR_PAYMENTS=0
+const MemesCircle = require('./memes-circle');   // Circle of XRPL Memes districts: hourly xrpl.to Memes scoring (/api/memes-circle, MEMES_CIRCLE=0 kill switch)
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const VisitStats = require('./visit-stats').createVisitStats({ db: Pay.sdb, cityCount: () => City.count() });   // anonymous city visits + peak concurrency (/api/stats/visit, /api/stats/visitors)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
@@ -171,6 +172,7 @@ const server = http.createServer(async (req, res) => {
       try { return json(res, 200, await Nft.select(u.acct, (await body()).id ?? null, Nft.mainLedger)); } catch (e) { console.error('nft select', e.message); return json(res, 200, { error: 'ledger_unavailable' }); } }
     if (await Social.handle(req, res, url, { json, body, who, ledger: Pay.ledger, signinReady: !!C.XUMM_KEY, adminOk })) return;
     if (limited(ip)) return json(res, 429, { error: 'slow_down' });
+    if (MemesCircle.handle(req, res, url, { json })) return;   // behind the shared per-IP limiter above
     if (url.pathname === '/api/shop') { const u = who(); return json(res, 200, { items: Object.entries(items).filter(([, i]) => !i.reward).map(([id, i]) => ({ id, ...i, xrp: i.drops / 1e6 })), rewards: Object.entries(items).filter(([, i]) => i.reward).map(([id, i]) => ({ id, ...i })), owned: u ? Pay.owned(u.acct) : [], burnShare: C.BURN_SHARE, cosmeticOnly: true, available: !!(C.XUMM_KEY && C.TREASURY), note: (C.XUMM_KEY && C.TREASURY) ? null : 'coming_soon' }); }
     if (url.pathname === '/api/tron/lobbies') return json(res, 200, { lobbies: rooms.tron.filter(x => x.tl && !x.tl.ranked && x.tl.state === 'lobby' && x.players.size).map(x => ({ id: x.tl.id, cfg: x.tl.cfg, players: x.players.size, teams: x.tl.cfg.teams ? Array.from({ length: x.tl.cfg.teams }, (_, i) => [...x.players.values()].filter(p => p.team === i + 1).length) : null })) });
     if (url.pathname === '/api/ranked') { const here = {}; for (const x of rooms.zombie) if (x.ranked?.state === 'lobby') here[x.ranked.id] = x.players.size; for (const x of rooms.tron) if (x.tl?.ranked && x.tl.state === 'lobby') here[x.tl.id] = x.players.size; return json(res, 200, Ranked.publicInfo(here)); }
@@ -729,4 +731,5 @@ server.listen(C.PORT, () => console.log(`burn-city-game :${C.PORT} free=true sho
 for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, () => { try { Homefront.flush(); } catch (e) { console.error('[homefront] flush on', sig, 'failed', e?.message); } process.exit(0); });
 Eco.start();
 AmmLock.start(Eco);
+MemesCircle.start();
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

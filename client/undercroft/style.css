@@ -170,3 +170,4 @@ body.touch .tut{bottom:auto;top:30%}
 
 body.creating #hud{display:none}
 @media (max-width:720px){#create .nav{position:sticky;bottom:-12px;margin:6px -14px -12px;padding:10px 14px 12px;background:linear-gradient(#e9d7ac00,#e9d7acf0 35%)}#create .card{max-height:62vh}}
+@media (orientation:portrait){body.touch #target{top:calc(214px + var(--safe-t))}body.touch #target .bar{width:200px}body.touch #target.boss .bar{width:80vw}}

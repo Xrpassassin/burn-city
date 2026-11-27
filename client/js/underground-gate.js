@@ -279,7 +279,7 @@ async function enter(spotName = 'arrive') {
     veilProgress(1); await new Promise(r => setTimeout(r, 180));
     cityOff(); m.enter(); place(SPOTS[spotName] || SPOTS.arrive); G.active = true; G.trips++; G.leftAt = 0; G.enterMs = Math.round(performance.now() - t0);
     hideVeil(); G.modal = null;
-    setTimeout(() => api.toast(spotName === 'fromGate' ? 'Back in the Ember Crossroads. The Gate hums behind you.' : 'THE UNDERCROFT · Ember Crossroads. The Descent Gate lies north; the Ledger of Deeds east.'), 500);
+    setTimeout(() => api.toast(spotName === 'fromGate' ? 'Back in the Ember Crossroads. The Gate hums behind you.' : spotName === 'fromRuin' ? 'Back up the Ember Stair. Cinder-Scribe Varro looks up from his chronicle.' : 'THE UNDERCROFT · Ember Crossroads. The Descent Gate lies north; the Ledger of Deeds east.'), 500);
   } catch (e) { G.err = 'enter ' + String(e && e.stack || e).slice(0, 400); console.warn('undercroft', e); abort(); }
   G.busy = false; return G.active;
 }
@@ -299,6 +299,10 @@ function exit() {
 }
 function launchEG(kind = 'gate') {
   if (G.busy) return; G.busy = true; G.modal = 'loading'; chipHide();
+  if (kind === 'ruin') {   // the Undercroft RPG: its own lazy page, returns to ?crossroads=ruin
+    showVeil('Ruins of Vael Ithren', 'Down the Ember Stair', 'Cold air, old stone, and a light that should not still be burning.'); veilProgress(.4);
+    setTimeout(() => veilProgress(.9), 350); setTimeout(() => { location.href = 'undercroft/?from=crossroads'; }, 900); return;
+  }
   showVeil('The Eternal Grind', kind === 'side' ? 'Down the Ember Stair' : 'Through the Descent Gate', 'Fire takes the threshold. Something below takes notice.'); veilProgress(.4);
   try { G.mod && G.mod.sfxGate && G.mod.sfxGate(); } catch (e) { }
   setTimeout(() => veilProgress(.9), 350);
@@ -364,7 +368,8 @@ function frame(dt, t) {
     (window.__mmHooks = window.__mmHooks || []).push((mm, sc, cw) => { const px = G.lot.x * sc, pz = G.lot.z * sc; mm.save(); mm.shadowColor = '#9fd0ff'; mm.shadowBlur = 8; mm.fillStyle = '#cfe6ff'; mm.beginPath(); mm.arc(px, pz, Math.max(2.5, 4 * sc), 0, 7); mm.fill(); mm.restore(); mm.fillStyle = '#d8ecff'; mm.font = Math.round(cw / 30) + 'px system-ui'; mm.textAlign = 'center'; mm.fillText('Undercroft', px, pz + 12); });
     (window.__tourHooks = window.__tourHooks || []).push(V3 => { const cam = G.loc(-6, 16); return [V3(cam.x, 5, cam.z), V3(G.lot.x, 2.5, G.lot.z), 'The Undercroft: a pale-stone stair down to the Ember Crossroads, the social hub beneath the city and the way into the Eternal Grind']; });
     G.state = 'ready';
-    if (Q.get('crossroads') === '1') { try { const u = new URL(location.href); u.searchParams.delete('crossroads'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { } setTimeout(() => enter('fromGate'), 600); }
+    if (Q.get('crossroads') === 'ruin') { try { const u = new URL(location.href); u.searchParams.delete('crossroads'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { } setTimeout(() => enter('fromRuin'), 600); }
+    else if (Q.get('crossroads') === '1') { try { const u = new URL(location.href); u.searchParams.delete('crossroads'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { } setTimeout(() => enter('fromGate'), 600); }
   } catch (e) { G.err = String(e && e.stack || e).slice(0, 400); console.warn('undercroft gate', e); }
 })();
 const spot = () => G.lot && G.out ? { x: G.out.x, z: G.out.z, face: { x: G.lot.x, z: G.lot.z } } : null;

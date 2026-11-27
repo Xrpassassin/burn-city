@@ -208,7 +208,7 @@ export async function buildWorld(ctx) {
   // ---- pooled point lights: the nearest sources get a real light, the rest stay emissive + glow
   const NL = low ? 4 : tier === 'medium' ? 7 : 10; W.pool = [];
   for (let i = 0; i < NL; i++) { const L = new THREE.PointLight(0xffffff, 0, 10, 2); L.userData.src = null; root.add(L); W.pool.push(L); }
-  W.hemi = new THREE.HemisphereLight(0x8aa0c8, 0x3a2a1c, low ? .55 : .38); root.add(W.hemi);
+  W.hemi = new THREE.HemisphereLight(0x8aa0c8, 0x4a3424, low ? .8 : .62); root.add(W.hemi);
   if (hi) { const sp = new THREE.SpotLight(0xffd0a0, 60, 22, .7, .6, 1.6); sp.castShadow = true; sp.shadow.mapSize.set(1024, 1024); sp.shadow.bias = -.0006; sp.shadow.radius = 4; sp.shadow.camera.near = .5; sp.shadow.camera.far = 24; root.add(sp); root.add(sp.target); W.spot = sp; }
   return W;
 }
@@ -223,8 +223,8 @@ export function updateWorld(W, t, dt, focus, cam) {
   // light pool: assign nearest sources every 0.15 s
   W.acc = (W.acc || 0) + dt; if (W.acc > .15) { W.acc = 0; const live = W.sources.filter(s => s.I > 0 || (s.ped && s.ped.on)); live.forEach(s => s.dd = (s.x - focus.x) ** 2 + (s.z - focus.z) ** 2 + (s.y - 2) ** 2 * .2); live.sort((a, b) => a.dd - b.dd); const want = live.slice(0, W.pool.length);
     for (const L of W.pool) if (L.userData.src && !want.includes(L.userData.src)) L.userData.src = null;
-    for (const s of want) if (!W.pool.some(L => L.userData.src === s)) { const L = W.pool.find(L => !L.userData.src); if (L) { L.userData.src = s; L.position.set(s.x, s.y, s.z); L.color.set(s.col); L.distance = s.d; L.intensity = 0; } } }
-  for (const L of W.pool) { const s = L.userData.src; const target = s ? (s.ped ? (s.ped.on ? 16 : 0) : s.I) * (s.fl ? 1 + Math.sin(t * 11 + s.x) * .07 + Math.sin(t * 17.3 + s.z) * .05 : 1) : 0; L.intensity += (target - L.intensity) * Math.min(1, dt * 6); }
+    for (const s of want) if (!W.pool.some(L => L.userData.src === s)) { const L = W.pool.find(L => !L.userData.src); if (L) { L.userData.src = s; L.position.set(s.x, s.y, s.z); L.color.set(s.col); L.distance = s.d * 1.45; L.intensity = 0; } } }
+  for (const L of W.pool) { const s = L.userData.src; const target = s ? (s.ped ? (s.ped.on ? 16 : 0) : s.I) * 1.9 * (s.fl ? 1 + Math.sin(t * 11 + s.x) * .07 + Math.sin(t * 17.3 + s.z) * .05 : 1) : 0; L.intensity += (target - L.intensity) * Math.min(1, dt * 6); }
   // dust follows the focus
   if (W.dust) { W.dust.position.set(focus.x, 0, focus.z); const p = W.dust.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * .05; if (y > 6) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(t * .3 + i) * dt * .05); } p.needsUpdate = true; }
   // traps

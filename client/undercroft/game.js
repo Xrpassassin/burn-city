@@ -30,7 +30,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: tier !== 'low' && 
 renderer.setPixelRatio(Math.min(devicePixelRatio, tier === 'high' ? 2 : tier === 'medium' ? 1.5 : 1));
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = tier === 'low' ? 1.25 : 1.1;
 renderer.shadowMap.enabled = tier === 'high'; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0a08); scene.fog = new THREE.FogExp2(0x15100c, tier === 'low' ? .034 : .026);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0a08); scene.fog = new THREE.FogExp2(0x15100c, tier === 'low' ? .03 : .021);
 const camera = new THREE.PerspectiveCamera(touch ? 62 : 58, innerWidth / innerHeight, .1, 140);
 G.scene = scene; G.camera = camera; G.renderer = renderer;
 let composer = null, bloom = null;
@@ -40,6 +40,7 @@ resize(); on(window, 'resize', resize);
 const texLoader = new THREE.TextureLoader(), texCache = new Map();
 function loadTex(url, srgb) { if (texCache.has(url)) return texCache.get(url); const p = texLoader.loadAsync(url).then(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = tier === 'high' ? 8 : 4; return t; }); texCache.set(url, p); return p; }
 // two dedicated fx lights (fireballs, frost wisps); light count stays constant so shaders never recompile mid-fight
+const fill = new THREE.PointLight(0xffc89a, tier === 'low' ? 0 : 7, 9, 2); scene.add(fill); G.fill = fill;
 const fxLights = [0, 1].map(() => { const L = new THREE.PointLight(0xff7a30, 0, 9, 2); scene.add(L); return L; });
 
 // ------------------------------------------------------------------ boot
@@ -116,7 +117,7 @@ G.minionCount = () => G.enemies.filter(e => e.k === 'minion' && e.alive).length;
 
 // ------------------------------------------------------------------ input
 const inp = { f: 0, r: 0, keys: {}, sprint: false, atkDown: false, atkT: 0, heavyFired: false, block: false, dodge: false, fire: false, heal: false, use: false, pot: false, lookX: 0, lookY: 0 };
-const cam = { yaw: Math.PI, pitch: .22, dist: 4.1, cur: new THREE.Vector3(), shakeV: new THREE.Vector3() };
+const cam = { yaw: Math.PI, pitch: .22, dist: 4.5, cur: new THREE.Vector3(), shakeV: new THREE.Vector3() };
 on(window, 'keydown', e => {
   if (e.target && e.target.tagName === 'INPUT') return; const k = e.key.toLowerCase(); SFX.initAudio();
   if (G.modal === 'lock' && (k === ' ' || k === 'e')) { e.preventDefault(); G.lockKey && G.lockKey(); return; }
@@ -331,7 +332,7 @@ function updateCamera(dt) {
   ok = Math.max(.12, ok); const tgt = pivot.clone().lerp(want, ok); if (!G.camInit) { camPos.copy(tgt); G.camInit = true; } camPos.lerp(tgt, Math.min(1, dt * (ok < .99 ? 18 : 10)));
   camera.position.copy(camPos); if (G.shake > 0) { camera.position.x += (Math.random() - .5) * G.shake; camera.position.y += (Math.random() - .5) * G.shake; G.shake = Math.max(0, G.shake - dt * 1.4); }
   camLook.set(pivot.x + fx * 2 - sx * .3, pivot.y + (G.mode === 'create' ? 0 : .1) - Math.sin(pitch) * .6, pivot.z + fz * 2 - sz * .3); if (G.mode === 'create') { const off = innerWidth > innerHeight ? 1 : 0; camLook.set(P.x - fz * off, innerWidth > innerHeight ? 1.05 : -.55, P.z + fx * off); }
-  camera.lookAt(camLook);
+  camera.lookAt(camLook); fill.position.set(camPos.x * .4 + P.x * .6, 2.8, camPos.z * .4 + P.z * .6);
 }
 function updateBolts(dt) {
   const P = G.player;
@@ -409,5 +410,5 @@ function teardown() {
 }
 on(window, 'pagehide', () => { try { persist(); } catch (e) { } teardown(); });
 G.teardown = teardown;
-if (TEST) Object.assign(G, { R, MAP, inp, cam, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store });
+if (TEST) Object.assign(G, { R, MAP, UI, inp, cam, gainXp, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store });
 boot().catch(e => { console.error(e); UI.loading(1, 'Could not load the ruin: ' + (e && e.message || e)); });

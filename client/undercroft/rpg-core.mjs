@@ -89,8 +89,8 @@ export const ITEMS = {
   iron_sword: { n: 'Iron Sword', t: 'weapon', kind: 'one', model: 'sword', sk: 'blade', dmg: 9, spd: 1, reach: 2.2, st: 7, val: 20, r: 0 },
   steel_sabre: { n: 'Steel Sabre', t: 'weapon', kind: 'one', model: 'sabre', sk: 'blade', dmg: 12, spd: 1.08, reach: 2.2, st: 7, val: 55, r: 1 },
   lumen_edge: { n: 'Lumen Edge', t: 'weapon', kind: 'one', model: 'goldsword', sk: 'blade', dmg: 15, spd: 1.05, reach: 2.3, st: 7, val: 140, r: 2, spell: .1, glow: 0x5aa8ff, d: 'An elder-forged blade that hums near crystals.' },
-  steel_longsword: { n: 'Steel Greatsword', t: 'weapon', kind: 'two', model: 'greatsword', sk: 'blade', dmg: 16, spd: .82, reach: 2.7, st: 11, val: 60, r: 1 },
-  steel_claymore: { n: 'Steel Claymore', t: 'weapon', kind: 'two', model: 'claymore', sk: 'blade', dmg: 13, spd: .85, reach: 2.7, st: 11, val: 45, r: 0 },
+  steel_longsword: { n: 'Bloodsteel Greatsword', t: 'weapon', kind: 'two', model: 'claymore', sk: 'blade', dmg: 17, spd: .82, reach: 2.7, st: 11, val: 60, r: 1 },
+  steel_claymore: { n: 'Steel Claymore', t: 'weapon', kind: 'two', model: 'greatsword', sk: 'blade', dmg: 13, spd: .85, reach: 2.7, st: 11, val: 45, r: 0 },
   ember_dagger: { n: 'Ember Dagger', t: 'weapon', kind: 'dagger', model: 'dagger', sk: 'blade', dmg: 7, spd: 1.35, reach: 1.8, st: 5, val: 25, r: 1, crit: 10 },
   fang_dagger: { n: 'Gilded Fang', t: 'weapon', kind: 'dagger', model: 'dagger2', sk: 'blade', dmg: 10, spd: 1.4, reach: 1.8, st: 5, val: 70, r: 2, crit: 15, d: 'A gold-hilted dagger from a Vael Ithren tomb.' },
   ash_spear: { n: 'Ash Spear', t: 'weapon', kind: 'spear', model: 'spear', sk: 'blade', dmg: 9, spd: .95, reach: 3.1, st: 8, val: 30, r: 0 },
@@ -103,6 +103,7 @@ export const ITEMS = {
   hunting_bow: { n: 'Hunting Bow', t: 'weapon', kind: 'bow', model: 'bow', sk: 'marksman', dmg: 12, spd: 1, reach: 30, st: 6, ammo: 'arrows', val: 25, r: 0 },
   ashwood_longbow: { n: 'Ashwood Longbow', t: 'weapon', kind: 'bow', model: 'bow2', sk: 'marksman', dmg: 15, spd: .92, reach: 34, st: 7, ammo: 'arrows', val: 55, r: 1 },
   gilded_bow: { n: 'Gilded Recurve', t: 'weapon', kind: 'bow', model: 'goldbow', sk: 'marksman', dmg: 19, spd: 1.05, reach: 36, st: 7, ammo: 'arrows', val: 150, r: 2, d: 'Strung with lumen-silk. It never seems to slacken.' },
+  hollow_bow: { n: "Hollow King's Bow", t: 'weapon', kind: 'bow', model: 'evilbow', sk: 'marksman', dmg: 23, spd: 1, reach: 38, st: 7, ammo: 'arrows', val: 280, r: 3, d: 'Black horn and red sinew. Arrows leave it hissing.' },
   light_crossbow: { n: 'Light Crossbow', t: 'weapon', kind: 'crossbow', model: 'crossbow', sk: 'marksman', dmg: 24, spd: .8, reach: 38, st: 4, ammo: 'bolts', val: 70, r: 1 },
   throwing_knives: { n: 'Throwing Knives', t: 'weapon', kind: 'thrown', model: 'knife', sk: 'marksman', dmg: 8, spd: 1.3, reach: 16, st: 5, ammo: 'knives', val: 12, r: 0 },
   arrows: { n: 'Iron Arrows', t: 'ammo', val: 1, r: 0, stack: 1 },
@@ -314,9 +315,9 @@ export const DROPS = {
   minion: [[.18, 'arrows', 6], [.08, 'knives', 4], [.05, 'rusty_blade', 1]],
   skeleton: [[.22, 'arrows', 8], [.12, 'bolts', 5], [.1, 'iron_sword', 1], [.07, 'iron_axe', 1], [.06, 'ash_spear', 1], [.06, 'round_shield', 1], [.05, 'hunting_bow', 1], [.04, 'iron_hammer', 1], [.03, 'steel_claymore', 1]],
   wraith: [[.25, 'knives', 6], [.15, 'arrows', 10], [.08, 'fang_dagger', 1], [.06, 'steel_sabre', 1], [.05, 'throwing_knives', 1], [.04, 'ashwood_longbow', 1], [.04, 'studded_shield', 1]],
-  boss: [[1, 'wardens_heater', 1], [1, 'quarry_maul', 1], [1, 'bolts', 20]],
+  boss: [[1, 'hollow_bow', 1], [1, 'wardens_heater', 1], [1, 'arrows', 20]],
 };
-export function rollDrops(kind, r = Math.random) { const out = []; for (const [p, id, q] of DROPS[kind] || []) if (r() < p) out.push([id, q]); return out.slice(0, 2); }
+export function rollDrops(kind, r = Math.random) { const out = []; for (const [p, id, q] of DROPS[kind] || []) if (r() < p) out.push([id, q]); return kind === 'boss' ? out : out.slice(0, 2); }
 
 // ------------------------------------------------------------------ combat helpers (pure)
 export const ENEMY = {

@@ -177,7 +177,7 @@ function startAttack(heavy) {
   const P = G.player, S = G.stats, K = kindOf(); if (K.ranged && S.kind !== 'thrown') return;
   if (S.kind === 'thrown' && !R.countItem(G.save.hero, S.ammo)) { noAmmo(); return; }
   heavy = heavy && !!K.heavy; const cost = S.wst * (heavy ? 2.4 : 1), winded = P.st < cost; P.st = Math.max(0, P.st - cost); P.stDelay = .9;
-  const t = softTarget(S.kind === 'thrown' ? S.reach : heavy ? 5 : 4.5, S.kind === 'thrown' ? .5 : 1.1, S.kind === 'thrown'); if (t) P.yaw = Math.atan2(t.x - P.x, t.z - P.z); else if (Math.hypot(inp.f, inp.r) > .2 && S.kind !== 'thrown') P.yaw = Math.atan2(...moveDir().slice(0, 2)); else P.yaw = cam.yaw;
+  const t = S.kind === 'thrown' ? aimTarget() : softTarget(heavy ? 5 : 4.5); if (t) P.yaw = Math.atan2(t.x - P.x, t.z - P.z); else if (Math.hypot(inp.f, inp.r) > .2 && S.kind !== 'thrown') P.yaw = Math.atan2(...moveDir().slice(0, 2)); else P.yaw = cam.yaw;
   const e = heavy ? K.heavy : K.light[P.combo % K.light.length], [clip, k, hf, endF] = e, sp = k * S.atkSpd;
   const dur = P.actor.play(clip, { once: true, speed: sp, fade: .08, force: true }); P.state = 'attack'; P.t = 0;
   P.atk = { heavy, dur, hitAt: dur * hf, chainAt: dur * Math.min(.72, hf + .22), end: dur * (endF || .9), done: false, winded, tgt: t }; P.combo = heavy ? 0 : P.combo + 1; P.attacking = true; P.queued = false;
@@ -197,7 +197,10 @@ function resolveSwing() {
 const GRAV = 9.8, UPV = new THREE.Vector3(0, 1, 0);
 function noAmmo() { const S = G.stats; UI.msg(`No ${R.ITEMS[S.ammo].n.toLowerCase()} left. Find more in chests or on the fallen.`); sfx('pedoff'); }
 // auto-aim: nearest living foe in front of the camera (wide cone on phones, narrow on desktop)
-function aimTarget() { const S = G.stats; return softTarget(S.reach, touch ? .42 : .14, true) || (touch ? softTarget(Math.min(12, S.reach), .9, true) : null); }
+function los(x0, z0, x1, z1) { const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / .4); for (let i = 1; i < n; i++) { const t = i / n, [tx, tz] = MAP.tileOf(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t); if (!MAP.passable(G.W.grid, tx, tz, G.W.block)) return false; } return true; }
+function aimTarget() { if (G.forceAim) return G.forceAim.alive ? G.forceAim : null; const S = G.stats, P = G.player; let best = null, bs = 1e9;
+  for (const e of G.enemies) { if (!e.alive) continue; const d = Math.hypot(e.x - P.x, e.z - P.z); if (d > S.reach) continue; const a = Math.abs(angDiff(Math.atan2(e.x - P.x, e.z - P.z), cam.yaw)), cone = touch ? (d < 10 ? .75 : .42) : .14;
+    if (a > cone || !los(P.x, P.z, e.x, e.z)) continue; const sc = d * .15 + a * 4; if (sc < bs) { bs = sc; best = e; } } return best; }
 function aimPoint(t) { if (t) return new THREE.Vector3(t.x, (t.k === 'boss' ? 2.3 : 1.25) + t.y, t.z); // chest of the target
   const d = new THREE.Vector3(); camera.getWorldDirection(d); const p = camera.position.clone(); let dist = 3;   // free aim: where the crosshair meets a wall (or 30 m)
   for (; dist < 30; dist += .5) { const q = p.clone().addScaledVector(d, dist), [tx, tz] = MAP.tileOf(q.x, q.z); if (!MAP.inside(tx, tz) || !MAP.passable(G.W.grid, tx, tz, G.W.block) || q.y < 0) break; }
@@ -209,7 +212,7 @@ function startAim() {
   if (S.kind === 'crossbow' && !P.loaded) { startReload(); return; }
   P.state = 'aim'; P.t = 0; P.aim = { draw: 0, snd: false }; P.attacking = true; P.actor.play('Pistol_Aim_Neutral', { fade: .12, force: true });
 }
-function startReload() { const P = G.player, S = G.stats; if (!R.countItem(G.save.hero, S.ammo)) return; const dur = P.actor.play('Pistol_Reload', { once: true, speed: 1.35 * S.atkSpd, fade: .1, force: true }); P.state = 'reload'; P.t = 0; P.reloadFor = dur * .92; sfx('reload', null, .8); }
+function startReload() { const P = G.player, S = G.stats; if (!R.countItem(G.save.hero, S.ammo)) return; const want = 1.25 / S.atkSpd, full = P.actor.play('Pistol_Reload', { once: true, speed: 1, fade: .1, force: true }); if (P.actor.cur) P.actor.cur.timeScale = full / want * (P.actor.cur.timeScale || 1); P.state = 'reload'; P.t = 0; P.reloadFor = want * .95; sfx('reload', null, .8); }
 function shoot(draw, tgt) {
   const P = G.player, S = G.stats, H = G.save.hero, rig = P.actor.rig; if (!R.takeItem(H, S.ammo)) { noAmmo(); return; }
   P.actor.root.updateMatrixWorld(true); const m = rig.muzzle(), from = m.pos.clone(); if (S.kind === 'thrown') { P.actor.handHolder('r').getWorldPosition(from); }
@@ -267,7 +270,7 @@ function castHeal() {
 }
 function drink(id = 'potion_hp') { const P = G.player, H = G.save.hero, S = G.stats; if (P.cdPot > 0 || !R.countItem(H, id)) { if (!R.countItem(H, id)) UI.msg('No ' + R.ITEMS[id].n + ' left.'); return; } R.takeItem(H, id); P.cdPot = 1; const D = R.ITEMS[id]; if (D.heal) { const a = Math.min(S.hp - P.hp, D.heal); P.hp += a; UI.num({ x: P.x, y: 2, z: P.z }, '+' + Math.round(a), 'heal'); } if (D.mana) P.mp = Math.min(S.mp, P.mp + D.mana); sfx('potion'); healFx(P.x, P.z, D.heal ? 0x8ef08a : 0x7fa8ff); persist(); }
 G.drink = drink;
-G.equip = u => { const H = G.save.hero; if (R.equip(H, u)) { G.stats = R.stats(H); buildHeroActor(); UI.msg('Equipped ' + R.ITEMS[H.inv.find(i => i.u === u).id].n + '.'); persist(); } };
+G.equip = u => { const H = G.save.hero; if (R.equip(H, u)) { G.stats = R.stats(H); const P = G.player; if (P.alive && P.state !== 'dead') { P.state = 'move'; P.attacking = false; P.blocking = false; } buildHeroActor(); UI.msg('Equipped ' + R.ITEMS[H.inv.find(i => i.u === u).id].n + '.'); persist(); } };
 
 // ------------------------------------------------------------------ fx: sparks, fireballs, wisps, heal motes, gravefire
 const sparkGeo = new THREE.SphereGeometry(.05, 4, 3);
@@ -341,6 +344,7 @@ G.objective = () => { const s = G.save; if (s.ruin.boss && !s.hero) return null;
 function updatePlayer(dt) {
   const P = G.player, S = G.stats, A = P.actor, pose = A.rig ? A.rig.pose : {}; P.t += dt;
   if (P.state !== 'aim') { pose.aim = Math.max(0, (pose.aim || 0) - dt * 4.5); pose.draw = Math.max(0, (pose.draw || 0) - dt * 9); }
+  pose.atk = P.state === 'attack' || P.state === 'cast';
   if (P.state !== 'attack') pose.thrust = Math.max(0, (pose.thrust || 0) - dt * 5); pose.nock = Math.min(1, (pose.nock || 0) + dt * 2.5); pose.loaded = P.loaded ? 1 : 0;
   A.update(dt);
   P.cdFire = Math.max(0, P.cdFire - dt); P.cdHeal = Math.max(0, P.cdHeal - dt); P.cdPot = Math.max(0, P.cdPot - dt); P.stDelay -= dt;
@@ -408,10 +412,10 @@ function clearRun(x0, z0, yaw, max) { const fx = Math.sin(yaw), fz = Math.cos(ya
 function createYaw(p) { let best = MAP.SPAWN.face + Math.PI, bd = 0; for (let k = 0; k < 8; k++) { const y = MAP.SPAWN.face + Math.PI + k * Math.PI / 4, d = clearRun(p.x, p.z, y, 6.5) - (k ? .3 : 0); if (d > bd) { bd = d; best = y; } } return best; }
 function updateCamera(dt) {
   const P = G.player, pivot = V2.set(P.x, 1.6, P.z);
-  let yaw = cam.yaw, pitch = cam.pitch, dist = cam.dist * (innerWidth < innerHeight ? 1.2 : 1);
+  let yaw = cam.yaw, pitch = cam.pitch, dist = cam.dist * (innerWidth < innerHeight ? 1.2 : 1); G.aimZ = (G.aimZ || 0) + ((P.state === 'aim' ? 1 : 0) - (G.aimZ || 0)) * Math.min(1, dt * 6); dist *= 1 - .38 * G.aimZ;
   if (G.mode === 'create') { const f = innerWidth > innerHeight; if (G.createYaw == null) { G.createYaw = createYaw(pivot); P.yaw = G.createYaw + Math.PI + .35; } yaw = G.createYaw + (f ? .35 : .1); pitch = .1; dist = f ? 3.4 : 4.4; pivot.y = f ? 1.2 : 1.35; }
   const fx = Math.sin(yaw), fz = Math.cos(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const shoulder = G.mode === 'create' ? 0 : .45; const sx = -fz * shoulder * -1, sz = fx * shoulder * -1;
+  const shoulder = G.mode === 'create' ? 0 : .45 + .25 * (G.aimZ || 0); const sx = -fz * shoulder * -1, sz = fx * shoulder * -1;
   const want = new THREE.Vector3(pivot.x - fx * dist * cp - sx, pivot.y + dist * sp + .2, pivot.z - fz * dist * cp - sz);
   // pull in front of walls / under ceilings
   const steps = 14; let ok = 1; for (let i = 1; i <= steps; i++) { const t = i / steps, x = pivot.x + (want.x - pivot.x) * t, y = pivot.y + (want.y - pivot.y) * t, z = pivot.z + (want.z - pivot.z) * t, [tx, tz] = MAP.tileOf(x, z); const room = MAP.inside(tx, tz) && G.W.grid.floor[tz * MAP.W + tx]; const ceil = room ? G.W.grid.ceil[tz * MAP.W + tx] : 0; const near = [[.35, 0], [-.35, 0], [0, .35], [0, -.35]].some(([ox, oz]) => { const [ax, az] = MAP.tileOf(x + ox, z + oz); return !MAP.passable(G.W.grid, ax, az); }); if (!room || y > ceil - .3 || near) { ok = (i - 1) / steps; break; } }
@@ -505,5 +509,5 @@ function teardown() {
 }
 on(window, 'pagehide', () => { try { persist(); } catch (e) { } teardown(); });
 G.teardown = teardown;
-if (TEST) Object.assign(G, { R, MAP, UI, inp, cam, gainXp, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store });
+if (TEST) Object.assign(G, { R, MAP, UI, inp, cam, gainXp, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store, THREE, shoot, aimTarget, startAim });
 boot().catch(e => { console.error(e); UI.loading(1, 'Could not load the ruin: ' + (e && e.message || e)); });

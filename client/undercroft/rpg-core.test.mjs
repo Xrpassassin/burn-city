@@ -26,7 +26,7 @@ assert.equal(R.xpFor(1), 60); const lv = R.gainXp(s.hero, 1000); assert.ok(lv.le
 assert.ok(R.spendLevel(s.hero, 'hp')); assert.equal(s.hero.boons.hp, 1); assert.ok(!R.spendLevel(s.hero, 'bogus'));
 // inventory
 R.addItem(s.hero, 'potion_hp', 2); const n = R.countItem(s.hero, 'potion_hp'); assert.ok(R.takeItem(s.hero, 'potion_hp')); assert.equal(R.countItem(s.hero, 'potion_hp'), n - 1);
-const sw = R.addItem(s.hero, 'steel_longsword'); assert.ok(R.equip(s.hero, sw.u)); assert.equal(R.equipped(s.hero, 'weapon').n, 'Steel Greatsword');
+const sw = R.addItem(s.hero, 'steel_longsword'); assert.ok(R.equip(s.hero, sw.u)); assert.equal(R.equipped(s.hero, 'weapon').n, 'Bloodsteel Greatsword');
 // quests: accept in hub, progress in ruin, turn in at hub
 assert.ok(R.acceptQuest(s, 'tithe')); assert.ok(R.acceptQuest(s, 'lumen')); assert.ok(!R.acceptQuest(s, 'lumen'));
 for (let i = 0; i < 8; i++) R.questEvent(s, { type: 'kill', undead: 1 });

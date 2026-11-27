@@ -13,7 +13,7 @@ const PAL = { dark: [.13, .06, .03], wood: [.19, .08, .04], steel: [.30, .32, .3
 export const MODELS = {
   sword: { g: -.02 }, sabre: { g: -.01 }, goldsword: { g: -.01 }, claymore: { g: .24, g2: .07 }, greatsword: { g: .21, g2: .04 },
   axe: { g: -.2 }, battleaxe: { g: -.21 }, greataxe: { g: -.2, g2: -.47 }, hammer: { g: -.15 }, maul: { g: -.12, g2: -.36 },
-  dagger: { g: -.02, a: -1.15 }, dagger2: { g: -.03, a: -1.15 }, knife: { g: -.035 }, spear: { g: -.18, g2: .26 }, staff: { g: .05, g2: -.32, a: .3 },
+  dagger: { g: -.02, a: -1.15 }, dagger2: { g: -.03, a: -1.15 }, knife: { g: -.035 }, spear: { g: -.18, g2: .26 }, staff: { g: .05, g2: -.32, a: .3, aIdle: 1.12 },
   bow: { g: 0, str: .243, tip: .609 }, bow2: { g: 0, str: .249, tip: .609 }, goldbow: { g: 0, str: .251, tip: .619 }, evilbow: { g: 0, str: .247, tip: .605 },
   crossbow: { g: 0, g2: .26 }, arrow: { g: 0 }, bolt: { g: 0 }, quiver: { g: 0 },
   shield_round: {}, shield_round2: {}, shield_heater: {}, shield_heater2: {}, shield_celtic: {},
@@ -101,15 +101,16 @@ export class Rig {
     this.mode = mode; const w = this.w, M = this.M;
     if (mode === 'hand') {
       const side = this.kind.hand; this.holder[side].add(w);
-      if (this.kindId === 'bow') { w.rotation.set(Math.PI / 2, Math.PI, 0); w.position.set(.035, .085, .015); }
-      else if (this.kindId === 'crossbow') { w.rotation.set(0, 0, 0); w.position.set(-.035, .09, .02); w.rotation.set(-1.2, 0, 0); }
-      else { const a = this.M.a != null ? this.M.a : .75; w.rotation.set(Math.PI / 2 + a, 0, 0); w.position.set(-.03, .085 - Math.sin(a) * (-(M.g || 0)), .015 - (M.g || 0) * Math.cos(a)); }
+      if (this.kindId === 'bow') { const a = M.a != null ? M.a : .9; w.rotation.set(Math.PI / 2 + a, 0, 0); w.rotateY(M.ry != null ? M.ry : Math.PI / 2); w.position.set(.03, .085, .015); }
+      else if (this.kindId === 'crossbow') { const a = M.a != null ? M.a : -.5, g = -.06; w.rotation.set(Math.PI / 2 + a, 0, 0); w.position.set(-.03, .085 + Math.sin(a) * g, .015 - g * Math.cos(a)); }
+      else { const a = this.M.aIdle != null && !this.pose.atk ? this.M.aIdle : this.M.a != null ? this.M.a : .75; this._a = a; w.rotation.set(Math.PI / 2 + a, 0, 0); w.position.set(-.03, .085 - Math.sin(a) * (-(M.g || 0)), .015 - (M.g || 0) * Math.cos(a)); }
     } else this.h.root.add(w);
   }
   apply() {
     const h = this.h, p = this.pose, k = this.kind; h.root.updateMatrixWorld(true);
     const wantProc = k.proc && (p.aim > .01 || p.thrust > .01 || k.proc === 'spear');
     if (wantProc && this.mode !== 'proc') this.place('proc'); else if (!wantProc && this.mode !== 'hand') this.place('hand');
+    if (this.mode === 'hand' && this.M.aIdle != null && this._a !== (this.pose.atk ? this.M.a : this.M.aIdle)) this.place('hand');
     if (this.mode === 'proc') this[k.proc]();
     else if ((k.two || p.two > .01) && this.M.g2 != null) { // second hand on the haft
       const w = this.w; w.updateMatrixWorld(true); const t = w.localToWorld(_v1.set(0, this.M.g2, 0)); const ax = _v2.set(0, 1, 0).transformDirection(w.matrixWorld);
@@ -152,7 +153,7 @@ export class Rig {
     const mid = this.mode === 'proc' && this.pose.draw > .02 && this.S ? this.S : _v3.copy(a).lerp(b, .5); const pa = this.str.geometry.attributes.position; pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, mid.x, mid.y, mid.z); pa.setXYZ(2, b.x, b.y, b.z); pa.needsUpdate = true; }
   crossbow() {
     const p = this.pose, h = this.h, sR = this.bp('upperarm_r', V()), pitch = p.aimPitch || 0, D = V(0, Math.sin(pitch), Math.cos(pitch));
-    const grip = sR.clone().add(V(.08, -.1, 0)).addScaledVector(D, .3 * p.aim + .1);
+    const grip = sR.clone().add(V(.1, .07, 0)).addScaledVector(D, .22 * p.aim + .1);
     this.setW(grip, D, V(0, 0, 0).add(V(0, 1, 0))); // +X toward up -> we want +Z up: rotate after
     const w = this.w; const y = D.clone().normalize(), zUp = V(0, 1, 0).sub(y.clone().multiplyScalar(y.y)).normalize(), x = new THREE.Vector3().crossVectors(y, zUp);
     _m.makeBasis(x, y, zUp); w.quaternion.setFromRotationMatrix(_m); w.position.copy(grip); w.updateMatrixWorld(true);

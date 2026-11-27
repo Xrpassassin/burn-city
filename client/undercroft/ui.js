@@ -1,6 +1,7 @@
 // Undercroft RPG UI: HUD (compass, vitals, target, prompts, numbers), creation, level-up, menus, lockpicking, loot, death.
 import * as R from './rpg-core.mjs';
 import * as MAP from './ruin-map.mjs';
+import { FOLK, SEXES } from './hero.js';
 const $ = id => document.getElementById(id), esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let G = null; const nums = [];
 export function init(g) { G = g; buildCompass(); }
@@ -36,7 +37,7 @@ export const anyOpen = () => !!$('ovs').children.length;
 
 // ---------- character creation
 export function creation(onPreview, onDone) {
-  const sel = { name: '', race: 'human', cls: 'sentinel', sign: 'bulwark', custom: { major: ['blade', 'block', 'armor'], model: 'knight' } }; let step = 0;
+  const sel = { name: '', race: 'human', cls: 'sentinel', sign: 'bulwark', custom: { major: ['blade', 'block', 'armor'], model: 'knight' }, look: { sex: 'm', skin: 0, hair: 0, hairCol: 0 } }; let step = 0;
   const steps = ['Name', 'Race', 'Class', 'Starsign', 'Begin'];
   const d = overlay('create', `<div class="panel"><div class="pv"></div><div class="card parch" id="cCard"></div></div>`); d.style.background = 'linear-gradient(90deg,transparent 30%,#000a)';
   const bon = sk => Object.entries(sk).map(([k, v]) => `${R.SKILLS[k].n} +${v}`).join(', ');
@@ -44,11 +45,11 @@ export function creation(onPreview, onDone) {
   function render() {
     const c = $('cCard'); let body = '';
     if (step === 0) body = `<h2>Who goes there?</h2><p class="desc"><i>The Warden's ledger asks for a name before the stair. Give one, true or otherwise.</i></p><input id="cName" maxlength="18" placeholder="Wanderer" value="${esc(sel.name)}" autocomplete="off">`;
-    if (step === 1) body = `<h2>Choose your folk</h2><div class="opts">${R.RACE_IDS.map(id => `<button class="opt ${sel.race === id ? 'on' : ''}" data-r="${id}"><b>${R.RACES[id].n}</b>${esc(R.RACES[id].d)}</button>`).join('')}</div><p class="desc"><i>${esc(R.RACES[sel.race].lore)}</i><br><span class="bon">${bon(R.RACES[sel.race].sk)}${statLine(R.RACES[sel.race].m) ? ' · ' + statLine(R.RACES[sel.race].m) : ''}</span></p>`;
+    if (step === 1) body = `<h2>Choose your folk</h2><div class="opts races">${R.RACE_IDS.map(id => `<button class="opt ${sel.race === id ? 'on' : ''}" data-r="${id}"><b>${R.RACES[id].n}</b><span class="rd">${esc(R.RACES[id].d)}</span></button>`).join('')}</div><div class="look"><div class="lk">${Object.entries(SEXES).map(([k, n]) => `<button class="opt sm ${sel.look.sex === k ? 'on' : ''}" data-sex="${k}">${n}</button>`).join('')}</div><div class="lk">${[['skin', 'Skin', 'skins'], ['hair', 'Hair', null], ['hairCol', 'Colour', 'hairCol']].map(([k, n, arr]) => { const fk = FOLK[sel.race], len = arr ? fk[arr].length : (fk.hair[sel.look.sex] || ['none']).length; return len > 1 ? `<span class="cyc"><button class="opt sm" data-lk="${k}" data-d="-1">‹</button><b>${n} ${(sel.look[k] % len) + 1}/${len}</b><button class="opt sm" data-lk="${k}" data-d="1">›</button></span>` : ''; }).join('')}</div></div><p class="desc"><b class="rd2">${esc(R.RACES[sel.race].d)}</b> <i>${esc(R.RACES[sel.race].lore)}</i><br><span class="bon">${bon(R.RACES[sel.race].sk)}${statLine(R.RACES[sel.race].m) ? ' · ' + statLine(R.RACES[sel.race].m) : ''}</span></p>`;
     if (step === 2) { const C = sel.cls === 'custom' ? R.customClass(sel.custom.major, sel.custom.model) : R.CLASSES[sel.cls];
       body = `<h2>Choose your calling</h2><div class="opts">${R.CLASS_IDS.map(id => `<button class="opt ${sel.cls === id ? 'on' : ''}" data-c="${id}"><b>${R.CLASSES[id].n}</b><span class="bon">${R.CLASSES[id].arche}</span></button>`).join('')}<button class="opt ${sel.cls === 'custom' ? 'on' : ''}" data-c="custom"><b>Custom</b><span class="bon">Pick 3 major skills</span></button></div>
       <p class="desc">${esc(C.d)}<br><span class="bon">Major skills: ${C.major.map(s => R.SKILLS[s].n).join(', ')} · Starts with ${R.ITEMS[C.weapon].n} and ${R.ITEMS[C.armor].n}${C.shield ? ' and a shield' : ''}</span></p>
-      ${sel.cls === 'custom' ? `<div class="opts">${R.SKILL_IDS.map(s => `<button class="opt ${sel.custom.major.includes(s) ? 'on' : ''}" data-m="${s}"><b>${R.SKILLS[s].ic} ${R.SKILLS[s].n}</b></button>`).join('')}</div><div class="opts">${R.MODELS.map(m => `<button class="opt ${sel.custom.model === m ? 'on' : ''}" data-mo="${m}"><b>${{ knight: 'Knight garb', mage: 'Mage robes', rogue: 'Hooded leathers', barbarian: 'Ranger furs' }[m]}</b></button>`).join('')}</div>` : ''}`; }
+      ${sel.cls === 'custom' ? `<div class="opts">${R.SKILL_IDS.map(s => `<button class="opt ${sel.custom.major.includes(s) ? 'on' : ''}" data-m="${s}"><b>${R.SKILLS[s].ic} ${R.SKILLS[s].n}</b></button>`).join('')}</div>` : ''}`; }
     if (step === 3) body = `<h2>Under which sign?</h2><div class="opts">${R.SIGN_IDS.map(id => `<button class="opt ${sel.sign === id ? 'on' : ''}" data-s="${id}"><b>${R.SIGNS[id].ic} ${R.SIGNS[id].n}</b></button>`).join('')}</div><p class="desc">${esc(R.SIGNS[sel.sign].d)}</p>`;
     if (step === 4) { const H = R.newHero(sel), S = R.stats(H), C = R.classOf(H);
       body = `<h2>${esc(H.name)}</h2><p class="desc"><i>${R.RACES[H.race].n} ${C.n} · born under ${R.SIGNS[H.sign].n}</i></p><div class="grid2"><div class="sk">❤ Health <b>${S.hp}</b></div><div class="sk">✦ Magicka <b>${S.mp}</b></div><div class="sk">⚡ Stamina <b>${S.st}</b></div><div class="sk">⚔ Damage <b>${S.dmg.toFixed(0)}</b></div><div class="sk">⛨ Armor <b>${S.ar}</b></div><div class="sk">🔥 Firebolt <b>${S.fire.toFixed(0)}</b></div></div><span class="orn"></span>
@@ -57,6 +58,8 @@ export function creation(onPreview, onDone) {
     const ni = $('cName'); if (ni) { ni.oninput = () => { sel.name = ni.value; }; ni.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') next(); }; setTimeout(() => { if (!G.touch) ni.focus(); }, 50); }
     c.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { sel.race = b.dataset.r; render(); onPreview(sel); });
     c.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { sel.cls = b.dataset.c; render(); onPreview(sel); });
+    c.querySelectorAll('[data-sex]').forEach(b => b.onclick = () => { sel.look.sex = b.dataset.sex; render(); onPreview(sel); });
+    c.querySelectorAll('[data-lk]').forEach(b => b.onclick = () => { const k = b.dataset.lk; sel.look[k] = (sel.look[k] + 8 + +b.dataset.d) % 8; render(); onPreview(sel); });
     c.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { sel.sign = b.dataset.s; render(); });
     c.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const m = sel.custom.major, s = b.dataset.m; if (m.includes(s)) m.splice(m.indexOf(s), 1); else { m.push(s); if (m.length > 3) m.shift(); } render(); onPreview(sel); });
     c.querySelectorAll('[data-mo]').forEach(b => b.onclick = () => { sel.custom.model = b.dataset.mo; render(); onPreview(sel); });
@@ -79,7 +82,7 @@ export function menu(tab = 'char') {
   $('mX').onclick = () => close('menu'); d.onclick = e => { if (e.target === d) close('menu'); };
   d.querySelectorAll('[data-t]').forEach(b => b.onclick = () => menu(b.dataset.t));
   const H = G.save.hero, S = R.stats(H), C = R.classOf(H), body = $('mBody');
-  if (tab === 'char') body.innerHTML = `<h2>${esc(H.name)} <span style="font-size:15px">· Level ${H.lvl} ${R.RACES[H.race].n} ${C.n}</span></h2><div class="sk">XP <div class="p"><i style="width:${H.xp / R.xpFor(H.lvl) * 100}%"></i></div><b>${Math.round(H.xp)}/${R.xpFor(H.lvl)}</b></div>
+  if (tab === 'char') body.innerHTML = `<h2>${esc(H.name)} <span style="font-size:15px">· Level ${R.shownLevel(H)}${H.pending ? ' (level-up ready)' : ''} ${R.RACES[H.race].n} ${C.n}</span></h2><div class="sk">XP <div class="p"><i style="width:${H.xp / R.xpFor(H.lvl) * 100}%"></i></div><b>${Math.round(H.xp)}/${R.xpFor(H.lvl)}</b></div>
     <div class="grid2"><div class="sk">❤ Health <b>${Math.round(G.player.hp)}/${S.hp}</b></div><div class="sk">✦ Magicka <b>${Math.round(G.player.mp)}/${S.mp}</b></div><div class="sk">⚡ Stamina <b>${S.st}</b></div><div class="sk">⚔ Weapon damage <b>${S.dmg.toFixed(1)}</b></div><div class="sk">⛨ Armor rating <b>${S.ar}</b></div><div class="sk">🔥 Firebolt <b>${S.fire.toFixed(0)} (${S.fireCost} mp)</b></div><div class="sk">✚ Heal <b>${S.heal.toFixed(0)} (${S.healCost} mp)</b></div><div class="sk">🪙 Gold <b>${H.gold}</b></div></div>
     <span class="orn"></span><h3>Skills <span style="font-size:13px;font-weight:400">· bold = major (rise faster) · skills grow by use</span></h3><div class="grid2">${R.SKILL_IDS.map(id => `<div class="sk ${C.major.includes(id) ? 'maj' : ''}" title="${esc(R.SKILLS[id].d)}">${R.SKILLS[id].ic} ${R.SKILLS[id].n}<div class="p"><i style="width:${H.skills[id].x / R.skillNeed(H, id) * 100}%"></i></div><b>${H.skills[id].v}</b></div>`).join('')}</div><p class="bon" style="font-size:14px">Born under ${R.SIGNS[H.sign].n}: ${esc(R.SIGNS[H.sign].d)}</p>`;
   if (tab === 'inv') { const groups = [['weapon', 'Weapons'], ['armor', 'Armor'], ['potion', 'Potions'], ['tool', 'Tools'], ['quest', 'Quest items'], ['misc', 'Misc']];

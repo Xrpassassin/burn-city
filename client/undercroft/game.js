@@ -8,7 +8,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as R from './rpg-core.mjs';
 import * as MAP from './ruin-map.mjs';
 import { buildWorld, updateWorld, disposeWorld, setPedestal, openGate, setBossDoor, freeHeart, takeHeart, glow, glowTex, wx } from './world.js';
-import { loadAssets, disposeAssets, Actor, Enemy, disposeShared } from './actors.js';
+import { loadAssets, disposeAssets, Enemy, disposeShared } from './actors.js';
+import { Hero, loadFolk, disposeFolk } from './hero.js';
 import * as UI from './ui.js';
 import * as SFX from './sfx.js';
 
@@ -47,14 +48,14 @@ const fxLights = [0, 1].map(() => { const L = new THREE.PointLight(0xff7a30, 0, 
 const LORE = ['Below the Ember Crossroads the pale builders left their halls, their lumen stones, and their dead.', 'The Heartstone kept the dead asleep. Now it is dark, and they walk.', 'Vaelor was the last warden of Vael Ithren. He would not leave his throne, even in death.'];
 document.getElementById('loadLore').textContent = LORE[Math.floor(Math.random() * LORE.length)];
 async function boot() {
-  const H = G.save.hero, models = H ? [R.stats(H).model] : R.MODELS.slice();
-  const need = [...new Set([...models, 'skel_warrior', 'skel_mage', 'skel_minion'])];
+  const H = G.save.hero, sexes = H ? [H.look.sex] : ['m', 'f'];
+  const need = ['skel_warrior', 'skel_mage', 'skel_minion'];
   UI.loading(.04, 'Loading the ruin…');
   const gl = new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader();
-  const [assets, propsG, crystalG, skullpileG, skullG] = await Promise.all([
+  const [folk, assets, propsG, crystalG, skullpileG, skullG] = await Promise.all([loadFolk(sexes),
     loadAssets(need, f => UI.loading(.05 + f * .35)),
     gl.loadAsync('assets/models/dungeon_props.glb'), gl.loadAsync('../assets/underground/models/crystal.glb'), gl.loadAsync('../assets/underground/models/skullpile.glb'), gl.loadAsync('../assets/underground/models/skull-lo.glb')]);
-  G.assets = assets; G.extra = [propsG, crystalG, skullpileG, skullG];
+  G.folk = folk; G.assets = assets; G.extra = [propsG, crystalG, skullpileG, skullG];
   const props = {}; for (const c of propsG.scene.children) props[c.name] = c;
   const bake = (g, h) => { let mesh = null; g.scene.updateMatrixWorld(true); g.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; }); const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); geo.computeBoundingBox(); const b = geo.boundingBox, s = h / (b.max.y - b.min.y); geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2).scale(s, s, s); if (!geo.attributes.normal) geo.computeVertexNormals(); return { geo, mat: mesh.material }; };
   const crystal = bake(crystalG, .9), skullpile = bake(skullpileG, .6), skull = bake(skullG, .26); for (const m of [skullpile.mat, skull.mat]) { m.color && m.color.setRGB(1.6, 1.5, 1.3); }
@@ -66,6 +67,7 @@ async function boot() {
   else { G.ped = MAP.PED_START.slice(); G.ped.forEach((v, i) => setPedestal(G.W, i, v)); }
   for (const [id, c] of Object.entries(G.W.chests)) if (G.save.ruin.chests[id]) { c.open = true; if (c.lid) c.lid.rotation.x = -1.2; }
   if (G.save.ruin.boss) { takeHeart(G.W); const tc = G.W.chests.throne; tc.obj.visible = true; }
+  else if (G.save.ruin.slain) { freeHeart(G.W); G.W.chests.throne.obj.visible = true; }   // Hollow King already down: the Heartstone waits on the altar
   UI.loading(.95, 'Lighting the lumen…');
   // warm up shaders
   renderer.compile(scene, camera);
@@ -77,26 +79,29 @@ async function boot() {
 }
 // ------------------------------------------------------------------ creation
 function startCreation() {
-  G.mode = 'create'; G.previewSel = null; document.body.classList.add('creating');
-  UI.creation(sel => { G.previewSel = sel; buildHeroActor(sel.cls === 'custom' ? R.customClass(sel.custom.major, sel.custom.model).model : R.CLASSES[sel.cls].model, sel.race, null, sel.cls); }, sel => {
+  G.mode = 'create'; G.previewSel = null; G.createYaw = null; document.body.classList.add('creating');
+  UI.creation(sel => { const k = sel.race + sel.cls + sel.look.sex; if (k !== G.previewKey) { G.previewKey = k; if (G.createYaw != null) G.player.yaw = G.createYaw + Math.PI + .35; } G.previewSel = sel; buildHeroActor(null, sel.race, null, sel.cls); }, sel => {
     G.save.hero = R.newHero(sel); R.store(store, G.save); buildHeroActor(); startPlay(true);
   });
 }
 function buildHeroActor(model, race, H = G.save.hero, cls) {
-  if (H) { model = R.stats(H).model; race = H.race; }
   const P = G.player; if (P.actor) { scene.remove(P.actor.root); P.actor.dispose(); }
-  if (!G.assets.protos[model]) model = Object.keys(G.assets.protos).find(k => R.MODELS.includes(k));
-  const RC = R.RACES[race]; const a = new Actor(G.assets, model, { scale: RC.scale, tint: RC.tint !== 0xffffff ? RC.tint : null }); P.actor = a; scene.add(a.root);
+  const sel = G.previewSel, C = H ? R.classOf(H) : (cls === 'custom' ? R.customClass(sel.custom.major) : R.CLASSES[cls] || R.CLASSES.sentinel);
+  const armorId = H ? (R.equipped(H, 'armor') ? H.inv.find(i => i.u === H.eq.armor).id : 'ragged_robe') : C.armor;
+  const look = H ? { ...H.look, race: H.race, armor: armorId } : { ...(sel && sel.look || {}), race, armor: armorId };
+  const a = new Hero(G.folk, look); P.actor = a; scene.add(a.root);
   a.root.position.set(P.x, 0, P.z); a.root.rotation.y = P.yaw;
-  const vis = H ? (R.equipped(H, 'weapon') || R.ITEMS.rusty_blade) : R.ITEMS[(cls === 'custom' ? R.customClass(G.previewSel.custom.major, G.previewSel.custom.model) : R.CLASSES[cls] || R.CLASSES.sentinel).weapon];
-  const wid = H ? H.eq.weapon && H.inv.find(i => i.u === H.eq.weapon).id : null; const gear = G.assets.gear;
-  const wmap = { sword: ['sword', 1], axe: ['axe', 1], dagger: ['dagger', 1.1], staff: ['staff', 1] }; let [gname, gs] = wmap[vis.vis] || wmap.sword;
-  if (wid === 'hollow_cleaver') { gname = 'greataxe'; gs = .85; } if (wid === 'lumen_edge') { gname = 'greatsword'; gs = .78; }
-  const w = a.attach(gear[gname], true, { ry: Math.PI, y: .03, s: gs }); if (wid === 'lumen_edge') w.traverse(m => { if (m.isMesh) { m.material.emissive = new THREE.Color(0x5aa8ff); m.material.emissiveIntensity = .6; m.material.userData.e0 = m.material.emissive.clone(); m.material.userData.ei0 = .6; } });
-  const shield = H ? R.stats(H).shield : (cls === 'custom' ? R.customClass(G.previewSel.custom.major).shield : (R.CLASSES[cls] || {}).shield);
-  if (shield) a.attach(gear[model === 'knight' ? 'shield_badge' : 'shield'], false, { y: .02, z: .14 });
-  a.play('Idle'); P.weaponVis = vis.vis; return a;
+  const vis = H ? (R.equipped(H, 'weapon') || R.ITEMS.rusty_blade) : R.ITEMS[C.weapon];
+  const wid = H ? H.eq.weapon && H.inv.find(i => i.u === H.eq.weapon).id : C.weapon; const gear = G.assets.gear;
+  const wmap = { sword: ['sword', .53, .18], axe: ['axe', .6, .14], dagger: ['dagger', .5, .1], staff: ['staff', .8, .05] }; let [gname, gs, gg] = wmap[vis.vis] || wmap.sword;
+  if (wid === 'hollow_cleaver') { gname = 'greataxe'; gs = .58; gg = .22; } if (wid === 'lumen_edge') { gname = 'greatsword'; gs = .52; gg = .22; }
+  const w = a.attach(gear[gname], true, GRIP.r(gs, gg)); if (wid === 'lumen_edge') w.traverse(m => { if (m.isMesh) { m.material.emissive = new THREE.Color(0x5aa8ff); m.material.emissiveIntensity = .6; m.material.userData.e0 = m.material.emissive.clone(); m.material.userData.ei0 = .6; } });
+  if (C.shield) a.attach(gear[armorId === 'iron_plate' || armorId === 'wardens_mail' ? 'shield_badge' : 'shield'], false, GRIP.l(.58));
+  a.play(G.mode === 'create' ? 'Preview' : 'Idle'); P.weaponVis = vis.vis; return a;
 }
+// weapon / shield placement in the UAL hand bones (tuned on screenshots)
+// hand bones: fingers +y, thumb side +z, palm -x (right) / +x (left); gear is authored blade-up (+y)
+const GRIP = { r: (s, g) => ({ s, rx: Math.PI / 2, ry: 0, rz: 0, x: -.03, y: .085, z: .015 + g * s }), l: s => ({ s, rx: 0, ry: -Math.PI / 2, rz: 0, x: -.07, y: .02, z: 0 }) };
 // ------------------------------------------------------------------ play
 function startPlay(fresh) {
   G.mode = 'play'; document.body.classList.remove('creating'); const H = G.save.hero, S = G.stats = R.stats(H), P = G.player;
@@ -111,7 +116,7 @@ function startPlay(fresh) {
 }
 function spawnEnemies() {
   for (const e of G.enemies) e.dispose(); G.enemies = [];
-  const lvl = G.save.hero.lvl; for (const d of MAP.ENEMIES) { if (d.k === 'boss' && G.save.ruin.boss) continue; const e = new Enemy(G, d, R.enemyStats(d.k, lvl)); G.enemies.push(e); }
+  const lvl = G.save.hero.lvl; for (const d of MAP.ENEMIES) { if (d.k === 'boss' && (G.save.ruin.boss || G.save.ruin.slain)) continue; const e = new Enemy(G, d, R.enemyStats(d.k, lvl)); G.enemies.push(e); }
 }
 G.minionCount = () => G.enemies.filter(e => e.k === 'minion' && e.alive).length;
 
@@ -224,7 +229,7 @@ G.onEnemyDeath = e => {
   const H = G.save.hero; sfx('death', e); gainXp(e.st.xp); UI.msg(`${e.st.n} destroyed. +${e.st.xp} XP`); H.kills[e.k] = (H.kills[e.k] || 0) + 1;
   for (const m of R.questEvent(G.save, { type: 'kill', undead: e.st.undead })) { UI.msg(m, 'b'); if (/return/.test(m)) { sfx('quest'); UI.banner('The Bone Tithe', 'Return to Cinder-Scribe Varro'); } }
   if (Math.random() < (e.k === 'minion' ? .15 : .45)) { R.addItem(H, 'bone_dust'); UI.msg('Found Bone Dust.'); }
-  if (e.k === 'boss') { G.boss = null; setBossDoor(G.W, false); freeHeart(G.W); G.W.chests.throne.obj.visible = true; UI.banner('The Hollow King falls', 'The Heartstone burns bright again'); sfx('quest'); for (const m of G.enemies) if (m.k === 'minion' && m.alive) m.die(); setTimeout(() => UI.msg('Take the Heartstone from the altar.', 'b'), 2500); }
+  if (e.k === 'boss') { R.questEvent(G.save, { type: 'boss' }); G.boss = null; setBossDoor(G.W, false); freeHeart(G.W); G.W.chests.throne.obj.visible = true; UI.banner('The Hollow King falls', 'The Heartstone burns bright again'); sfx('quest'); for (const m of G.enemies) if (m.k === 'minion' && m.alive) m.die(); setTimeout(() => UI.msg('Take the Heartstone from the altar.', 'b'), 2500); }
   persist();
 };
 G.enemyStrike = (e, a) => {
@@ -320,10 +325,13 @@ function updatePlayer(dt) {
   A.root.position.set(P.x, 0, P.z); A.root.rotation.y = P.yaw;
 }
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+// creation camera: pick the direction around the spawn with the most open floor so the full-body preview isn't clipped
+function clearRun(x0, z0, yaw, max) { const fx = Math.sin(yaw), fz = Math.cos(yaw); for (let d = .5; d <= max; d += .25) { const [tx, tz] = MAP.tileOf(x0 - fx * d, z0 - fz * d); if (!MAP.inside(tx, tz) || !MAP.passable(G.W.grid, tx, tz)) return d; } return max; }
+function createYaw(p) { let best = MAP.SPAWN.face + Math.PI, bd = 0; for (let k = 0; k < 8; k++) { const y = MAP.SPAWN.face + Math.PI + k * Math.PI / 4, d = clearRun(p.x, p.z, y, 6.5) - (k ? .3 : 0); if (d > bd) { bd = d; best = y; } } return best; }
 function updateCamera(dt) {
   const P = G.player, pivot = V2.set(P.x, 1.6, P.z);
   let yaw = cam.yaw, pitch = cam.pitch, dist = cam.dist * (innerWidth < innerHeight ? 1.2 : 1);
-  if (G.mode === 'create') { const f = innerWidth > innerHeight; yaw = MAP.SPAWN.face + Math.PI + (f ? .35 : .1); pitch = .1; dist = f ? 3.4 : 5.4; pivot.y = f ? 1.2 : 1.5; }
+  if (G.mode === 'create') { const f = innerWidth > innerHeight; if (G.createYaw == null) { G.createYaw = createYaw(pivot); P.yaw = G.createYaw + Math.PI + .35; } yaw = G.createYaw + (f ? .35 : .1); pitch = .1; dist = f ? 3.4 : 4.4; pivot.y = f ? 1.2 : 1.35; }
   const fx = Math.sin(yaw), fz = Math.cos(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
   const shoulder = G.mode === 'create' ? 0 : .45; const sx = -fz * shoulder * -1, sz = fx * shoulder * -1;
   const want = new THREE.Vector3(pivot.x - fx * dist * cp - sx, pivot.y + dist * sp + .2, pivot.z - fz * dist * cp - sz);
@@ -331,7 +339,7 @@ function updateCamera(dt) {
   const steps = 14; let ok = 1; for (let i = 1; i <= steps; i++) { const t = i / steps, x = pivot.x + (want.x - pivot.x) * t, y = pivot.y + (want.y - pivot.y) * t, z = pivot.z + (want.z - pivot.z) * t, [tx, tz] = MAP.tileOf(x, z); const room = MAP.inside(tx, tz) && G.W.grid.floor[tz * MAP.W + tx]; const ceil = room ? G.W.grid.ceil[tz * MAP.W + tx] : 0; const near = [[.35, 0], [-.35, 0], [0, .35], [0, -.35]].some(([ox, oz]) => { const [ax, az] = MAP.tileOf(x + ox, z + oz); return !MAP.passable(G.W.grid, ax, az); }); if (!room || y > ceil - .3 || near) { ok = (i - 1) / steps; break; } }
   ok = Math.max(.12, ok); const tgt = pivot.clone().lerp(want, ok); if (!G.camInit) { camPos.copy(tgt); G.camInit = true; } camPos.lerp(tgt, Math.min(1, dt * (ok < .99 ? 18 : 10)));
   camera.position.copy(camPos); if (G.shake > 0) { camera.position.x += (Math.random() - .5) * G.shake; camera.position.y += (Math.random() - .5) * G.shake; G.shake = Math.max(0, G.shake - dt * 1.4); }
-  camLook.set(pivot.x + fx * 2 - sx * .3, pivot.y + (G.mode === 'create' ? 0 : .1) - Math.sin(pitch) * .6, pivot.z + fz * 2 - sz * .3); if (G.mode === 'create') { const off = innerWidth > innerHeight ? 1 : 0; camLook.set(P.x - fz * off, innerWidth > innerHeight ? 1.05 : -.55, P.z + fx * off); }
+  camLook.set(pivot.x + fx * 2 - sx * .3, pivot.y + (G.mode === 'create' ? 0 : .1) - Math.sin(pitch) * .6, pivot.z + fz * 2 - sz * .3); if (G.mode === 'create') { const off = innerWidth > innerHeight ? 1 : 0; camLook.set(P.x - fz * off, innerWidth > innerHeight ? 1.05 : -.15, P.z + fx * off); }
   camera.lookAt(camLook); fill.position.set(camPos.x * .4 + P.x * .6, 2.8, camPos.z * .4 + P.z * .6);
 }
 function updateBolts(dt) {
@@ -363,7 +371,7 @@ function updateEnemies(dt) {
 }
 function updateHud(dt) {
   const P = G.player, S = G.stats, H = G.save.hero; if (!H) return;
-  UI.vitals({ hp: P.hp, hpM: S.hp, mp: P.mp, mpM: S.mp, st: P.st, stM: S.st, xp: H.xp, xpM: R.xpFor(H.lvl), name: H.name, lvl: H.lvl + (H.pending ? ' ▲' : '') });
+  UI.vitals({ hp: P.hp, hpM: S.hp, mp: P.mp, mpM: S.mp, st: P.st, stM: S.st, xp: H.xp, xpM: R.xpFor(H.lvl), name: H.name, lvl: R.shownLevel(H) + (H.pending ? ' ▲' : '') });
   const heading = Math.atan2(Math.sin(cam.yaw), -Math.cos(cam.yaw)), marks = []; const o = G.objective(); if (o) marks.push({ b: Math.atan2(o.x - P.x, -(o.z - P.z)), cls: 'mk' });
   for (const e of G.enemies) if (e.alive && e.aggro && Math.hypot(e.x - P.x, e.z - P.z) < 22) marks.push({ b: Math.atan2(e.x - P.x, -(e.z - P.z)), cls: 'en' });
   if (R.questState(G.save, 'lumen') === 'ready' || R.questState(G.save, 'tithe') === 'ready') marks.push({ b: Math.atan2(wx(MAP.EXIT.x) - P.x, -(wx(MAP.EXIT.z) - P.z)), cls: 'mk q2' });
@@ -403,7 +411,7 @@ function teardown() {
   for (const [el, ev, fn, o] of G.listeners) el.removeEventListener(ev, fn, o); G.listeners = [];
   for (const e of G.enemies) e.dispose(); G.enemies = []; if (G.player && G.player.actor) { scene.remove(G.player.actor.root); G.player.actor.dispose(); }
   for (const b of G.bolts) scene.remove(b.grp); for (const f of G.fx) { scene.remove(f.m); f.m.material.dispose(); }
-  if (G.W) disposeWorld(G.W, scene); if (G.assets) disposeAssets(G.assets); for (const g of G.extra || []) g.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } });
+  if (G.W) disposeWorld(G.W, scene); if (G.assets) disposeAssets(G.assets); disposeFolk(); for (const g of G.extra || []) g.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } });
   for (const b of G.baked || []) b.geo.dispose(); sparkGeo.dispose(); disposeShared();
   texCache.forEach(p => p.then(t => t.dispose())); if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); bloom.dispose && bloom.dispose(); }
   renderer.dispose(); try { renderer.forceContextLoss(); } catch (e) { } SFX.closeAudio();

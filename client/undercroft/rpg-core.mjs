@@ -24,14 +24,14 @@ export const SKILL_IDS = Object.keys(SKILLS);
 // ------------------------------------------------------------------ races (adapter over Eternal Grind RACES)
 // EG gives name + description + stat multipliers. We add skill bonuses, a tint and a body scale for the 3D model.
 const RACE_EXTRA = {
-  human: { sk: { blade: 5, block: 5, security: 5 }, tint: 0xffffff, scale: 1, lore: 'Folk of the burning city above. Steady in every craft.' },
-  ashenborn: { sk: { destruction: 10, restoration: 5 }, tint: 0xffd2b8, scale: 1, lore: 'Their blood remembers the first fire. Spells come easily.' },
-  stonefolk: { sk: { armor: 10, block: 5 }, tint: 0xc9c2b8, scale: 1.04, lore: 'Quarry-born, slow to anger and slower to fall.' },
-  wildkin: { sk: { acrobatics: 10, blade: 5 }, tint: 0xf3dcb0, scale: 1, lore: 'Quick hunters from the deep woods.' },
-  gloomkin: { sk: { security: 10, acrobatics: 5 }, tint: 0xc8d0e8, scale: .9, lore: 'Small, sly tunnel-dwellers who see well in the dark.' },
-  ironhide: { sk: { blade: 5, armor: 10 }, tint: 0xb8c8b0, scale: 1.1, lore: 'Huge and hardy. The most health of any folk.' },
-  skyborn: { sk: { restoration: 10, destruction: 5 }, tint: 0xe6f0ff, scale: .97, lore: 'Light-footed mystics from the high spires.' },
-  emberkin: { sk: { blade: 10, destruction: 5 }, tint: 0xffc8a0, scale: 1.02, lore: 'Burning strength; warriors of the ember clans.' },
+  human: { sk: { blade: 5, block: 5, security: 5 }, tint: 0xffffff, scale: 1, lore: 'Folk of the burning city above, of every skin and build. Steady in every craft.' },
+  ashenborn: { sk: { destruction: 10, restoration: 5 }, tint: 0xffd2b8, scale: 1, lore: 'Ash-grey elves whose blood remembers the first fire. Spells come easily.' },
+  stonefolk: { sk: { armor: 10, block: 5 }, tint: 0xc9c2b8, scale: 1.04, lore: 'Short, broad quarry-folk with braided beards. Slow to anger and slower to fall.' },
+  wildkin: { sk: { acrobatics: 10, blade: 5 }, tint: 0xf3dcb0, scale: 1, lore: 'Striped cat-folk from the deep woods: tall ears, long tails, quick claws.' },
+  gloomkin: { sk: { security: 10, acrobatics: 5 }, tint: 0xc8d0e8, scale: .9, lore: 'Small, long-eared tunnel elves who see well in the dark.' },
+  ironhide: { sk: { blade: 5, armor: 10 }, tint: 0xb8c8b0, scale: 1.1, lore: 'Green-hided, tusked giants who shrug off blows that fell others.' },
+  skyborn: { sk: { restoration: 10, destruction: 5 }, tint: 0xe6f0ff, scale: .97, lore: 'Tall golden elves from the high spires, quick of foot and of mind.' },
+  emberkin: { sk: { blade: 10, destruction: 5 }, tint: 0xffc8a0, scale: 1.02, lore: 'Horned, scaled lizard-folk of the ember clans, hot-blooded and hard-hitting.' },
 };
 export const RACES = Object.fromEntries(Object.entries(EG_RACES).filter(([id]) => RACE_EXTRA[id]).map(([id, r]) => [id, {
   id, n: r[0], d: r[1], m: { hp: r[2].hp || 1, atk: r[2].atk || 1, def: r[2].def || 1, mp: r[2].mp || 1, spd: r[2].spd || 1, crit: r[2].crit || 0 }, ...RACE_EXTRA[id],
@@ -117,15 +117,15 @@ export const QUESTS = {
 };
 
 // ------------------------------------------------------------------ save
-export function emptySave() { return { v: SAVE_V, hero: null, quests: { lumen: { s: 'none' }, tithe: { s: 'none', n: 0 } }, ruin: { chests: {}, solved: false, boss: false, seen: {} }, settings: {} }; }
+export function emptySave() { return { v: SAVE_V, hero: null, quests: { lumen: { s: 'none' }, tithe: { s: 'none', n: 0 } }, ruin: { chests: {}, solved: false, boss: false, slain: false, seen: {} }, settings: {} }; }
 const clampN = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
 export function validate(raw) {
   const s = emptySave(); if (!raw || typeof raw !== 'object') return s;
   if (raw.quests && typeof raw.quests === 'object') for (const q of Object.keys(QUESTS)) { const r = raw.quests[q]; if (r && ['none', 'active', 'ready', 'done'].includes(r.s)) s.quests[q] = { s: r.s, n: clampN(r.n, 0, 999, 0) }; }
-  if (raw.ruin && typeof raw.ruin === 'object') { s.ruin.solved = !!raw.ruin.solved; s.ruin.boss = !!raw.ruin.boss; for (const k of ['chests', 'seen']) if (raw.ruin[k] && typeof raw.ruin[k] === 'object') for (const [id, v] of Object.entries(raw.ruin[k])) if (/^[\w-]{1,24}$/.test(id)) s.ruin[k][id] = !!v; }
+  if (raw.ruin && typeof raw.ruin === 'object') { s.ruin.solved = !!raw.ruin.solved; s.ruin.boss = !!raw.ruin.boss; s.ruin.slain = !!(raw.ruin.slain || raw.ruin.boss); for (const k of ['chests', 'seen']) if (raw.ruin[k] && typeof raw.ruin[k] === 'object') for (const [id, v] of Object.entries(raw.ruin[k])) if (/^[\w-]{1,24}$/.test(id)) s.ruin[k][id] = !!v; }
   if (raw.settings && typeof raw.settings === 'object') s.settings = { tier: ['low', 'medium', 'high'].includes(raw.settings.tier) ? raw.settings.tier : undefined, sens: clampN(raw.settings.sens, .3, 3, 1) };
   const h = raw.hero; if (h && typeof h === 'object' && RACES[h.race] && (CLASSES[h.cls] || h.cls === 'custom') && SIGNS[h.sign]) {
-    const H = { name: String(h.name || 'Wanderer').replace(/[<>&"]/g, '').slice(0, 18) || 'Wanderer', race: h.race, cls: h.cls, sign: h.sign, lvl: clampN(Math.floor(h.lvl), 1, MAX_LVL, 1), xp: clampN(h.xp, 0, 1e7, 0), gold: clampN(Math.floor(h.gold), 0, 1e7, 0), boons: { hp: 0, mp: 0, st: 0 }, pending: clampN(Math.floor(h.pending), 0, MAX_LVL, 0), skills: {}, inv: [], eq: {}, kills: {}, created: clampN(h.created, 0, 9e15, 0) };
+    const H = { name: String(h.name || 'Wanderer').replace(/[<>&"]/g, '').slice(0, 18) || 'Wanderer', race: h.race, cls: h.cls, sign: h.sign, lvl: clampN(Math.floor(h.lvl), 1, MAX_LVL, 1), xp: clampN(h.xp, 0, 1e7, 0), gold: clampN(Math.floor(h.gold), 0, 1e7, 0), boons: { hp: 0, mp: 0, st: 0 }, pending: clampN(Math.floor(h.pending), 0, MAX_LVL, 0), skills: {}, inv: [], eq: {}, kills: {}, created: clampN(h.created, 0, 9e15, 0), look: cleanLook(h.look) };
     if (h.cls === 'custom') H.custom = { major: customClass(h.custom && h.custom.major).major, model: customClass([], h.custom && h.custom.model).model };
     for (const k of ['hp', 'mp', 'st']) H.boons[k] = clampN(Math.floor(h.boons && h.boons[k]), 0, 99, 0);
     const base = startSkills(H.race, classOf(H), H.sign);
@@ -148,9 +148,10 @@ export function startSkills(race, cls, sign) {
   const sg = SIGNS[sign]; if (sg && sg.b.security) out.security += sg.b.security;
   return out;
 }
-export function newHero({ name, race, cls, sign, custom }) {
+export function cleanLook(l) { l = l && typeof l === 'object' ? l : {}; const i = v => clampN(Math.floor(v), 0, 7, 0); return { sex: l.sex === 'f' ? 'f' : 'm', skin: i(l.skin), hair: i(l.hair), hairCol: i(l.hairCol) }; }
+export function newHero({ name, race, cls, sign, custom, look }) {
   if (!RACES[race]) race = 'human'; if (!(CLASSES[cls] || cls === 'custom')) cls = 'sentinel'; if (!SIGNS[sign]) sign = 'bulwark';
-  const H = { name: String(name || 'Wanderer').replace(/[<>&"]/g, '').trim().slice(0, 18) || 'Wanderer', race, cls, sign, lvl: 1, xp: 0, gold: 25, boons: { hp: 0, mp: 0, st: 0 }, pending: 0, skills: {}, inv: [], eq: {}, kills: {}, created: Date.now() };
+  const H = { name: String(name || 'Wanderer').replace(/[<>&"]/g, '').trim().slice(0, 18) || 'Wanderer', race, cls, sign, lvl: 1, xp: 0, gold: 25, boons: { hp: 0, mp: 0, st: 0 }, pending: 0, skills: {}, inv: [], eq: {}, kills: {}, created: Date.now(), look: cleanLook(look) };
   if (cls === 'custom') { const c = customClass(custom && custom.major, custom && custom.model); H.custom = { major: c.major, model: c.model }; }
   const C = classOf(H), sk = startSkills(race, C, sign); for (const id of SKILL_IDS) H.skills[id] = { v: sk[id], x: 0 };
   const w = addItem(H, C.weapon), a = addItem(H, C.armor); H.eq.weapon = w.u; H.eq.armor = a.u;
@@ -214,13 +215,15 @@ export const BOONS = { hp: { n: 'Vigor', d: '+10 Health', ic: '❤' }, mp: { n: 
 export function spendLevel(H, boon) { if (!H.pending || !BOONS[boon]) return false; H.boons[boon]++; H.pending--; return true; }
 
 // ------------------------------------------------------------------ quests
+export const shownLevel = H => Math.max(1, H.lvl - (H.pending || 0));
 export function questState(save, id) { return (save.quests[id] && save.quests[id].s) || 'none'; }
 export function acceptQuest(save, id) { const q = save.quests[id]; if (!QUESTS[id] || !q || q.s !== 'none') return false; q.s = 'active'; q.n = 0; return true; }
 // game events -> quest progress. Returns list of human-readable updates.
 export function questEvent(save, ev) {
   const out = []; const H = save.hero;
   if (ev.type === 'kill' && ev.undead) { const q = save.quests.tithe; if (q.s === 'active') { q.n = Math.min(QUESTS.tithe.need, (q.n || 0) + 1); out.push(`${QUESTS.tithe.n}: ${q.n}/${QUESTS.tithe.need}`); if (q.n >= QUESTS.tithe.need) { q.s = 'ready'; out.push(`${QUESTS.tithe.n}: return to ${QUESTS.tithe.giverName}`); } } }
-  if (ev.type === 'heartstone') { save.ruin.boss = true; if (H && !countItem(H, 'heartstone') && save.quests.lumen.s !== 'done') addItem(H, 'heartstone'); const q = save.quests.lumen; if (q.s === 'none') q.s = 'active'; if (q.s === 'active') { q.s = 'ready'; out.push(`${QUESTS.lumen.n}: bring the Heartstone to ${QUESTS.lumen.giverName}`); } }
+  if (ev.type === 'boss') { save.ruin.slain = true; }
+  if (ev.type === 'heartstone') { save.ruin.boss = true; save.ruin.slain = true; if (H && !countItem(H, 'heartstone') && save.quests.lumen.s !== 'done') addItem(H, 'heartstone'); const q = save.quests.lumen; if (q.s === 'none') q.s = 'active'; if (q.s === 'active') { q.s = 'ready'; out.push(`${QUESTS.lumen.n}: bring the Heartstone to ${QUESTS.lumen.giverName}`); } }
   return out;
 }
 export function canTurnIn(save, id) { return !!(save.hero && save.quests[id] && save.quests[id].s === 'ready' && (id !== 'lumen' || countItem(save.hero, 'heartstone') > 0)); }

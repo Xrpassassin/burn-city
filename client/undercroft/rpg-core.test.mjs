@@ -65,4 +65,12 @@ assert.ok(M.solved(M.pressPedestal(M.pressPedestal(M.PED_START, 0), 2))); assert
 const [cx] = M.collide(g, 16 * 2 + .1, 58 * 2, .4, ps); assert.ok(cx >= 32.4 - 1e-6);
 assert.ok(M.los(g, 39, 118, 39, 100)); assert.ok(!M.los(g, 39, 118, 10, 118));
 assert.ok(M.TRAPS.length === 6 && M.TRAPS.some(t => M.trapUp(t, 2)) !== undefined);
+// character look (sex, skin, hair, hair colour) is clamped and survives a save roundtrip
+assert.deepEqual(R.cleanLook({ sex: 'f', skin: 99, hair: -3, hairCol: 2.7 }), { sex: 'f', skin: 7, hair: 0, hairCol: 2 }); assert.deepEqual(R.cleanLook(null), { sex: 'm', skin: 0, hair: 0, hairCol: 0 });
+{ const lh = R.newHero({ name: 'Lk', race: 'wildkin', cls: 'cutpurse', sign: 'kindled', look: { sex: 'f', skin: 2, hair: 1, hairCol: 1 } }); assert.equal(lh.look.sex, 'f'); const ls = R.emptySave(); ls.hero = lh; assert.deepEqual(R.validate(JSON.parse(JSON.stringify(ls))).hero.look, { sex: 'f', skin: 2, hair: 1, hairCol: 1 });
+  // shown level waits for pending level-ups to be spent
+  lh.lvl = 4; lh.pending = 2; assert.equal(R.shownLevel(lh), 2); assert.ok(R.spendLevel(lh, 'hp')); assert.equal(R.shownLevel(lh), 3); lh.pending = 0; assert.equal(R.shownLevel(lh), 4);
+  // the boss stays dead even if the Heartstone is left on the throne
+  R.questEvent(ls, { type: 'boss' }); assert.equal(ls.ruin.slain, true); assert.equal(ls.ruin.boss, false); assert.equal(R.validate(JSON.parse(JSON.stringify(ls))).ruin.slain, true);
+  const old = R.validate({ ruin: { boss: true } }); assert.equal(old.ruin.slain, true); }
 console.log('undercroft rpg core + map ok');

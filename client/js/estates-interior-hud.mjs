@@ -1,7 +1,7 @@
 // Compact corner cluster for walk-in Estates interiors. Replaces the large
 // exit / change-room / stairs panels with 40px chips and hides outdoor chrome.
 export function createEstatesInteriorHud({doc=typeof document!=='undefined'?document:null}={}){
- if(!doc?.body)return {show(){},hide(){},setContext(){},announce(){},dispose(){},get visible(){return false;}};
+ if(!doc?.body)return {show(){},hide(){},setContext(){},announce(){},showRoomPicker(){return false;},hidePicker(){},dispose(){},get visible(){return false;}};
  let style=doc.getElementById('bcEstatesInteriorHudStyle');
  if(!style){
   style=doc.createElement('style');style.id='bcEstatesInteriorHudStyle';
@@ -17,7 +17,10 @@ export function createEstatesInteriorHud({doc=typeof document!=='undefined'?docu
   #bcEstatesInteriorHud .row{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;pointer-events:auto}
   #bcEstatesInteriorHud button{min-width:40px;min-height:40px;padding:0 11px;border:1px solid #ffb45b88;border-radius:999px;background:#17151af2;color:#fff3e3;font:700 12px system-ui;cursor:pointer;box-shadow:0 3px 10px #0006}
   #bcEstatesInteriorHud button.primary{background:#ffb45b;color:#241508;border-color:#ffe0b4}
-  #bcEstatesInteriorHud button[hidden]{display:none!important}`;
+  #bcEstatesInteriorHud button[hidden]{display:none!important}
+  #bcEstatesInteriorHud .picker{display:none;flex-direction:column;gap:4px;min-width:min(196px,70vw);padding:6px;border-radius:14px;background:#12161cf2;border:1px solid #ffc48a88;box-shadow:0 4px 14px #0007}
+  #bcEstatesInteriorHud .picker.open{display:flex}
+  #bcEstatesInteriorHud .picker button{width:100%;justify-content:center;text-align:center}`;
   doc.head.appendChild(style);
  }
  const el=doc.createElement('div');el.id='bcEstatesInteriorHud';el.setAttribute('role','toolbar');el.setAttribute('aria-label','Home controls');
@@ -28,8 +31,9 @@ export function createEstatesInteriorHud({doc=typeof document!=='undefined'?docu
  const roomsBtn=doc.createElement('button');roomsBtn.type='button';roomsBtn.textContent='Rooms';
  const stairsBtn=doc.createElement('button');stairsBtn.type='button';stairsBtn.hidden=true;stairsBtn.textContent='Stairs';
  const extraBtn=doc.createElement('button');extraBtn.type='button';extraBtn.hidden=true;
+ const picker=doc.createElement('div');picker.className='picker';picker.hidden=true;
  row.append(exitBtn,roomsBtn,stairsBtn,extraBtn);
- cluster.append(announceEl,row);el.appendChild(cluster);doc.body.appendChild(el);
+ cluster.append(announceEl,picker,row);el.appendChild(cluster);doc.body.appendChild(el);
  let onExit=()=>{},onRooms=()=>{},onStairs=null,onExtra=null,hideTimer=0,shown=false;
  exitBtn.addEventListener('click',()=>onExit());
  roomsBtn.addEventListener('click',()=>onRooms());
@@ -43,9 +47,24 @@ export function createEstatesInteriorHud({doc=typeof document!=='undefined'?docu
   shown=true;el.style.display='block';
   doc.body.classList.add('bc-estates-interior');
  }
+ function hidePicker(){picker.hidden=true;picker.classList.remove('open');picker.replaceChildren();}
  function hide(){
-  shown=false;el.style.display='none';announceEl.hidden=true;stairsBtn.hidden=true;extraBtn.hidden=true;
+  shown=false;el.style.display='none';announceEl.hidden=true;stairsBtn.hidden=true;extraBtn.hidden=true;hidePicker();
   doc.body.classList.remove('bc-estates-interior');
+ }
+ function showRoomPicker(rooms=[],{onPick,onClose}={}){
+  hidePicker();
+  const list=Array.isArray(rooms)?rooms.filter(r=>r&&r.id&&r.title):[];
+  if(!list.length){announce('No other rooms are open in this home',2200);return false;}
+  for(const room of list){
+   const b=doc.createElement('button');b.type='button';if(room.primary)b.className='primary';
+   b.textContent=room.title;b.setAttribute('aria-label',room.title);
+   b.addEventListener('click',()=>{hidePicker();onPick?.(room);});
+   picker.appendChild(b);
+  }
+  const close=doc.createElement('button');close.type='button';close.textContent='Close';
+  close.addEventListener('click',()=>{hidePicker();onClose?.();});
+  picker.appendChild(close);picker.hidden=false;picker.classList.add('open');return true;
  }
  function setContext({stairs=null,stairsLabel='Stairs',extra=null,extraLabel=''}={}){
   onStairs=typeof stairs==='function'?stairs:null;
@@ -59,5 +78,5 @@ export function createEstatesInteriorHud({doc=typeof document!=='undefined'?docu
   clearTimeout(hideTimer);if(ms>0)hideTimer=setTimeout(()=>{announceEl.hidden=true;},ms);
  }
  function dispose(){clearTimeout(hideTimer);hide();el.remove();}
- return {show,hide,setContext,announce,dispose,el,get visible(){return shown;}};
+ return {show,hide,setContext,announce,showRoomPicker,hidePicker,dispose,el,get visible(){return shown;},get pickerOpen(){return !picker.hidden;}};
 }

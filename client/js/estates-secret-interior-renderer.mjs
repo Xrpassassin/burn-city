@@ -174,10 +174,19 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   // A small hemisphere fill preserves readable surfaces during normal and
   // emergency-power modes; four ceiling-area point lights provide depth.
   const home=Array.isArray(layout.lights);
+  const HOME_FILL={
+    trailer:{sky:0xffe4c0,ground:0x6a5040,fill:1.02},
+    apartment:{sky:0xffe8d6,ground:0x8a6a58,fill:1.08},
+    starter:{sky:0xfff3e0,ground:0x7a6450,fill:1.05},
+    family:{sky:0xfff6ea,ground:0x7a6a55,fill:1.08},
+    mansion:{sky:0xfff8f0,ground:0x8a7a68,fill:1.12},
+    cabin:{sky:0xffe8c8,ground:0x5a4838,fill:1.04}
+  };
   if(typeof THREE.HemisphereLight==='function'){
-   const fill=home?new THREE.HemisphereLight(0xfff0dc,0x7a6450,1.05):new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
+   const tone=home?(HOME_FILL[layout.tier]||HOME_FILL.starter):null;
+   const fill=home?new THREE.HemisphereLight(tone.sky,tone.ground,tone.fill):new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
    fill.name='private-room-indirect-fill';
-   fill.userData={onIntensity:home?1.05:.8,emergencyIntensity:.22};
+   fill.userData={onIntensity:home?tone.fill:.8,emergencyIntensity:.22};
    root.add(fill);illumination.push(fill);
   }
   if(typeof THREE.PointLight==='function'&&home){

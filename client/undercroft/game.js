@@ -241,7 +241,7 @@ const _dir = new THREE.Vector3();
 // inventory icons: each weapon model rendered once into a small render target (cached data URL, no second WebGL context)
 const ICONS = {}; let iconRig = null;
 G.weaponIcons = root => { if (!G.arsenal) return; const N = 96;
-  if (!iconRig) { const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xfff4e0, 0x403020, 2.2)); const dl = new THREE.DirectionalLight(0xffffff, 2.4); dl.position.set(1, 2, 3); sc.add(dl);
+  if (!iconRig) { const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xfff4e0, 0x806040, 4.5)); const dl = new THREE.DirectionalLight(0xffffff, 4.5); dl.position.set(1, 2, 3); sc.add(dl);
     iconRig = { sc, cam: new THREE.OrthographicCamera(-.5, .5, .5, -.5, .01, 10), rt: new THREE.WebGLRenderTarget(N, N, { samples: 4 }), buf: new Uint8Array(N * N * 4) }; iconRig.cam.position.set(0, 0, 5); }
   root.querySelectorAll('.wi[data-m]').forEach(el => { const id = el.dataset.m; if (!ICONS[id]) { const o = G.arsenal.make(id); if (!o) return; const sh = /^shield/.test(id);
       o.rotation.set(sh ? 0 : 0, sh ? Math.PI / 2 : .5, sh ? 0 : -Math.PI / 4); if (id === 'bow' || /bow$/.test(id) && id !== 'crossbow') o.rotation.set(0, Math.PI / 2, -Math.PI / 4); iconRig.sc.add(o); o.updateMatrixWorld(true);
@@ -251,7 +251,7 @@ G.weaponIcons = root => { if (!G.arsenal) return; const N = 96;
       iconRig.sc.remove(o); const cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), im = x.createImageData(N, N), B = iconRig.buf;
       for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const si = ((N - 1 - yy) * N + xx) * 4, di = (yy * N + xx) * 4; for (let k = 0; k < 3; k++) { const v = B[si + k] / 255; im.data[di + k] = 255 * (v <= .0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - .055); } im.data[di + 3] = B[si + 3]; }
       x.putImageData(im, 0, 0); ICONS[id] = cv.toDataURL(); }
-    el.style.backgroundImage = `url(${ICONS[id]})`; }); };
+    el.style.backgroundImage = `url(${ICONS[id]}), radial-gradient(circle,#6a5032,#2a1d10)`; }); };
 G.swap = () => { const P = G.player, H = G.save.hero; if (P.state !== 'move' || P.blocking) return; if (!R.swapWeapon(H)) { UI.msg('No other weapon to swap to. Equip one from the inventory.'); return; } G.stats = R.stats(H); buildHeroActor(); UI.msg('Readied ' + R.equipped(H, 'weapon').n + '.'); sfx('click'); persist(); };
 function startDodge() {
   const P = G.player, S = G.stats; if (P.st < S.dodgeCost * .5) { UI.msg('Too tired to dodge.'); return; } P.st = Math.max(0, P.st - S.dodgeCost); P.stDelay = .8;

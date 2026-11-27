@@ -22,7 +22,8 @@ export const SPOTS = {
   exitStair: { x: 0, z: 48.6 },
   gate: { x: 0, z: -69.5 },                                   // the Descent Gate (portal plane)
   fromGate: { x: 0, z: -56, face: { x: 0, z: 0 } },           // back from Eternal Grind: in front of the gate, facing the plaza
-  sideGate: { x: -64.5, z: 0 },                               // the Ember Stair (west chapel)
+  sideGate: { x: -64.5, z: 0 },
+  fromRuin: { x: -58, z: 2.5, face: { x: 0, z: 0 } },          // back up the Ember Stair from the Ruins of Vael Ithren                               // the Ember Stair (west chapel)
   board: { x: 57, z: -7.6 },                                  // Ledger of Deeds (quest board), north wall of the Ledger Hall
   warden: { x: 52, z: 4.5, face: { x: 40, z: 0 } },           // quest-giver 1
   scribe: { x: -52, z: -6, face: { x: -40, z: 0 } },          // quest-giver 2

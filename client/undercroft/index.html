@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0706">
+<title>The Ruin of Vael Ithren · Undercroft · BURN City</title>
+<meta name="description" content="An original third-person dungeon RPG beneath BURN City. Local-device save; free to play.">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js","three/addons/":"../vendor/three/examples/jsm/"}}</script>
+</head><body>
+<canvas id="gl"></canvas>
+<div id="load"><div class="t">THE RUIN OF<br>VAEL ITHREN</div><div class="s" id="loadLore">Below the Ember Crossroads the pale builders left their halls, their lumen stones, and their dead.</div><div class="bar"><i id="loadBar"></i></div><div class="tip" id="loadTip">Local-device save · free to play · no real-money rewards</div></div>
+<div id="hud" class="hide">
+  <div id="compass"><div class="cn"></div><div id="cmpIn"></div></div>
+  <div id="region"></div>
+  <div id="vitals" class="gilt"><div class="nm"><span id="vName">Wanderer</span><span id="vLvl">Lv 1</span></div>
+    <div class="row"><span class="lb">H</span><div class="bar hp"><b id="hpL"></b><i id="hpB"></i></div></div>
+    <div class="row"><span class="lb">M</span><div class="bar mp"><i id="mpB"></i></div></div>
+    <div class="row"><span class="lb">S</span><div class="bar st"><i id="stB"></i></div></div>
+    <div class="xp"><i id="xpB"></i></div></div>
+  <div id="target" style="opacity:0"><div class="n" id="tName"></div><div class="bar"><i id="tBar"></i></div></div>
+  <div id="xh"></div><div id="hm"></div>
+  <div id="msgs"></div>
+  <div id="banner"><div class="a" id="banA"></div><div class="b" id="banB"></div></div>
+  <div id="prompt" class="gilt hide"><span class="k" id="pK">E</span><span><span class="v" id="pV">Open</span> <span id="pT">Chest</span></span></div>
+  <div id="acts"><div class="ic" id="aWpn">⚔<small>LMB · hold heavy</small></div><div class="ic" id="aFire">🔥<div class="cd" id="cdFire"></div><small>1 Firebolt</small></div><div class="ic" id="aHeal">✚<div class="cd" id="cdHeal"></div><small>2 Heal</small></div><div class="ic" id="aPot">🧪<small id="potN">H Potion</small></div></div>
+  <div id="touch"><div id="joy"><i></i></div>
+    <div class="tb" id="bAtk">⚔<small>ATTACK</small></div><div class="tb" id="bBlk">🛡<small>BLOCK</small></div><div class="tb" id="bDod">➶<small>DODGE</small></div>
+    <div class="tb" id="bFire">🔥<small>FIRE</small><div class="cd" id="cdFire2"></div></div><div class="tb" id="bHeal">✚<small>HEAL</small><div class="cd" id="cdHeal2"></div></div><div class="tb" id="bPot">🧪</div>
+    <div class="tb" id="bMenu">☰</div></div>
+  <div class="tut gilt hide" id="tut"></div>
+</div>
+<div id="ovs"></div>
+<script type="module" src="game.js"></script>
+</body></html>

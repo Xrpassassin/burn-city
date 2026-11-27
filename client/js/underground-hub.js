@@ -3,7 +3,7 @@
 // dais, ledger veins (Burn City's glowing lines) cracking through the stone, four vaulted halls lined with skull niches and torches:
 //   north: the Descent Gate (jagged black spires around a swirling fire portal) -> Eternal Grind
 //   east:  the Ledger Hall: the Ledger of Deeds (daily / weekly Eternal Grind objectives, LOCAL ONLY, no rewards) + Warden Ossia
-//   west:  the Ossuary Chapel: Cinder-Scribe Varro + the Ember Stair (a quieter side way into Eternal Grind)
+//   west:  the Ossuary Chapel: Cinder-Scribe Varro + the Ember Stair down to the Ruins of Vael Ithren (the Undercroft RPG)
 //   south: the stair back up to Burn City
 // Textures: Poly Haven (CC0). Models: Sketchfab CC BY (see assets/underground/ATTRIBUTION.md). Everything else is procedural.
 // Perf: one texture set per surface (512 px + no normal maps on low), repeated pieces are InstancedMesh, low tier thins fog,
@@ -324,25 +324,53 @@ function panel(html, buttons) {
   const el = document.createElement('div'); el.id = 'bcUgPanel'; el.setAttribute('role', 'dialog'); el.innerHTML = html; const row = document.createElement('div'); row.className = 'row';
   for (const b of buttons) { const bt = document.createElement('button'); bt.type = 'button'; if (b.primary) bt.className = 'p'; bt.textContent = b.label; bt.addEventListener('click', e => { e.stopPropagation(); b.run(); }); row.append(bt); }
   el.append(row); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closePanel(); } });
-  document.body.append(el); S.panel = el; S.api.setModal('panel'); const f = el.querySelector('button.p') || el.querySelector('button'); if (f) f.focus();
+  document.body.append(el); S.panel = el; S.api.setModal('panel'); const f = el.querySelector('button.p') || el.querySelector('button'); if (f) f.focus({ preventScroll: true }); el.scrollTop = 0;
 }
 function closePanel() { if (S.panel) { S.panel.remove(); S.panel = null; if (S.api && S.api.modal === 'panel') S.api.setModal(null); } }
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-function showBoard(focus = 'all') {
-  const b = readDeeds(); const row = r => `<div class="q${r.done ? ' done' : ''}"><div class="tx">${r.done ? '✔ ' : ''}${esc(r.text)}<div class="bar"><b style="width:${Math.round(r.got / r.n * 100)}%"></b></div></div><div class="pg">${r.done ? 'Done' : `${Math.round(r.got)} / ${r.n}`}</div></div>`;
+// ---------------------------------------------------------------- Ruins of Vael Ithren contracts (the Undercroft RPG; local-device save, its own key)
+let RPGP = null; const getRPG = () => (RPGP = RPGP || import('../undercroft/rpg-core.mjs').catch(e => { RPGP = null; throw e; }));
+const rpgSave = R => R.load(localStorage), rpgStore = (R, sv) => R.store(localStorage, sv);
+function contractsHtml(R, sv) {
+  const st = { none: 'Not taken', active: 'In progress', ready: 'Ready to turn in', done: 'Done' };
+  return `<div class="h">Contracts · Ruins of Vael Ithren</div>${R.journal(sv).map(q => `<div class="q${q.s === 'done' ? ' done' : ''}"><div class="tx">${q.s === 'done' ? '✔ ' : ''}<b>${esc(q.n)}</b> <span style="color:#9fd0ff">(${esc(q.giver)})</span><div style="font-size:12px;color:#d8c8b0">${esc(q.step)}</div></div><div class="pg">${st[q.s]}</div></div>`).join('')}`;
+}
+function showBoard(focus = 'all') { getRPG().then(R => showBoard0(focus, R), () => showBoard0(focus, null)); }
+function showBoard0(focus, R) {
+  const b = readDeeds(); let ch = ''; try { if (R) ch = contractsHtml(R, rpgSave(R)); } catch { ch = ''; } const row = r => `<div class="q${r.done ? ' done' : ''}"><div class="tx">${r.done ? '✔ ' : ''}${esc(r.text)}<div class="bar"><b style="width:${Math.round(r.got / r.n * 100)}%"></b></div></div><div class="pg">${r.done ? 'Done' : `${Math.round(r.got)} / ${r.n}`}</div></div>`;
   const who = b.hasChar ? `Tracking <b>${esc(b.name || 'your hero')}</b>` : 'No Eternal Grind hero on this device yet: descend and create one to start tracking.';
-  panel(`<h3>Ledger of Deeds</h3><div class="sub">${who}</div>${focus !== 'weekly' ? `<div class="h">Daily · resets 00:00 UTC</div>${b.daily.map(row).join('')}` : ''}${focus !== 'daily' ? `<div class="h">Weekly · resets Monday UTC</div>${b.weekly.map(row).join('')}` : ''}<div class="note">Tracked on this device only, from your Eternal Grind progress. Deeds are bragging rights: no items, gold or rewards are given.</div>`,
-    [{ label: 'Descend', primary: true, run: () => { closePanel(); S.api.launch('gate'); } }, { label: 'Close', run: closePanel }]);
+  panel(`<h3>Ledger of Deeds</h3><div class="sub">${who}</div>${ch}${focus !== 'weekly' ? `<div class="h">Daily · resets 00:00 UTC</div>${b.daily.map(row).join('')}` : ''}${focus !== 'daily' ? `<div class="h">Weekly · resets Monday UTC</div>${b.weekly.map(row).join('')}` : ''}<div class="note">Tracked on this device only, from your Eternal Grind progress. Deeds are bragging rights: no items, gold or rewards are given. Contracts pay out XP, gold and gear inside the ruin game only (saved on this device).</div>`,
+    [{ label: 'Ruins of Vael Ithren', primary: true, run: () => { closePanel(); S.api.launch('ruin'); } }, { label: 'Eternal Grind', run: () => { closePanel(); S.api.launch('gate'); } }, { label: 'Close', run: closePanel }]);
   if (S.boardTex) { drawBoardTex(S.boardTex.image.getContext('2d'), S.boardTex.image.width, S.boardTex.image.height); S.boardTex.needsUpdate = true; }
 }
 const TALK = {
-  warden: { name: 'Warden Ossia', sub: 'Keeper of the Ledger', lines: ['Traveler. The Ledger of Deeds changes with every dawn, and again each week.', 'Read it, then go down through the Descent Gate and make the deep remember your name.'], btn: [['Read the Ledger', () => showBoard('daily')]] },
-  scribe: { name: 'Cinder-Scribe Varro', sub: 'Chronicler of the Ossuary', lines: ['The pale builders cut these halls long before the city burned above them. Their lumen stones still answer to the dark.', 'The Ember Stair behind me is the old servants’ way into the Grind: same depths, quieter door. I keep the weekly deeds, they take patience.'], btn: [['Weekly deeds', () => showBoard('weekly')], ['Take the Ember Stair', () => { closePanel(); S.api.launch('side'); }]] },
+  warden: { name: 'Warden Ossia', sub: 'Keeper of the Ledger', lines: ['Traveler. The Ledger of Deeds changes with every dawn, and again each week.', 'Read it, then go down through the Descent Gate and make the deep remember your name.'], btn: [['Read the Ledger', () => showBoard('daily')]], quest: 'lumen' },
+  scribe: { name: 'Cinder-Scribe Varro', sub: 'Chronicler of the Ossuary', lines: ['The pale builders cut these halls long before the city burned above them. Their lumen stones still answer to the dark.', 'The Ember Stair behind me goes down to Vael Ithren, the drowned-dark ruin of the pale builders. I keep the weekly deeds too; they take patience.'], btn: [['Weekly deeds', () => showBoard('weekly')], ['Take the Ember Stair', () => { closePanel(); S.api.launch('ruin'); }]], quest: 'tithe' },
 };
 function talk(id) {
   const t = TALK[id]; try { const k = 'bcUgTalked'; const o = JSON.parse(localStorage.getItem(k) || '{}'); o[id] = new Date().toISOString().slice(0, 10); localStorage.setItem(k, JSON.stringify(o)); } catch { }
   markers();
+  if (t.quest) { getRPG().then(R => questTalk(id, t, R), () => talk0(t)); return; }
+  talk0(t);
+}
+function talk0(t) {
   panel(`<h3>${esc(t.name)}</h3><div class="sub">${esc(t.sub)}</div>${t.lines.map(l => `<p>${esc(l)}</p>`).join('')}`, [...t.btn.map(([label, run], i) => ({ label, primary: i === 0, run })), { label: 'Farewell', run: closePanel }]);
+}
+// quest giver dialog: offer -> in progress -> turn in -> thanks (rpg-core does all the bookkeeping)
+function questTalk(id, t, R) {
+  const sv = rpgSave(R), qid = t.quest, Q = R.QUESTS[qid], st = R.questState(sv, qid);
+  const head = `<h3>${esc(t.name)}</h3><div class="sub">${esc(t.sub)}</div>`, rw = `<div class="note">Reward: ${Q.reward.xp} XP · ${Q.reward.gold} gold · ${esc(R.ITEMS[Q.reward.item].n)} (inside the ruin game, saved on this device)</div>`;
+  const stair = { label: 'Take the Ember Stair', run: () => { closePanel(); S.api.launch('ruin'); } }, bye = { label: 'Farewell', run: closePanel };
+  if (st === 'none') return panel(`${head}<p>${esc(t.lines[0])}</p><div class="h">${Q.kind === 'main' ? 'Quest' : 'Side quest'} · ${esc(Q.n)}</div><p>${esc(Q.d)}</p>${rw}`,
+    [{ label: 'Accept', primary: true, run: () => { R.acceptQuest(sv, qid); rpgStore(R, sv); S.api.toast(`Quest accepted: ${Q.n}`); questTalk(id, t, R); } }, ...t.btn.slice(0, 1).map(([label, run]) => ({ label, run })), bye]);
+  if (st === 'ready' && R.canTurnIn(sv, qid)) {
+    const thanks = qid === 'lumen' ? 'The Heartstone. Warm again, and humming. Vael Ithren will remember the hand that carried it out.' : 'Eight of them back in the dust. I have written your name in the chronicle, in good ink.';
+    return panel(`${head}<p>${esc(thanks)}</p>`, [{ label: 'Turn in', primary: true, run: () => { const r = R.turnIn(sv, qid); rpgStore(R, sv); if (!r) return closePanel(); S.api.toast(`${Q.n} complete: +${r.xp} XP, +${r.gold} gold, ${r.itemName}`);
+      panel(`${head}<div class="h">Quest complete · ${esc(Q.n)}</div><p>+${r.xp} XP · +${r.gold} gold</p><p>Received: <b>${esc(r.itemName)}</b>. Equip it from your inventory in the ruin.</p>${r.levels ? `<p style="color:#ffcf8a">Level up waiting: rest in the ruin to choose your boon.</p>` : ''}`, [stair, bye]); } }, bye]);
+  }
+  if (st === 'done') return panel(`${head}<p>${esc(qid === 'lumen' ? 'The lumen burns steady because of you. Deeper halls are waking; when the stairs are cleared, I will need you again.' : 'The chronicle has your page. Come back when the dead stir again.')}</p>`, [...t.btn.map(([label, run], i) => ({ label, primary: i === 0, run })), bye]);
+  const q = R.journal(sv).find(j => j.id === qid);
+  return panel(`${head}<div class="h">${esc(Q.n)}</div><p>${esc(q ? q.step : '')}</p><p>${esc(t.lines[1])}</p>`, [{ ...stair, primary: true }, bye]);
 }
 function markers() {   // gold "!" until you've talked today, then a dim "?"
   let o = {}; try { o = JSON.parse(localStorage.getItem('bcUgTalked') || '{}'); } catch { } const today = new Date().toISOString().slice(0, 10);
@@ -352,7 +380,7 @@ export function interactables() {
   return [
     { id: 'stair', x: 0, z: 48.4, r: 3.4, y: Y + 2.4, kicker: 'Stair', title: 'Up to Burn City', actions: [{ label: 'Climb', icon: '⬆', primary: true, run: () => S.api.exit() }] },
     { id: 'gate', x: 0, z: L.NORTH.z - 6.5, r: 4.8, y: Y + 3.2, kicker: 'Descent Gate', title: 'The Eternal Grind', actions: [{ label: 'Descend', icon: '🔥', primary: true, run: () => S.api.launch('gate') }, { label: 'Deeds', run: () => showBoard() }] },
-    { id: 'side', x: L.WEST.x - 8.2, z: 0, r: 3.6, y: Y + 2.6, kicker: 'Ember Stair', title: 'Eternal Grind · side way', actions: [{ label: 'Descend', icon: '🔥', primary: true, run: () => S.api.launch('side') }] },
+    { id: 'side', x: L.WEST.x - 8.2, z: 0, r: 3.6, y: Y + 2.6, kicker: 'Ember Stair', title: 'Ruins of Vael Ithren', actions: [{ label: 'Descend', icon: '🔥', primary: true, run: () => S.api.launch('ruin') }] },
     { id: 'board', x: L.EAST.x, z: -L.EAST.hd + 2.4, r: 3.4, y: Y + 1.4, kicker: 'Quest board', title: 'Ledger of Deeds', actions: [{ label: 'Read', icon: '📜', primary: true, run: () => showBoard() }] },
     { id: 'warden', x: SPOTS.warden.x, z: SPOTS.warden.z, r: 3, y: Y + 2.1, kicker: '!', title: 'Warden Ossia', actions: [{ label: 'Talk', primary: true, run: () => talk('warden') }] },
     { id: 'scribe', x: SPOTS.scribe.x, z: SPOTS.scribe.z, r: 3, y: Y + 2.1, kicker: '!', title: 'Cinder-Scribe Varro', actions: [{ label: 'Talk', primary: true, run: () => talk('scribe') }] },

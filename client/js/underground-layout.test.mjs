@@ -5,7 +5,7 @@ import { board, pick, DAILY, WEEKLY, dayKey, weekKey, metricsFrom } from './unde
 assert.ok(inUndercroft(UG.x, UG.z)); assert.ok(!inUndercroft(0, 0)); assert.ok(!inUndercroft(1400, 1370));
 assert.ok(Math.abs(UG.x) + 120 < 2000 && Math.abs(UG.z) + 120 < 2000);
 // every named spot a player stands on is walkable; the halls connect the plaza to every chamber
-for (const k of ['arrive', 'fromGate', 'warden', 'scribe']) assert.ok(walkableLocal(SPOTS[k].x, SPOTS[k].z), k);
+for (const k of ['arrive', 'fromGate', 'fromRuin', 'warden', 'scribe']) assert.ok(walkableLocal(SPOTS[k].x, SPOTS[k].z), k);
 for (let z = 44; z > -55; z -= .5) if (Math.hypot(0, z) > L.DAIS_R + 1) assert.ok(walkableLocal(0, z) || walkableLocal(3, z), 'north-south path at ' + z);
 for (let x = -50; x < 52; x += .5) if (Math.abs(x) > L.DAIS_R + 1) assert.ok(walkableLocal(x, 0) || walkableLocal(x, 3), 'east-west path at ' + x);
 assert.ok(!walkableLocal(30, 30) && !walkableLocal(0, 0) && !walkableLocal(0, 60));

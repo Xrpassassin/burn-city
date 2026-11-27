@@ -18,7 +18,7 @@ export const ROOMS = [
   { id: 'arena', circle: [19.5, 7.2, 6.6], h: 12, n: 'Throne of the Hollow King' },
 ];
 // entities (tile coordinates; .5 = tile centre)
-export const SPAWN = { x: 19.5, z: 59.2, face: Math.PI };            // facing north (-z)
+export const SPAWN = { x: 19.5, z: 57.0, face: Math.PI };            // facing north (-z)
 export const EXIT = { x: 19.5, z: 61.4 };                              // stair back up to the Ember Crossroads
 export const PILLARS = [[15, 39], [24, 39], [15, 44], [24, 44], [16, 26], [23, 26], [16, 31], [23, 31], [15.5, 4.5], [23.5, 4.5], [14, 9], [25, 9]];
 export const PEDESTALS = [[16, 29], [19.5, 27.2], [23, 29]];          // sanctum puzzle (each toggles itself + neighbours)
@@ -30,9 +30,10 @@ export const CHESTS = [
   { id: 'vault', x: 34.8, z: 39, rot: -Math.PI / 2, locked: 3 },
   { id: 'gallery', x: 7.5, z: 25.6, rot: 0 },
   { id: 'ante', x: 24.6, z: 20.4, rot: -Math.PI / 2, locked: 2 },
-  { id: 'throne', x: 19.5, z: 2.6, rot: 0, afterBoss: 1 },
+  { id: 'throne', x: 16.2, z: 4.8, rot: Math.PI / 2, afterBoss: 1 },
 ];
-export const ALTAR = { x: 19.5, z: 2 };                                // the Heartstone altar (behind the throne)
+export const ALTAR = { x: 19.5, z: 4.4 };                              // the Heartstone altar (in front of the throne)
+export const THRONE = { x: 19.5, z: 2.5 };
 export const TRAPS = [30, 31, 34, 35, 38, 39].map(z => ({ z, x0: 6, x1: 9, phase: (z >> 1) % 2 ? 0 : .5 }));
 export const ENEMIES = [
   { k: 'skeleton', x: 17.5, z: 41.5 }, { k: 'skeleton', x: 22, z: 42.5 }, { k: 'skeleton', x: 13.5, z: 46.4, dormant: 1 },

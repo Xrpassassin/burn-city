@@ -101,5 +101,17 @@
   "licslug": "by",
   "licurl": "http://creativecommons.org/licenses/by/4.0/",
   "use": "Estates bunker arcade & vault decor upgrade"
+ },
+ "cannabis": {
+  "uid": "ea31a5768c06457ea2fd67c3eb3458b8",
+  "title": "Cannabis Sativa plant",
+  "creator": "Zbrojmistrz",
+  "username": "zbrojmistrz",
+  "profile": "https://sketchfab.com/zbrojmistrz",
+  "url": "https://sketchfab.com/3d-models/cannabis-sativa-plant-ea31a5768c06457ea2fd67c3eb3458b8",
+  "license": "CC Attribution",
+  "licslug": "by",
+  "licurl": "http://creativecommons.org/licenses/by/4.0/",
+  "use": "Estates grow-lounge plants (indoor shelves, secret lounge, and a patio pot by the vent)"
  }
 }

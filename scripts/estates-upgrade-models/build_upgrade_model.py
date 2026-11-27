@@ -20,6 +20,7 @@ CFG={
  'path-lamp':dict(rotz=0,fit=('h',1.0,None),tris=700,tex=256,parts={'body':None}),
  'arcade':dict(opaque=['Cabnet'],rotz=0,fit=('h',1.75,None),tris=420,tex=256,parts={'body':None},drop=['Plane','Plane.001']),
  'workbench':dict(rotz=90,fit=('len',1.4,None),tris=700,tex=256,parts={'body':None}),
+ 'cannabis':dict(rotz=0,fit=('h',.85,None),tris=1600,tex=256,parts={'body':None}),
  'flower-bush':dict(rotz=0,fit=('h',.6,None),tris=520,tex=256,parts={'leafy':None,'bloom':None},xsplit=('leafy','bloom'),keep=['bloom']),
 }[pid]
 bpy.ops.wm.read_factory_settings(use_empty=True)

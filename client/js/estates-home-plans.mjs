@@ -187,9 +187,9 @@ function upgradeParts(add,slot,kind,deluxe){
  if(kind==='feature'){
   // Arcade cabinet with lit marquee, screen and neon floor strip (game-lounge).
   const ry=rad(slot[2]),f=(dx,dz)=>[x+dx*Math.cos(ry)+dz*Math.sin(ry),y+(-dx*Math.sin(ry)+dz*Math.cos(ry))];
-  add('upgrade-arcade-cabinet',x,.85,y,.7,1.7,.7,'home-arcade',true,'box',ry);
-  const [mx,mz]=f(0,.36);add('upgrade-arcade-screen',mx,1.18,mz,.52,.42,.04,'home-screen',false,'box',ry);
-  add('upgrade-arcade-marquee',mx,1.6,mz,.6,.16,.05,'home-neon',false,'box',ry);
+  add('upgrade-arcade-cabinet',x,.85,y,.7,1.7,.7,'home-arcade',true,'box',ry,{model:{id:'arcade',pack:'upgrade',part:'body',y:0}});
+  const [mx,mz]=f(0,.36);add('upgrade-arcade-screen',mx,1.18,mz,.52,.42,.04,'home-screen',false,'box',ry,{hideWithModel:'arcade'});
+  add('upgrade-arcade-marquee',mx,1.6,mz,.6,.16,.05,'home-neon',false,'box',ry,{hideWithModel:'arcade'});
   const [sx,sz]=f(0,.62);add('upgrade-arcade-neon-floor',sx,.01,sz,.8,.02,.08,'home-neon',false,'box',ry);
  }else if(kind==='workshop'){
   // Hobby workshop: a wall tool board (small homes) or a full workbench.
@@ -201,24 +201,27 @@ function upgradeParts(add,slot,kind,deluxe){
    add('upgrade-workshop-light',wx,1.88,wz,west?.06:.7,.04,west?.7:.06,'home-warm');
   }else{
    const along=wm==='bench-z',bw=along?.6:1.2,bd=along?1.2:.6;
-   add('upgrade-workshop-bench',wx,.45,wz,bw,.9,bd,'home-wood',true);
-   add('upgrade-workshop-vise',wx,.97,wz-(along?.3:0),.18,.14,.18,'home-metal');
-   add('upgrade-workshop-toolbox',wx+(along?0:.35),1.0,wz+(along?.3:0),.3,.16,.18,'home-red');
-   add('upgrade-workshop-lamp',wx,1.25,wz,.08,.5,.08,'home-warm');
+   add('upgrade-workshop-bench',wx,.45,wz,bw,.9,bd,'home-wood',true,'box',0,{model:{id:'workbench',pack:'upgrade',part:'body',y:0}});
+   add('upgrade-workshop-vise',wx,.97,wz-(along?.3:0),.18,.14,.18,'home-metal',false,'box',0,{hideWithModel:'workbench'});
+   add('upgrade-workshop-toolbox',wx+(along?0:.35),1.0,wz+(along?.3:0),.3,.16,.18,'home-red',false,'box',0,{hideWithModel:'workbench'});
+   add('upgrade-workshop-lamp',wx,1.25,wz,.08,.5,.08,'home-warm',false,'box',0,{hideWithModel:'workbench'});
   }
  }else if(kind==='garden'){
   // Indoor garden shelf with violet grow light (grow-lounge / deluxe).
   if(mode==='planters'){
-   for(let i=0;i<3;i++){add('upgrade-garden-planter-'+i,x+(i-1)*.7,.25,y,.6,.5,.4,'home-wood',true);
-    add('upgrade-garden-leaves-'+i,x+(i-1)*.7,.72,y,.5,.5,.34,'home-plant',false,'sphere');}
-   add('upgrade-garden-glow',x,1.6,y,2.2,.04,.08,deluxe?'home-grow':'home-warm');return;
+   for(let i=0;i<3;i++){add('upgrade-garden-planter-'+i,x+(i-1)*.7,.25,y,.6,.5,.4,'home-wood',true,'box',0,{hideWithModel:'cannabis'});
+    add('upgrade-garden-leaves-'+i,x+(i-1)*.7,.925,y,.44,.85,.42,'home-plant',false,'box',i?0.4*i:0,{model:{id:'cannabis',pack:'upgrade',part:'body',y:.5}});}
+   add('upgrade-garden-glow',x,1.55,y,2.2,.05,.16,deluxe?'home-grow':'home-warm');return;
   }
   const alongZ=mode==='shelf-z'||mode==='shelf-wall-w',n=deluxe?2:1;
   for(let s=0;s<n;s++){
    const sy=y+s*.42;
    add('upgrade-garden-shelf-'+s,x,sy,z,alongZ?.26:.9,.04,alongZ?.9:.26,'home-wood');
-   for(let i=0;i<3;i++)add('upgrade-garden-plant-'+s+'-'+i,x+(alongZ?0:(i-1)*.28),sy+.14,z+(alongZ?(i-1)*.28:0),.18,.24,.18,'home-plant',false,'sphere');
-   add('upgrade-garden-grow-'+s,x,sy+.36,z,alongZ?.08:.8,.03,alongZ?.8:.08,'home-grow');
+   for(let i=0;i<3;i++){
+    const px=x+(alongZ?0:(i-1)*.28),pz=z+(alongZ?(i-1)*.28:0);
+    add('upgrade-garden-plant-'+s+'-'+i,px,sy+.22,pz,.2,.4,.2,'home-plant',false,'box',i*.7,{model:{id:'cannabis',pack:'upgrade',part:'body',y:sy+.02}});
+   }
+   add('upgrade-garden-grow-'+s,x,sy+.44,z,alongZ?.1:.86,.03,alongZ?.86:.1,'home-grow');
   }
  }else if(kind==='secure'){
   add('upgrade-security-monitor',x,y,z,.62,.4,.04,'home-screen');
@@ -304,7 +307,7 @@ export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='coz
  }
  // Installed Tycoon upgrades that live indoors are placed first; plan furniture
  // that would collide with one (e.g. the corner plant where the arcade goes) steps aside.
- const S=F.slots,up=[],upAdd=(id,x,y,z,w,h,d,mat,solid=false,shape='box',ry=0)=>up.push({id,x,y,z,w,h,d,mat,solid,shape,...(ry?{ry}:{})});
+ const S=F.slots,up=[],upAdd=(id,x,y,z,w,h,d,mat,solid=false,shape='box',ry=0,extra)=>up.push({id,x,y,z,w,h,d,mat,solid,shape,...(ry?{ry}:{}),...(extra||{})});
  if((installed.has('game-lounge')||layoutId==='arcade-suite')&&S.feature)upgradeParts(upAdd,S.feature,'feature');
  if((installed.has('hobby-workshop')||layoutId==='maker-suite')&&S.workshop)upgradeParts(upAdd,S.workshop,'workshop');
  const deluxe=installed.has('grow-lounge-deluxe');

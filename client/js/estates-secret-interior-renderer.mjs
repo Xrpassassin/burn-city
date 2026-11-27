@@ -3,6 +3,7 @@
 import {createSecretRoomLayout,PRIVATE_ROOM_ORIGIN,resolveSecretRoomMotion,secretRoomInteraction} from './estates-secret-layout.mjs';
 import {createEstateInteriorModelCache} from './estates-interior-models.mjs';
 import {createEstateKitCache,fitEstateKitScale,estatesLowGraphics} from './estates-kit-models.mjs';
+import {loadEstateUpgradeModels} from './estates-upgrade-models.mjs';
 const PALETTE={
  concrete:{color:0x575b62,roughness:.96},ceiling:{color:0x272f39,roughness:.92},
  wall:{color:0x3d454e,roughness:.87},steel:{color:0x596977,metalness:.68,roughness:.42},
@@ -115,7 +116,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   const SHELL=/^(home-|window-|ceiling-)/,batches=new Map();
   for(const part of layout.items){
    if(part.invisible||(lowGraphics&&part.detail))continue;
-   if(merge&&!part.model&&!SHELL.test(part.id)){if(!batches.has(part.mat))batches.set(part.mat,[]);batches.get(part.mat).push(part);continue;}
+   if(merge&&!part.model&&!part.hideWithModel&&!SHELL.test(part.id)){if(!batches.has(part.mat))batches.set(part.mat,[]);batches.get(part.mat).push(part);continue;}
    const geo=part.shape==='sphere'&&THREE.SphereGeometry?
     new THREE.SphereGeometry(.5,10,7):part.shape==='cylinder'&&THREE.CylinderGeometry?
     new THREE.CylinderGeometry(.5,.5,1,10):new THREE.BoxGeometry(1,1,1);
@@ -166,6 +167,33 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
     const foot=part.y-part.h/2;
     group.position.set(part.x,foot,part.z);group.rotation.y=part.ry||0;group.scale.set(sc.x,sc.y,sc.z);
     root.add(group);mesh.visible=false;
+   }
+  });
+  // Tycoon upgrade models (cannabis, arcade, workbench) when a home/secret
+  // part asks for pack:'upgrade'. Uniform scale, grounded at model.y or the box foot.
+  const upgradeRefs=layout.items.filter(part=>part.model?.pack==='upgrade');
+  if(upgradeRefs.length)void loadEstateUpgradeModels(THREE,{ids:[...new Set(upgradeRefs.map(p=>p.model.id))]}).then(found=>{
+   if(disposed||token!==roomToken)return;
+   const loaded=new Set();
+   for(const part of upgradeRefs){
+    const rec=found.get(part.model.id);if(!rec)continue;
+    const prims=rec.parts.get(part.model.part||'body')||[...rec.parts.values()][0];
+    if(!prims?.length)continue;
+    const box=new THREE.Box3();
+    for(const {geometry} of prims){geometry.computeBoundingBox();box.union(geometry.boundingBox);}
+    const size=box.getSize(new THREE.Vector3());
+    const s=Math.min(part.w/size.x,part.h/size.y,part.d/size.z);
+    const group=new THREE.Group();group.name='home-upgrade-'+part.model.id;group.userData.sharedModel=true;
+    for(const {geometry,material} of prims){const m=new THREE.Mesh(geometry,material);m.userData.sharedModel=true;m.castShadow=false;m.receiveShadow=false;group.add(m);}
+    const foot=Number.isFinite(part.model.y)?part.model.y:part.y-part.h/2;
+    group.position.set(part.x,foot-box.min.y*s,part.z);
+    group.rotation.y=part.ry||0;group.scale.set(s,s,s);
+    root.add(group);loaded.add(part.model.id);
+    const fallback=root.getObjectByName('secret-'+part.id);if(fallback)fallback.visible=false;
+   }
+   for(const child of root.children){
+    const hid=child.name?.startsWith('secret-')&&layout.items.find(i=>'secret-'+i.id===child.name&&i.hideWithModel&&loaded.has(i.hideWithModel));
+    if(hid)child.visible=false;
    }
   });
   // Interior lighting must not depend on the city's sun being visible.

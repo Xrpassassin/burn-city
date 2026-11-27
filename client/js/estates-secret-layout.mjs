@@ -11,7 +11,7 @@ const P={bunker:{title:'Underground Command Bunker',theme:'industrial'},
  arcade:{title:'Private Arcade',theme:'arcade'},
  vault:{title:'Bunker Vault Arcade',theme:'arcade'}};
 export const PRIVATE_ROOMS=Object.freeze(Object.keys(P));
-function box(id,x,y,z,w,h,d,mat,solid=false){return {id,x,y,z,w,h,d,mat,solid};}
+function box(id,x,y,z,w,h,d,mat,solid=false,extra){return {id,x,y,z,w,h,d,mat,solid:!!solid,...(extra&&typeof extra==='object'?extra:{})};}
 function layoutFor(roomId,options={}){
  const room=P[roomId];if(!room)throw Error('unknown_private_room');
  const items=[],put=(...args)=>items.push(box(...args));
@@ -48,8 +48,8 @@ function layoutFor(roomId,options={}){
   put('media-screen',3.9,2,-6.08,2.5,1.25,.2,'screen');
   put('neon-wall',-7.33,3,0,.14,.23,9.9,'emissive');
   for(const x of [-5.8,5.8])for(const z of [-5.25,4]){
-   put('plant-pot-'+x+'-'+z,x,.38,z,.88,.76,.88,'wood',true);
-   put('foliage-'+x+'-'+z,x,1.35,z,.78,1.55,.78,'green');
+   put('plant-pot-'+x+'-'+z,x,.38,z,.88,.76,.88,'wood',true,{hideWithModel:'cannabis'});
+   put('foliage-'+x+'-'+z,x,.85,z,.5,1.7,.48,'green',false,{model:{id:'cannabis',pack:'upgrade',part:'body',y:0}});
   }
   put('game-table',3.9,.55,2.5,2.1,1.05,1.8,'wood',true);
   if(roomId==='deluxe-lounge'){

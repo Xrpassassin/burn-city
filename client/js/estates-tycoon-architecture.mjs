@@ -212,11 +212,13 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     break;
    }
    case 'grow-lounge':{
-    // Discreet louvred intake low on the windowless left wall, rear half.
-    const z=-shellD*.25;
+    // Discreet louvred intake low on the windowless left wall, rear half,
+    // plus a patio pot of the credited sativa plant just off that wall.
+    const z=-shellD*.25,px=-wallX-.58,pz=z+.55;
     p(id,'concealed-vent',-wallX-.07,.8,z,.14,.42,1.0,'metal','attached');
     for(const [k,dy] of [-.12,0,.12].entries())p(id,'vent-slat-'+k,-wallX-.15,.8+dy,z,.04,.05,.86,'slate','attached');
     p(id,'vent-plaque',-wallX-.12,.48,z-.62,.06,.16,.28,'slate','attached');
+    p(id,'patio-plant',px,.425,pz,.44,.85,.42,'green');
     break;
    }
    case 'hobby-workshop':{
@@ -263,11 +265,15 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     }break;
    }
    case 'grow-lounge-deluxe':{
-    // Upper exhaust on the same wall, joined to the lower intake by a duct.
-    const z=-shellD*.25,y=Math.min(2.0,top-.5);
+    // Upper exhaust on the same wall, joined to the lower intake by a duct,
+    // plus a second patio plant and a violet grow-light wash.
+    const z=-shellD*.25,y=Math.min(2.0,top-.5),px=-wallX-.58,pz=z-.55;
     p(id,'secondary-vent',-wallX-.07,y,z,.14,.36,.85,'metal','attached');
     p(id,'vent-trim',-wallX-.15,y,z,.04,.2,.7,'slate','attached');
     p(id,'duct',-wallX-.06,(y+.8)/2,z,.12,Math.max(.1,y-.8-.35),.12,'metal','attached');
+    p(id,'patio-plant',px,.425,pz,.44,.85,.42,'green');
+    p(id,'grow-bar',px,1.14,pz,.38,.05,.38,'neon');
+    halo(id,'patio-grow-halo',px,1.16,pz,.55);
     break;
    }
    case 'security-upgrade':{
@@ -375,6 +381,18 @@ export function estateUpgradeModelSlots(lot,unlockedIds=[]){
   const u=by.get('bunker-arcade-utility-housing');
   slot({id:'bunker-arcade',model:'arcade',part:'body',x:u.x,y:0,z:u.z,w:.9,h:1.75,d:.86,
    replaces:['utility-housing','utility-grille','housing-roof','service-beacon'].map(n=>'bunker-arcade-'+n)});
+ }
+ if(has('grow-lounge')){
+  const g=by.get('grow-lounge-patio-plant');
+  if(g)slot({id:'grow-lounge',model:'cannabis',part:'body',x:g.x,y:0,z:g.z,w:g.w,h:g.h,d:g.d,replaces:['grow-lounge-patio-plant']});
+ }
+ if(has('grow-lounge-deluxe')){
+  const g=by.get('grow-lounge-deluxe-patio-plant');
+  if(g)slot({id:'grow-lounge-deluxe',model:'cannabis',part:'body',x:g.x,y:0,z:g.z,w:g.w,h:g.h,d:g.d,ry:1.2,replaces:['grow-lounge-deluxe-patio-plant']});
+ }
+ if(has('custom-sign')){
+  const s=by.get('custom-sign-sign-shrub');
+  if(s)slot({id:'custom-sign',model:'flower-bush',part:'bloom',x:s.x,y:0,z:s.z,w:1.2,h:.62,d:.8,replaces:['custom-sign-sign-shrub']});
  }
  for(const s of slots){
   if(Math.abs(s.x)+s.w/2>plot.width/2+.001||Math.abs(s.z)+s.d/2>plot.depth/2+.001)throw Error('upgrade_model_slot_outside_lot:'+s.model);

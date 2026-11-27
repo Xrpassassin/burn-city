@@ -47,7 +47,7 @@ function init(c, data) {
   // ---- site: west of downtown, clear of the wind farm, power plant and airport (checked against the City's colliders + lake)
   const blocked = (x, z, r) => (c.colliders || []).some(o => o && !o.memes && Math.hypot(o.x - x, o.z - z) < r + (o.r || 0)) ||
     !!(window.__estate && window.__estate.inLake && window.__estate.inLake(x, z, r)) || Math.hypot(x, z) - r < 330;
-  const cands = []; for (const rr of [520, 560, 600, 480]) for (const a of [3.63, 3.55, 3.72, 3.45, 3.82, 3.35]) cands.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr });
+  const cands = []; for (const rr of [480, 500, 520, 560, 600]) for (const a of [3.63, 3.55, 3.72, 3.45, 3.82, 3.35]) cands.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr });
   const cen = MC.pickCenter(cands, blocked, R);
   const toCity = Math.atan2(-cen.z, -cen.x);
   const a0 = toCity + PI / 4;   // the avenue between Kings Row and Degen Strip ("Market Street") points at downtown
@@ -331,8 +331,9 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     for (const q of placed) { const d = Math.hypot(p.x - q.x, p.z - q.z) - q.w * .7; if (d < 3.5 && d < bd) { bd = d; best = { d: Math.max(0, d), label: `Inspect ${q.t.label} · ${MC.ZONES[q.zone].name}`, act: () => inspect(q) }; } }
     return best; });
   (window.__mmHooks = window.__mmHooks || []).push((mm, sc, cw) => { if (!ST.built) return; const px = cen.x * sc, pz = cen.z * sc, rr = R * sc;
+    mm.strokeStyle = 'rgba(255,220,150,.75)'; mm.lineWidth = 2; mm.beginPath(); mm.moveTo(roadEnd.x * sc, roadEnd.z * sc); mm.lineTo(gateP.x * sc, gateP.z * sc); mm.stroke();   // Market Street approach, drawn like the Estates bridge
     MC.ORDER.forEach(id => { mm.fillStyle = hx(MC.ZONES[id].col) + '55'; mm.beginPath(); mm.moveTo(px, pz); mm.arc(px, pz, rr, A[id] - PI / 4, A[id] + PI / 4); mm.closePath(); mm.fill(); });
-    mm.fillStyle = '#ffe6a8'; mm.font = Math.round(cw / 30) + 'px system-ui'; mm.textAlign = 'center'; mm.fillText('Meme Circle', px, pz + rr + 10);
+    mm.fillStyle = '#ffe6a8'; mm.font = Math.round(cw / 30) + 'px system-ui'; mm.textAlign = 'center'; mm.fillText('Meme Circle', px, pz - rr - 4);   // label above the disc: below it collides with the Undercroft gate label
     mm.fillStyle = '#ffc44d'; mm.fillRect(bill.x * sc - 2, bill.z * sc - 2, 4, 4); });
   (window.__tourHooks = window.__tourHooks || []).push(V3 => { const k = gateP; return [V3(k.x + Math.cos(mkt) * 70, 46, k.z + Math.sin(mkt) * 70), V3(cen.x, 30, cen.z), 'Circle of XRPL Memes: the top meme tokens as towers in four districts (Kings Row, Grinder Yards, Degen Strip, The Watchline). Data by xrpl.to'] });
 

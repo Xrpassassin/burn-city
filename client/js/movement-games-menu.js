@@ -79,6 +79,7 @@ panel.innerHTML = `
     <button class="bc-mg-entry" type="button" data-game="blacktide"><span class="bc-mg-icon">⚓</span><span><strong>Blacktide</strong><small>Pirate frontier · sail, trade, and encounter NPC ships</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="arena"><span class="bc-mg-icon">🧟</span><span><strong>Multiplayer arena</strong><small>Zombies, ranked and Tron · free to play</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="fishing"><span class="bc-mg-icon">🎣</span><span><strong>Fishing</strong><small>Takes you to the end of the fishing dock · cast from there</small></span></button>
+    <button class="bc-mg-entry" type="button" data-game="undercroft"><span class="bc-mg-icon">🕯️</span><span><strong>The Undercroft</strong><small>Stair down to the Ember Crossroads, the Eternal Grind lobby · press E or tap Enter</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="emberbar"><span class="bc-mg-icon">🍺</span><span><strong>The Ember Bar</strong><small>Takes you to the tavern door on the BURN ring road · press E or tap to go in</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="wilds"><span class="bc-mg-icon">🌲</span><span><strong>The Wilds</strong><small>Takes you to the forest gate north of town · on foot only inside</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="city"><span class="bc-mg-icon">🔥</span><span><strong>BURN City</strong><small>Return to the live 3D city world</small></span></button>
@@ -121,12 +122,14 @@ const spots={
  boat:()=>{const f=window.__fishWorld,b=window.__boatWorld;if(!f||!b||!b.docks||!b.docks[0])return null;const d=f.dock.dir,p=b.docks[0].base;return{x:p.x+d.x*3,z:p.z+d.z*3,face:{x:p.x+d.x*12,z:p.z+d.z*12}}},
  fishing:()=>{const f=window.__fishWorld;if(!f)return null;const d=f.dock.dir,p=f.dock.base;return{x:p.x+d.x*16,z:p.z+d.z*16,face:{x:p.x+d.x*30,z:p.z+d.z*30}}},
  emberbar:()=>window.__emberBarBuilding&&window.__emberBarBuilding.ready?window.__emberBarBuilding.spot():null,
+ undercroft:()=>window.__undercroft&&window.__undercroft.ready?window.__undercroft.spot():null,
  wilds:async()=>{const g=(await import('./wilds-gate.js')).GATE;return{x:g.x,z:g.z-16,face:{x:g.x,z:g.z}}},
 };
 const MSG={
  boat:[()=>touch()?'⛵ Boat dock: walk up to a boat and tap 🚤 Board boat.':'⛵ Boat dock: walk up to a boat and press E (or click 🚤 Board boat).','⛵ Lake boat: head to the lake dock and board a boat with E / USE.'],
  fishing:[()=>touch()?'🎣 Fishing dock: tap 🎣 Fish to cast.':'🎣 Fishing dock: press F (or click 🎣 Fish) to cast.','🎣 Fishing: walk to the end of the lake dock or the shore, then cast.'],
  emberbar:[()=>touch()?'🍺 The Ember Bar: walk up to the door and tap to go in.':'🍺 The Ember Bar: walk up to the door and press E to go in.','🍺 The Ember Bar is on the BURN ring road, just south of BURN Tower.'],
+ undercroft:[()=>touch()?'🕯️ The Undercroft: walk up the steps and tap Enter.':'🕯️ The Undercroft: walk up the steps and press E to go down.','🕯️ The Undercroft stair is in the open ground west of VEGAS.'],
  wilds:[()=>'🌲 The Wilds gate is just ahead: walk through it to enter the forest.','🌲 The Wilds: walk north of town to the forest gate.'],
 };
 async function travel(k){
@@ -134,6 +137,7 @@ async function travel(k){
  if(locked()){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.',true);return}
  let s=null;try{s=await spots[k]()}catch(_){}
  const ok=!!(s&&window.__walkTo&&window.__walkTo(s.x,s.z,s.face));
+ if(ok&&k==='undercroft'&&window.__undercroft&&window.__undercroft.face)window.__undercroft.face();
  if(!ok)go('explore');
  say(ok?MSG[k][0]():MSG[k][1]);
 }
@@ -172,7 +176,7 @@ panel.addEventListener('click',e=>{
  if(window.__estatesIslandLive?.active){close(false);if(key==='city')window.__estatesIslandLive.returnToCity?.();else say('Return to BURN City before using city travel or games.',true);return}
  close(false);   // every entry closes the panel first, even when it is refused
  if(key==='arena'){const pb=document.getElementById('playBtn');if(pb)pb.click();else location.href='arena/';return}
- if(locked()&&key!=='explore'){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.',true);return}
+ if(locked()&&key!=='explore'){say(window.__undercroft&&window.__undercroft.active?'🕯️ In the Undercroft you travel on foot. Take the stair back up first.':'🌲 In the Wilds you travel on foot. Walk back out through the gate first.',true);return}
  if(key==='fly'||key==='orbit'||key==='explore'){go(key);return}
  if(key==='tour'){document.querySelector('#tour')?.click();return}
  if(key==='city'){go('orbit');return}

@@ -5,7 +5,7 @@
 <div id="title" class="scr" style="background-image:linear-gradient(#0008,#000c),url(a/crypt.jpg)"><div class="box frame" style="max-width:540px;text-align:center"><h1>ETERNAL GRIND</h1><div class="dim">A dark-fantasy dungeon RPG in Burn City</div>
 <div id="tSave" class="dim" style="margin-top:10px"></div>
 <h2>Run tier</h2><div class="tiers" id="tTiers"></div><div class="dim" id="tTierD" style="margin-top:4px"></div>
-<div style="margin:16px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button id="bLab" hidden onclick="location.href='enemy-model-workshop.html'">🧟 Enemy Model Workshop</button><button onclick="location.href='../'">← Back to the city</button><div style="display:flex;gap:8px"><button id="bExp" style="flex:1">⬇ Export save</button><button id="bImp" style="flex:1">⬆ Import save</button></div><input type="file" id="fImp" accept=".json,application/json" hidden></div><div class="dim">Saved on this device. PC: mouse + WASD, windows drag by their title bars. Phone: stick, thumb buttons and menus.</div></div></div>
+<div style="margin:16px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button id="bLab" hidden onclick="location.href='enemy-model-workshop.html'">🧟 Enemy Model Workshop</button><button id="bBack" onclick="location.href='../'">← Back to the city</button><div style="display:flex;gap:8px"><button id="bExp" style="flex:1">⬇ Export save</button><button id="bImp" style="flex:1">⬆ Import save</button></div><input type="file" id="fImp" accept=".json,application/json" hidden></div><div class="dim">Saved on this device. PC: mouse + WASD, windows drag by their title bars. Phone: stick, thumb buttons and menus.</div></div></div>
 <div id="create" class="scr" hidden style="background-image:linear-gradient(#0009,#000d),url(a/ember.jpg)"><div class="box frame"><h1 style="font-size:24px">Who are you?</h1>
 <h2>Name</h2><input id="cName" maxlength="16" placeholder="Nameless One"><h2>Race</h2><div class="g" id="cRace"></div><div class="dim" id="cRaceD" style="margin-top:6px"></div>
 <h2>Classes <span class="dim" style="text-transform:none;letter-spacing:0">pick up to 3 · the first is your main style</span></h2><div class="g" id="cCls"></div><div class="dim" id="cClsD" style="margin-top:6px"></div>
@@ -13,7 +13,7 @@
 <div id="dead" class="scr" hidden style="background:#200000cc"><div class="box frame" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
 <div id="pause" class="scr" hidden style="background:#000b"><div class="box frame" style="max-width:440px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button id="pInvB">Inventory (I)</button>
 <div><div class="dim">Run tier (takes effect on the next floor)</div><div class="tiers" id="pTiers" style="margin-top:4px"></div></div>
-<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pSfx" aria-pressed="true">🔊 Sound effects: On</button><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
+<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pSfx" aria-pressed="true">🔊 Sound effects: On</button><button id="pLayout">Reset window layout</button><button id="pBack" onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
 <div id="hud"><div id="cross"></div><div id="prompt"></div><div id="lockhint">Click the world for mouse-look · Esc for the menu</div><div id="dui"></div>
 <div id="mui"><canvas id="mm" width="150" height="150"></canvas>
  <div id="mport"><div class="pf"><img id="mPort" alt=""></div><span id="mlv"></span><div class="mb"><div id="mName"></div><div class="bar hp"><i id="mhpB"></i></div><div class="bar mp"><i id="mmpB"></i></div><div class="bar en"><i id="mstB"></i></div><div id="buffs"></div><div id="mSitT"></div></div></div>
@@ -363,4 +363,13 @@ const ui = initUI(G);
 drawTitle();
 window.__eg = { get P() { return P; }, get enemies() { return enemies; }, player, startFloor, ui, S, castGem, castSpell, loot, useHot, sit, kill, target, buffs, get near() { return near; }, get forge() { return forge && { x: forge.position.x, z: forge.position.z }; }, use, hurt, get paused() { return paused(); } };
 loop();
+</script><script>
+// Arrived from the Undercroft (city ?crossroads hub): the way back leads to the Ember Crossroads instead of the city street.
+// Navigation only: the save (localStorage.egSave) and its format are untouched.
+(() => { const q = new URLSearchParams(location.search); if (q.get('from') !== 'crossroads') return;
+  const back = '../?crossroads=1', b = document.getElementById('bBack'), p = document.getElementById('pBack');
+  if (b) { b.textContent = '← Return to the Crossroads'; b.onclick = () => { location.href = back; }; }
+  if (p) { p.textContent = 'Save & return to the Crossroads'; p.onclick = () => { try { window.save && window.save(); } catch (e) { } location.href = back; }; }
+  const t = document.getElementById('tSave'); if (t && t.parentNode) { const n = document.createElement('div'); n.className = 'dim'; n.id = 'egArrive'; n.style.cssText = 'margin-top:8px;color:#ffb070;font-style:italic';
+    n.textContent = q.get('via') === 'ember-stair' ? 'You came down the Ember Stair from the Crossroads.' : 'You stepped through the Descent Gate from the Ember Crossroads.'; t.parentNode.insertBefore(n, t); } })();
 </script></body></html>

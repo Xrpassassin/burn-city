@@ -1826,6 +1826,8 @@ if(!Q.has('nopyramid'))import('./aegis-pyramid.js').catch(e=>console.warn('aegis
 if(!Q.has('noaegis')&&!Q.has('shot'))import('./aegis.js').catch(e=>console.warn('aegis',e));
 // The Wilds (forest north of town): js/wilds-gate.js draws only the trailhead gate and lazy-loads the forest (js/wilds.js) when you walk in; ?nowilds turns it off
 if(!Q.has('nowilds'))import('./wilds-gate.js').catch(e=>console.warn('wilds',e));
+// The Undercroft (stair down to the Ember Crossroads, the Eternal Grind lobby): js/underground-gate.js draws only the entrance; the hub (underground-hub.js) is lazy; ?nounder turns it off
+if(!Q.has('nounder'))import('./underground-gate.js').catch(e=>console.warn('undercroft',e));
 if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK','BCHAMP']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();

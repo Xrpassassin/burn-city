@@ -1,3 +1,4 @@
+import {estateFurnitureQuality,dressHomeQuality} from './estates-furniture-quality.mjs';
 // Authored walk-in floor plans for every Estates home tier (pure data + geometry,
 // no three.js). Interiors match the exterior shell in estates-house-design.mjs:
 // same footprint, the front door at the same x, windows at the same wall positions,
@@ -236,11 +237,12 @@ function upgradeParts(add,slot,kind,deluxe){
  }
 }
 // Returns fixed (non-owner) parts for one floor, collision obstacles and metadata.
-export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='cozy'}={}){
+export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='cozy',tour=false,low=false,quality}={}){
  if(!HOME_FOOTPRINT[tier])tier='trailer';
  const [w,d]=HOME_FOOTPRINT[tier],hx=(w-.8)/2,hz=(d-.8)/2,{doorX,windows,floors}=exteriorOpenings(tier);
  floor=Math.max(0,Math.min(floors-1,Number.isInteger(floor)?floor:0));
  const data=planData(tier,hx,hz,doorX),F=data.floors[floor],H=data.height,installed=new Set(Array.isArray(upgrades)?upgrades:[]);
+ const qualityLevel=Number.isInteger(quality)?Math.max(0,Math.min(2,quality)):estateFurnitureQuality({upgrades,tour});
  const items=[],add=(id,x,y,z,w,h,d,mat,solid=false,shape='box',ry=0,extra)=>items.push({id,x,y,z,w,h,d,mat,solid,shape,...(ry?{ry}:{}),...(extra||{})});
  const W=2*hx,D=2*hz,floorMat=FLOOR_MAT[tier],wallMat=WALL_MAT[tier];
  // Shell: floor, ceiling, perimeter walls (bounds clipping is the outer collision).
@@ -361,9 +363,23 @@ export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='coz
   else {add('preset-floor-lamp',ax,.02,az,.34,.04,.34,'home-brass',true,'cylinder');add('preset-floor-lamp-pole',ax,.78,az,.035,1.5,.035,'home-brass',false,'cylinder');
    add('preset-floor-lamp-shade',ax,1.56,az,.4,.3,.4,'home-warm',false,'cylinder');}
  }
+ const openingClear=[];
+ for(const [axis,at,from,to,openings] of F.walls){
+  for(const [a,b] of openings||[]){
+   const mid=(a+b)/2,span=(b-a)/2+.55;
+   if(axis==='z'){
+    openingClear.push([at,mid,.7,span]);
+    openingClear.push([(doorX+at)/2,mid,Math.abs(at-doorX)/2+.45,.5]);
+   }else openingClear.push([mid,at,span,.7]);
+  }
+ }
+ const spawnAt=floor===0?{x:doorX,z:hz-1.05}:F.arrival;
+ if(spawnAt)openingClear.push([spawnAt.x,spawnAt.z,.75,.75]);
+ if(F.arrival)openingClear.push([F.arrival.x,F.arrival.z,.75,.75]);
+ dressHomeQuality(add,{quality:qualityLevel,rooms:F.rooms,H,hx,hz,keepClear:[...F.keepClear||[],...openingClear],items,occupied:clashes,low,doorX,sizes:INTERIOR_MODEL_SIZE});
  for(const it of items){
   const id=it.id||'';if(it.kit||it.model)continue;
-  if(/rug|runner/.test(id))it.kit={id:/round/.test(id)?'rug-round':'rug-rect'};
+  if(/rug|runner/.test(id)&&!id.startsWith('quality-'))it.kit={id:/round/.test(id)?'rug-round':'rug-rect'};
   else if(/bed-lamp|desk-lamp/.test(id))it.kit={id:'lamp-table'};
   else if(/pendant|ceiling-light/.test(id))it.kit={id:/pendant/.test(id)?'lamp-ceiling':'lamp-ceiling'};
   else if(/coffee-table/.test(id))it.kit={id:/square/.test(id)?'table-coffee-square':'table-coffee'};
@@ -381,8 +397,20 @@ export function createHomePlan({tier='trailer',floor=0,upgrades=[],layoutId='coz
   if(floor===0)interactions.push({id:'stairs-up',x:(st.x0+st.x1)/2,z:st.zBase+.55,radius:.6,title:'Stairs · go upstairs'});
   else interactions.push({id:'stairs-down',x:(st.x0+st.x1)/2,z:st.zTop-.45,radius:.55,title:'Stairs · go downstairs'});
  }
- const lights=F.lights.map(([x,y,z])=>({x,y:Math.min(y,H-.25),z,color:0xffd6a6,intensity:tier==='mansion'?3.0:2.5,distance:tier==='trailer'?7:9}));
- return {tier,floor,floors,height:H,doorX,items,obstacles,interactions,lights,rooms:F.rooms.map(r=>({...r})),
+ const lights=F.lights.map(([x,y,z])=>({x,y:Math.min(y,H-.25),z,color:qualityLevel>=2?0xffe2b8:0xffd6a6,intensity:(tier==='mansion'?3.0:2.5)*(qualityLevel>=2?1.2:qualityLevel>=1?1.1:1),distance:tier==='trailer'?7:9}));
+ if(qualityLevel>=2){
+  for(const it of items){
+   if(/^art-frame-/.test(it.id))it.mat='home-brass';
+   if(/^home-cornice-/.test(it.id))it.mat='home-brass';
+  }
+  // Hide the nearby flush fixture so a premium chandelier isn't doubled up.
+  const chand=items.filter(i=>i.model?.id==='chandelier'||/^quality-chandelier-/.test(i.id));
+  for(const it of items){
+   if(!/^ceiling-(light|rose)-/.test(it.id))continue;
+   if(chand.some(c=>Math.hypot((c.x||0)-(it.x||0),(c.z||0)-(it.z||0))<3.6))it.invisible=true;
+  }
+ }
+ return {tier,floor,floors,height:H,doorX,items,obstacles,interactions,lights,rooms:F.rooms.map(r=>({...r})),quality:qualityLevel,
   keepClear:(F.keepClear||[]).map(([x,z,ex,ez])=>({x,z,halfX:ex,halfZ:ez})),
   spawn:floor===0?{x:doorX,z:hz-1.05,yaw:0}:{x:F.arrival.x,z:F.arrival.z,yaw:F.arrival.yaw},
   arrival:F.arrival||null,bounds:{x:hx,z:hz},windows:windows.filter(v=>v.floor===floor)};

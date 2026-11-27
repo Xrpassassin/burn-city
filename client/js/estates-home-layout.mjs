@@ -65,8 +65,8 @@ function homeFurnitureParts(f){
 const ownerHalf=(f,parts)=>parts.filter(p=>p.solid).map(p=>{const c=Math.abs(Math.cos(p.ry||0)),n=Math.abs(Math.sin(p.ry||0));
  return {x:p.x,z:p.z,halfX:(c*p.w+n*p.d)/2,halfZ:(n*p.w+c*p.d)/2};});
 const hit=(a,b,m=0)=>Math.abs(a.x-b.x)<a.halfX+b.halfX+m&&Math.abs(a.z-b.z)<a.halfZ+b.halfZ+m;
-export function createEstateHomeLayout({tier='trailer',layoutId='cozy',furniture=[],upgrades=[],floor=0}={}){
- const plan=createHomePlan({tier,layoutId,upgrades,floor});
+export function createEstateHomeLayout({tier='trailer',layoutId='cozy',furniture=[],upgrades=[],floor=0,tour=false,low=false,quality}={}){
+ const plan=createHomePlan({tier,layoutId,upgrades,floor,tour,low,quality});
  const items=[...plan.items],hiddenFurniture=[];
  // Owner furniture (free home editor) belongs to the ground floor. A piece that
  // would block a doorway, the stairs or sit inside an authored fixture is not drawn
@@ -85,5 +85,5 @@ export function createEstateHomeLayout({tier='trailer',layoutId='cozy',furniture
  return Object.freeze({roomId:'home',title:HOME_LAYOUT_NAMES[layoutId]||HOME_LAYOUT_NAMES.cozy,theme:'residence',
   items,obstacles,interactions:plan.interactions,spawn:plan.spawn,arrival:plan.arrival,bounds:plan.bounds,
   walkHeight:.16,tier:plan.tier,layoutId:HOME_LAYOUT_NAMES[layoutId]?layoutId:'cozy',floor:plan.floor,floors:plan.floors,
-  height:plan.height,lights:plan.lights,rooms:plan.rooms,doorX:plan.doorX,hiddenFurniture});
+  height:plan.height,lights:plan.lights,rooms:plan.rooms,doorX:plan.doorX,hiddenFurniture,quality:plan.quality});
 }

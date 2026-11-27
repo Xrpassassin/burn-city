@@ -771,7 +771,7 @@ export async function installEstatesIslandLive({
   // Verified Tycoon unlocks (public /tycoon/world) decide which interior upgrades show inside.
   function homeRoomOptions(session,state=session?.homeState,extra={}){
     const unlocked=verifiedTycoonProperties.find(p=>p?.propertyId===session?.propertyId)?.unlockedItemIds;
-    return {...(state||{}),upgrades:session?.tour?[]:Array.isArray(unlocked)?unlocked:[],floor:session?.floor||0,...extra};
+    return {...(state||{}),upgrades:session?.tour?[]:Array.isArray(unlocked)?unlocked:[],tour:!!session?.tour,floor:session?.floor||0,...extra};
   }
   const showHomeAllowed=propertyId=>ownershipKnown&&!ownedPropertyIds.has(propertyId);
   function changeHomeFloor(floor){
@@ -866,7 +866,7 @@ export async function installEstatesIslandLive({
         if(guidanceHud)guidanceHud.style.display='none';
         if(window.__skate?.active)window.__skate.toggle(false);
       }else secretSession={...secretSession,roomId,token,homeState,floor:0};
-      const layout=secretInterior.setRoom(roomId,roomId==='home'?homeRoomOptions(secretSession,homeState,{reveal:true}):{});
+      const layout=secretInterior.setRoom(roomId,roomId==='home'?homeRoomOptions(secretSession,homeState,{reveal:true}):{upgrades:secretSession.tour?[]:(verifiedTycoonProperties.find(p=>p?.propertyId===propertyId)?.unlockedItemIds||[]),tour:!!secretSession.tour});
       fadeIn();
       const origin=secretInterior.origin;
       player.pos.set(origin.x+layout.spawn.x,origin.y+layout.walkHeight,origin.z+layout.spawn.z);

@@ -1,4 +1,5 @@
 import {createEstateHomeLayout} from './estates-home-layout.mjs';
+import {estateFurnitureQuality,dressSecretRoom} from './estates-furniture-quality.mjs';
 // Pure room layouts and third-person collision contract for private Estates Tycoon interiors.
 // This does not authenticate a wallet. Server /interior-access is mandatory before entry.
 export const ROOM_HALF=Object.freeze({x:7.7,z:7.15});
@@ -11,7 +12,7 @@ const P={bunker:{title:'Underground Command Bunker',theme:'industrial'},
  vault:{title:'Bunker Vault Arcade',theme:'arcade'}};
 export const PRIVATE_ROOMS=Object.freeze(Object.keys(P));
 function box(id,x,y,z,w,h,d,mat,solid=false){return {id,x,y,z,w,h,d,mat,solid};}
-function layoutFor(roomId){
+function layoutFor(roomId,options={}){
  const room=P[roomId];if(!room)throw Error('unknown_private_room');
  const items=[],put=(...args)=>items.push(box(...args));
  // Shared load-bearing shell, segmented wall lighting and a clearly marked return door.
@@ -80,6 +81,8 @@ function layoutFor(roomId){
    put('vault-lock',4.9,2.1,5.5,.5,.6,.18,'emissive');
   }
  }
+ const quality=estateFurnitureQuality({upgrades:options.upgrades,tour:options.tour});
+ dressSecretRoom(items,roomId,quality,{low:!!options.low});
  const obstacles=items.filter(i=>i.solid).map(({id,x,z,w,d})=>({id,x,z,halfX:w/2,halfZ:d/2}));
  const interactions=[
   {id:'exit',x:0,z:5.75,radius:1.6,title:'Return to your property'},
@@ -88,9 +91,9 @@ function layoutFor(roomId){
   {id:'terminal',x:3.5,z:-4.15,radius:1.25,title:'Inspect room console'}
  ];
  return Object.freeze({roomId,title:room.title,theme:room.theme,items,obstacles,interactions,
-  spawn:{x:0,z:4.1},bounds:ROOM_HALF,walkHeight:.15});
+  spawn:{x:0,z:4.1},bounds:ROOM_HALF,walkHeight:.15,quality});
 }
-export function createSecretRoomLayout(roomId,options={}){return roomId==='home'?createEstateHomeLayout(options):layoutFor(roomId);}
+export function createSecretRoomLayout(roomId,options={}){return roomId==='home'?createEstateHomeLayout(options):layoutFor(roomId,options);}
 export function resolveSecretRoomMotion(position,delta,layout,radius=.35){
  if(!layout||!Array.isArray(layout.obstacles))throw TypeError('room_layout_required');
  if(![position?.x,position?.z,delta?.x,delta?.z,radius].every(Number.isFinite)||radius<=0||radius>.9)

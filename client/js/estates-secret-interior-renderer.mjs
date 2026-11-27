@@ -104,7 +104,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
  }
  function setRoom(roomId,options={}){
   if(disposed)throw Error('private_interior_disposed');
-  const layout=createSecretRoomLayout(roomId,options);
+  const layout=createSecretRoomLayout(roomId,{...options,low:lowGraphics});
   disposeRoom();
   active=layout;
   // Build room only on entry, so island traversal has no interior draw-call burden.
@@ -114,7 +114,7 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   const merge=layout.roomId==='home'&&typeof THREE.BufferGeometry==='function'&&typeof THREE.Matrix4==='function';
   const SHELL=/^(home-|window-|ceiling-)/,batches=new Map();
   for(const part of layout.items){
-   if(part.invisible)continue;
+   if(part.invisible||(lowGraphics&&part.detail))continue;
    if(merge&&!part.model&&!SHELL.test(part.id)){if(!batches.has(part.mat))batches.set(part.mat,[]);batches.get(part.mat).push(part);continue;}
    const geo=part.shape==='sphere'&&THREE.SphereGeometry?
     new THREE.SphereGeometry(.5,10,7):part.shape==='cylinder'&&THREE.CylinderGeometry?
@@ -184,9 +184,10 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   };
   if(typeof THREE.HemisphereLight==='function'){
    const tone=home?(HOME_FILL[layout.tier]||HOME_FILL.starter):null;
-   const fill=home?new THREE.HemisphereLight(tone.sky,tone.ground,tone.fill):new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
+   const fillBoost=home&&layout.quality>=2?1.08:home&&layout.quality>=1?1.03:1;
+   const fill=home?new THREE.HemisphereLight(tone.sky,tone.ground,tone.fill*fillBoost):new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
    fill.name='private-room-indirect-fill';
-   fill.userData={onIntensity:home?tone.fill:.8,emergencyIntensity:.22};
+   fill.userData={onIntensity:home?tone.fill*fillBoost:.8,emergencyIntensity:.22};
    root.add(fill);illumination.push(fill);
   }
   if(typeof THREE.PointLight==='function'&&home){

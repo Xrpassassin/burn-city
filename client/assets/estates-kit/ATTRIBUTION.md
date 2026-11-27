@@ -21,3 +21,6 @@ Kenney City Kit (Suburban) and Building Kit (CC0, kenney.nl) were reviewed for w
 
 ## Procedural listing signs
 Unsold front-yard For Sale signs are authored in-engine (shared canvas texture, no prices). They are not Kenney meshes.
+
+## Furniture quality tiers
+Yard planting (bushes, flowers, pots and grass) scales with how many typoon upgrades a lot already has. Unsold lots keep the basic set. Hero furniture inside homes uses the existing CC BY Sketchfab collection credited in `client/assets/estates-interiors/CREDITS.md`, not additional Kenney hero meshes, so rooms stay visually consistent.

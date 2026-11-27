@@ -9,11 +9,11 @@ const EMBEDDED_GEAR = /^(1H_|2H_|Badge_Shield|Rectangle_Shield|Round_Shield|Spik
 
 export async function loadAssets(need, onProgress = () => { }) {
   const L = new GLTFLoader(), A = { protos: {}, clips: {}, gear: {}, skelGear: {}, toDispose: [] };
-  const files = [['anims', 'anims.glb'], ['hero_gear', 'hero_gear.glb'], ['skel_weapons', 'skel_weapons.glb'], ...need.map(n => [n, n + '.glb'])]; let done = 0;
+  const files = [['anims', 'anims.glb'], ['skel_weapons', 'skel_weapons.glb'], ...need.map(n => [n, n + '.glb'])]; let done = 0;
   await Promise.all(files.map(async ([k, f]) => { const g = await L.loadAsync(MD + f); A[k] = g; onProgress(++done / files.length); }));
   for (const c of A.anims.animations) A.clips[c.name] = c;
   for (const n of need) { const s = A[n].scene; s.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; if (EMBEDDED_GEAR.test(o.name)) o.visible = false; } if (o.isObject3D && EMBEDDED_GEAR.test(o.name)) o.visible = false; }); A.protos[n] = s; }
-  for (const o of A.hero_gear.scene.children) A.gear[o.name] = o; for (const o of A.skel_weapons.scene.children) A.skelGear[o.name] = o;
+  for (const o of A.skel_weapons.scene.children) A.skelGear[o.name] = o;
   return A;
 }
 export function disposeAssets(A) { const seen = new Set(); for (const k of Object.keys(A)) { const g = A[k]; if (g && g.scene) g.scene.traverse(o => { if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); } if (o.material && !seen.has(o.material)) { seen.add(o.material); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); } }
@@ -80,7 +80,7 @@ export class Enemy {
     this.hp -= amt; this.a.hit(h.kind === 'fire' ? 0xff7a30 : 0xffffff);
     const kb = (h.kb || 1) * (this.k === 'boss' ? .15 : 1) * (blocked ? .4 : 1), dx = this.x - h.from.x, dz = this.z - h.from.z, dl = Math.hypot(dx, dz) || 1; this.vx += dx / dl * 4.2 * kb; this.vz += dz / dl * 4.2 * kb;
     if (this.hp <= 0) { this.die(); return { amt, blocked, killed: true }; }
-    if (!blocked) { this.poise -= amt * (h.kind === 'heavy' ? 1.7 : h.kind === 'fire' ? 1.3 : 1); if (this.poise <= 0 && this.state !== 'stagger') { this.poise = this.st.poise; this.state = 'stagger'; this.t = 0; this.tEnd = this.k === 'boss' ? 1.1 : .7; this.a.play(Math.random() < .5 ? 'Hit_A' : 'Hit_B', { once: true, speed: this.k === 'boss' ? .9 : 1.2 }); this.atk = null; } }
+    if (!blocked) { this.poise -= amt * (h.kind === 'heavy' ? 1.7 : h.kind === 'fire' ? 1.3 : 1) * (h.poise || 1); if (this.poise <= 0 && this.state !== 'stagger') { this.poise = this.st.poise; this.state = 'stagger'; this.t = 0; this.tEnd = this.k === 'boss' ? 1.1 : .7; this.a.play(Math.random() < .5 ? 'Hit_A' : 'Hit_B', { once: true, speed: this.k === 'boss' ? .9 : 1.2 }); this.atk = null; } }
     if (this.k === 'boss' && this.phase === 1 && this.hp < this.max * .5) { this.phase = 2; this.st = { ...this.st, spd: this.st.spd * 1.2 }; this.nextSummon = 0; G.banner('The Hollow King rises in fury', 'His thralls answer the call'); }
     return { amt, blocked, killed: false };
   }

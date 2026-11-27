@@ -11,6 +11,12 @@ function burst(t0, dur, f, q, vol, type = 'bandpass', f1, pan) { const n = noise
 export function play(name, pan = 0, vol = 1) {
   if (!AC || muted) return; const t = AC.currentTime;
   switch (name) {
+    case 'draw': burst(t, .5, 260, 3, .12 * vol, 'bandpass', 520, pan); tone('triangle', 70, 95, t, .5, .05 * vol, pan); break;
+    case 'twang': tone('triangle', 196, 150, t, .28, .22 * vol, pan); tone('sine', 98, 80, t, .3, .2 * vol, pan); burst(t, .14, 1400, 1, .25 * vol, 'bandpass', 3800, pan); break;
+    case 'xbow': tone('square', 160, 70, t, .12, .2 * vol, pan); burst(t, .1, 2400, 1.4, .4 * vol, 'bandpass', 900, pan); break;
+    case 'reload': tone('square', 900, 700, t, .05, .08 * vol, pan); burst(t + .25, .18, 500, 2, .18 * vol, 'bandpass', 1400, pan); tone('square', 1500, 1300, t + .45, .04, .1 * vol, pan); break;
+    case 'whoosh': burst(t, .22, 1600, 1.5, .25 * vol, 'bandpass', 3800, pan); break;
+    case 'thunk': tone('sine', 220, 90, t, .1, .3 * vol, pan); burst(t, .05, 900, 1.5, .3 * vol, 'bandpass', 400, pan); break;
     case 'swing': burst(t, .18, 900, 1.2, .35 * vol, 'bandpass', 2600, pan); break;
     case 'heavy': burst(t, .32, 500, 1, .45 * vol, 'bandpass', 1800, pan); break;
     case 'hit': tone('sine', 140, 60, t, .16, .55 * vol, pan); burst(t, .09, 1800, .8, .4 * vol, 'bandpass', 600, pan); break;

@@ -5,7 +5,7 @@ import * as M from './ruin-map.mjs';
 
 // races/classes/signs adapters
 assert.ok(R.RACE_IDS.length >= 6, 'races adapted from Eternal Grind');
-assert.equal(R.CLASS_IDS.length, 6); assert.equal(R.SIGN_IDS.length, 6);
+assert.equal(R.CLASS_IDS.length, 8); assert.equal(R.SIGN_IDS.length, 6);
 for (const id of R.RACE_IDS) assert.ok(R.RACES[id].n && R.RACES[id].m.hp > 0);
 // creation drives stats/skills/gear
 const mem = new Map(), st = { getItem: k => mem.has(k) ? mem.get(k) : null, setItem: (k, v) => mem.set(k, String(v)) };
@@ -26,7 +26,7 @@ assert.equal(R.xpFor(1), 60); const lv = R.gainXp(s.hero, 1000); assert.ok(lv.le
 assert.ok(R.spendLevel(s.hero, 'hp')); assert.equal(s.hero.boons.hp, 1); assert.ok(!R.spendLevel(s.hero, 'bogus'));
 // inventory
 R.addItem(s.hero, 'potion_hp', 2); const n = R.countItem(s.hero, 'potion_hp'); assert.ok(R.takeItem(s.hero, 'potion_hp')); assert.equal(R.countItem(s.hero, 'potion_hp'), n - 1);
-const sw = R.addItem(s.hero, 'steel_longsword'); assert.ok(R.equip(s.hero, sw.u)); assert.equal(R.equipped(s.hero, 'weapon').n, 'Steel Longsword');
+const sw = R.addItem(s.hero, 'steel_longsword'); assert.ok(R.equip(s.hero, sw.u)); assert.equal(R.equipped(s.hero, 'weapon').n, 'Steel Greatsword');
 // quests: accept in hub, progress in ruin, turn in at hub
 assert.ok(R.acceptQuest(s, 'tithe')); assert.ok(R.acceptQuest(s, 'lumen')); assert.ok(!R.acceptQuest(s, 'lumen'));
 for (let i = 0; i < 8; i++) R.questEvent(s, { type: 'kill', undead: 1 });
@@ -74,3 +74,30 @@ assert.deepEqual(R.cleanLook({ sex: 'f', skin: 99, hair: -3, hairCol: 2.7 }), { 
   R.questEvent(ls, { type: 'boss' }); assert.equal(ls.ruin.slain, true); assert.equal(ls.ruin.boss, false); assert.equal(R.validate(JSON.parse(JSON.stringify(ls))).ruin.slain, true);
   const old = R.validate({ ruin: { boss: true } }); assert.equal(old.ruin.slain, true); }
 console.log('undercroft rpg core + map ok');
+
+// arsenal: every weapon has a kind/model/skill and sane stats; ranged weapons have ammo items
+for (const [id, D] of Object.entries(R.ITEMS)) {
+  if (D.t === 'weapon') { assert.ok(['one', 'two', 'dagger', 'spear', 'staff', 'bow', 'crossbow', 'thrown'].includes(D.kind), id + ' kind'); assert.ok(D.model && R.SKILLS[D.sk] && D.dmg > 0 && D.spd > 0 && D.reach > 0 && D.st > 0, id + ' stats');
+    if (R.RANGED[D.kind]) assert.equal(R.ITEMS[D.ammo] && R.ITEMS[D.ammo].t, 'ammo', id + ' ammo'); }
+  if (D.t === 'shield') assert.ok(D.model && D.ar > 0 && D.blk > 0, id + ' shield');
+}
+assert.ok(R.SKILLS.blunt && R.SKILLS.marksman, 'blunt + marksman skills');
+// classes start with fitting weapons: the thief gets a dagger and a bow with arrows; sentinels a sword and shield
+{ const th = R.newHero({ cls: 'cutpurse' }), S = R.stats(th); assert.equal(S.kind, 'dagger'); assert.equal(R.equipped(th, 'alt').kind, 'bow'); assert.ok(R.countItem(th, 'arrows') >= 20);
+  assert.ok(R.swapWeapon(th)); assert.equal(R.stats(th).kind, 'bow'); assert.equal(R.stats(th).wsk, 'marksman'); assert.ok(R.swapWeapon(th)); assert.equal(R.stats(th).kind, 'dagger');
+  const se = R.newHero({ cls: 'sentinel' }), SS = R.stats(se); assert.ok(SS.shield && SS.shModel === 'shield_round'); assert.ok(SS.blockRed > R.stats(R.newHero({ cls: 'vanguard' })).blockRed, 'shield blocks better than a parry');
+  // two-handed weapons drop the shield from stats, equipping a weapon makes the old one the swap weapon
+  const gs = R.addItem(se, 'quarry_maul'); const old = se.eq.weapon; assert.ok(R.equip(se, gs.u)); assert.equal(se.eq.alt, old); assert.equal(R.stats(se).shield, false); assert.equal(R.stats(se).wsk, 'blunt');
+  // blunt skill raises blunt damage only
+  const d0 = R.stats(se).dmg; se.skills.blunt.v += 30; assert.ok(R.stats(se).dmg > d0); const r0 = R.rangedDamage(R.stats(th), .2, .99).amt, r1 = R.rangedDamage(R.stats(th), 1, .99).amt; assert.ok(r1 > r0 * 2, 'full draw hits harder');
+  // custom marksman builds get a bow
+  const cm = R.newHero({ cls: 'custom', custom: { major: ['marksman', 'security', 'acrobatics'] } }); assert.ok(R.stats(cm).ranged || R.equipped(cm, 'alt').kind === 'bow');
+  // old saves (before the arsenal) get the class shield + kit once and keep their gear
+  const raw = JSON.parse(JSON.stringify({ v: 1, hero: { ...R.newHero({ cls: 'sentinel' }), ars: undefined } })); raw.hero.inv = raw.hero.inv.filter(i => i.id !== 'round_shield'); delete raw.hero.eq.shield; delete raw.hero.skills.blunt;
+  const v = R.validate(raw); assert.ok(v.hero.eq.shield && R.equipped(v.hero, 'shield').model === 'shield_round'); assert.ok(v.hero.skills.blunt.v >= 1); const v2 = R.validate(JSON.parse(JSON.stringify(v))); assert.equal(v2.hero.inv.filter(i => i.id === 'round_shield').length, 1); }
+// chests and enemies drop the new weapons
+{ const all = new Set(); for (const id of Object.keys(R.CHESTS)) for (let k = 0; k < 40; k++) for (const [it] of R.rollChest(id, 's' + k).items) all.add(it);
+  for (const w of ['light_crossbow', 'gilded_bow', 'gilded_aegis', 'hunting_bow', 'ashwood_longbow']) assert.ok(all.has(w), w + ' in a chest');
+  let got = 0; const rr = (() => { let x = 1; return () => (x = (x * 16807) % 2147483647) / 2147483647; })(); for (let k = 0; k < 300; k++) got += R.rollDrops('skeleton', rr).length; assert.ok(got > 30, 'skeletons drop gear/ammo');
+  for (const k of Object.keys(R.DROPS)) for (const [, id] of R.DROPS[k]) assert.ok(R.ITEMS[id], 'drop ' + id); }
+console.log('arsenal tests ok');

@@ -150,12 +150,33 @@ export class Hero {
     const hand = right ? this.handR : this.handL, ws = new THREE.Vector3(); this.root.updateMatrixWorld(true); hand.getWorldScale(ws); const rs = new THREE.Vector3(); this.root.getWorldScale(rs); ws.divide(rs); const holder = new THREE.Group(); holder.scale.set(this.model.scale.x / ws.x, this.model.scale.y / ws.y, this.model.scale.z / ws.z); hand.add(holder);
     o.scale.multiplyScalar(s); o.rotation.set(rx, ry, rz); o.position.set(x, y, z); holder.add(o); return o; }
   hit(col = 0xffffff, k = 1) { this.flash = .14 * k; this.flashCol = new THREE.Color(col); }
+  // a child of a bone that cancels the bone's world scale, so props keep their real size (metres, model scale applied)
+  boneHolder(b) { const key = '_h_' + b.name; if (this[key]) return this[key]; const ws = new THREE.Vector3(); this.root.updateMatrixWorld(true); b.getWorldScale(ws); const rs = new THREE.Vector3(); this.root.getWorldScale(rs); ws.divide(rs); const g = new THREE.Group(); g.scale.set(this.model.scale.x / ws.x, this.model.scale.y / ws.y, this.model.scale.z / ws.z); b.add(g); return this[key] = g; }
+  handHolder(side) { return this.boneHolder(side === 'l' ? this.handL : this.handR); }
+  armLen(side) { const a = this.bone('upperarm_' + side).getWorldPosition(new THREE.Vector3()), b = this.bone('lowerarm_' + side).getWorldPosition(new THREE.Vector3()), c = this.bone('hand_' + side).getWorldPosition(new THREE.Vector3()); return (a.distanceTo(b) + b.distanceTo(c)) / this.root.getWorldScale(new THREE.Vector3()).x; }
+  // two-bone arm IK + grip: put the palm of `side` on world point T with the thumb along `axis` (fingers toward `hint`), blended by w
+  grip(side, T, axis, hint, w = 1) {
+    if (!(w > .001)) return; const U = this.bone('upperarm_' + side), L = this.bone('lowerarm_' + side), Hn = this.bone('hand_' + side);
+    const a = U.getWorldPosition(IK.a), b = L.getWorldPosition(IK.b), c = Hn.getWorldPosition(IK.c);
+    const z = IK.z.copy(axis).normalize(), fore = IK.f.copy(c).sub(b).normalize(), y = IK.y.copy(hint || fore); y.addScaledVector(z, -y.dot(z)); if (y.lengthSq() < 1e-4) y.copy(fore).addScaledVector(z, -fore.dot(z)); y.normalize(); const x = IK.x.crossVectors(y, z);
+    IK.m.makeBasis(x, y, z); const Rd = IK.q.setFromRotationMatrix(IK.m); const ws = Hn.getWorldScale(IK.s).x / (Hn.scale.x || 1);
+    const sc = this.root.getWorldScale(IK.s2).x * this.model.scale.x; const palm = IK.p.set(side === 'l' ? .03 : -.03, .085, .015).multiplyScalar(sc).applyQuaternion(Rd);
+    const wt = IK.t.copy(T).sub(palm); wt.lerp(c, 1 - w);
+    const l1 = a.distanceTo(b), l2 = b.distanceTo(c), dv = IK.d.copy(wt).sub(a), d = Math.min(l1 + l2 - 1e-4, Math.max(Math.abs(l1 - l2) + 1e-4, dv.length())); const n = dv.normalize();
+    const pole = IK.e.copy(b).sub(a); pole.addScaledVector(n, -pole.dot(n)); if (pole.lengthSq() < 1e-6) pole.set(0, -1, 0).addScaledVector(n, -n.y); pole.normalize();
+    const cosA = Math.min(1, Math.max(-1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d))), sinA = Math.sqrt(1 - cosA * cosA); const elbow = IK.el.copy(a).addScaledVector(n, l1 * cosA).addScaledVector(pole, l1 * sinA);
+    const rot = (bone, from, to) => { const qd = IK.r.setFromUnitVectors(from.normalize(), to.normalize()); const wq = bone.getWorldQuaternion(IK.w1); wq.premultiply(qd); const pq = bone.parent.getWorldQuaternion(IK.w2).invert(); bone.quaternion.copy(pq.multiply(wq)); bone.updateMatrixWorld(true); };
+    rot(U, IK.v1.copy(b).sub(a), IK.v2.copy(elbow).sub(a));
+    const b2 = L.getWorldPosition(IK.b2), c2 = Hn.getWorldPosition(IK.c2); rot(L, IK.v1.copy(c2).sub(b2), IK.v2.copy(wt).sub(b2));
+    const cur = Hn.getWorldQuaternion(IK.w1); cur.slerp(Rd, w); const pq = L.getWorldQuaternion(IK.w2).invert(); Hn.quaternion.copy(pq.multiply(cur)); Hn.updateMatrixWorld(true);
+  }
   update(dt) {
-    this.t += dt; this.mixer.update(dt);
+    this.t += dt; this.mixer.update(dt); if (this.rig) this.rig.apply();
     if (this.tailSway) { const cat = this.tailKind === 'cat'; this.tailSway.rotation.y = Math.sin(this.t * (cat ? 1.6 : 1)) * (cat ? .35 : .14); this.tailSway.rotation.x = cat ? Math.sin(this.t * .8) * .08 : 0; }
     if (this.flash > 0) { this.flash -= dt; const f = Math.max(0, this.flash / .14); for (const m of this.mats) if (m.emissive && m.userData.e0) { m.emissive.copy(m.userData.e0).lerp(this.flashCol, f); m.emissiveIntensity = (m.userData.ei0 || 0) + f * 1.6; } if (this.flash <= 0) for (const m of this.mats) if (m.emissive && m.userData.e0) { m.emissive.copy(m.userData.e0); m.emissiveIntensity = m.userData.ei0; } }
   }
-  dispose() { this.mixer.stopAllAction(); this.mixer.uncacheRoot(this.model); for (const m of this.mats) m.dispose(); for (const d of this.disp) d.dispose(); }
+  dispose() { if (this.rig) this.rig.dispose(); this.mixer.stopAllAction(); this.mixer.uncacheRoot(this.model); for (const m of this.mats) m.dispose(); for (const d of this.disp) d.dispose(); }
 }
+const IK = {}; for (const k of ['a', 'b', 'c', 'z', 'f', 'y', 'x', 's', 's2', 'p', 't', 'd', 'e', 'el', 'v1', 'v2', 'b2', 'c2']) IK[k] = new THREE.Vector3(); IK.m = new THREE.Matrix4(); IK.q = new THREE.Quaternion(); IK.r = new THREE.Quaternion(); IK.w1 = new THREE.Quaternion(); IK.w2 = new THREE.Quaternion();
 let BLOB = null;
 function blobTexture() { if (BLOB) return BLOB; const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(0,0,0,.6)'); r.addColorStop(.6, 'rgba(0,0,0,.28)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return BLOB = new THREE.CanvasTexture(c); }

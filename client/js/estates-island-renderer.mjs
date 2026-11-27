@@ -191,6 +191,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     return true;
   }
   setAppearance();
+  applyYardPresentation();
   scene.add(root);
   return Object.freeze({
     root,

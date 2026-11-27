@@ -18,3 +18,6 @@ Existing Sketchfab CC BY sofas, beds, kitchens and large plants inside homes are
 
 ## Reviewed but not bundled
 Kenney City Kit (Suburban) and Building Kit (CC0, kenney.nl) were reviewed for whole-house meshes. They are not shipped in this folder so Estates collision footprints and door positions stay compatible with the door-anchored Enter/Edit chip. Yard and furniture pieces above remain in use.
+
+## Procedural listing signs
+Unsold front-yard For Sale signs are authored in-engine (shared canvas texture, no prices). They are not Kenney meshes.

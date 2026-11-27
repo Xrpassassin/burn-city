@@ -4,6 +4,7 @@
 // Read-only public requests. Base structure (burn history, scars, holder bands) comes from client/data.js.
 // GET /data.js = full ECO for page load · GET /api/eco/live = compact live values for in-page polling · GET /api/eco = status.
 const fs = require('fs'), path = require('path'), crypto = require('crypto'), xrpl = require('xrpl');
+const XrplTo = require('./xrplto');   // X-Api-Key on api.xrpl.to calls when XRPLTO_API_KEY is set
 const FILE = path.join(__dirname, '..', 'client', 'data.js');
 const RPC = ['https://xrplcluster.com/', 'https://s2.ripple.com:51234/', 'https://s1.ripple.com:51234/'];
 const WSS = ['wss://xrplcluster.com', 'wss://s2.ripple.com', 'wss://s1.ripple.com'];
@@ -44,7 +45,7 @@ async function rpc(method, p) {
   }
   throw new Error(String(err));
 }
-async function xrplto(key) { try { const j = await (await fetch('https://api.xrpl.to/v1/token/' + key, { headers: { 'user-agent': 'burn-city/1' }, signal: AbortSignal.timeout(15e3) })).json(); return j.token || j; } catch { return null; } }
+async function xrplto(key) { try { const j = await (await fetch('https://api.xrpl.to/v1/token/' + key, { headers: XrplTo.headers({ 'user-agent': 'burn-city/1' }), signal: AbortSignal.timeout(15e3) })).json(); return j.token || j; } catch { return null; } }
 async function isBlackhole(acct) {
   const c = bhCache.get(acct); if (c && Date.now() - c.t < 6 * 3600e3) return c.bh; let bh = false;
   // black hole = master key disabled AND (no RegularKey or RegularKey is a known black-hole address) AND no SignerList (client/js/goldlock.js)
@@ -231,7 +232,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
+  start, status: () => ({ ...status, keyed: XrplTo.keyed() }), data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

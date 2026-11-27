@@ -10,6 +10,7 @@ import * as MAP from './ruin-map.mjs';
 import { buildWorld, updateWorld, disposeWorld, setPedestal, openGate, setBossDoor, freeHeart, takeHeart, glow, glowTex, wx } from './world.js';
 import { loadAssets, disposeAssets, Enemy, disposeShared } from './actors.js';
 import { Hero, loadFolk, disposeFolk } from './hero.js';
+import { loadArsenal, KINDS, Rig } from './arsenal.js';
 import * as UI from './ui.js';
 import * as SFX from './sfx.js';
 
@@ -21,7 +22,7 @@ function autoTier() { if (['low', 'medium', 'high'].includes(Q.get('tier'))) ret
 const tier = autoTier();
 if (touch) document.body.classList.add('touch');
 
-const G = window.__ruinG = { tier, touch, save: save0, modal: null, sens: save0.settings.sens || 1, muted: false, explored: new Set(), enemies: [], bolts: [], rings: [], fx: [], t: 0, hitstop: 0, shake: 0, listeners: [], running: true };
+const G = window.__ruinG = { tier, touch, save: save0, modal: null, sens: save0.settings.sens || 1, muted: false, explored: new Set(), enemies: [], bolts: [], shots: [], rings: [], fx: [], t: 0, hitstop: 0, shake: 0, listeners: [], running: true };
 UI.init(G);
 const on = (el, ev, fn, o) => { el.addEventListener(ev, fn, o); G.listeners.push([el, ev, fn, o]); };
 
@@ -52,9 +53,10 @@ async function boot() {
   const need = ['skel_warrior', 'skel_mage', 'skel_minion'];
   UI.loading(.04, 'Loading the ruin…');
   const gl = new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader();
-  const [folk, assets, propsG, crystalG, skullpileG, skullG] = await Promise.all([loadFolk(sexes),
+  const [folk, assets, propsG, crystalG, skullpileG, skullG, arsenal] = await Promise.all([loadFolk(sexes),
     loadAssets(need, f => UI.loading(.05 + f * .35)),
-    gl.loadAsync('assets/models/dungeon_props.glb'), gl.loadAsync('../assets/underground/models/crystal.glb'), gl.loadAsync('../assets/underground/models/skullpile.glb'), gl.loadAsync('../assets/underground/models/skull-lo.glb')]);
+    gl.loadAsync('assets/models/dungeon_props.glb'), gl.loadAsync('../assets/underground/models/crystal.glb'), gl.loadAsync('../assets/underground/models/skullpile.glb'), gl.loadAsync('../assets/underground/models/skull-lo.glb'), loadArsenal()]);
+  G.arsenal = arsenal;
   G.folk = folk; G.assets = assets; G.extra = [propsG, crystalG, skullpileG, skullG];
   const props = {}; for (const c of propsG.scene.children) props[c.name] = c;
   const bake = (g, h) => { let mesh = null; g.scene.updateMatrixWorld(true); g.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; }); const geo = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld); geo.computeBoundingBox(); const b = geo.boundingBox, s = h / (b.max.y - b.min.y); geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2).scale(s, s, s); if (!geo.attributes.normal) geo.computeVertexNormals(); return { geo, mat: mesh.material }; };
@@ -91,17 +93,12 @@ function buildHeroActor(model, race, H = G.save.hero, cls) {
   const look = H ? { ...H.look, race: H.race, armor: armorId } : { ...(sel && sel.look || {}), race, armor: armorId };
   const a = new Hero(G.folk, look); P.actor = a; scene.add(a.root);
   a.root.position.set(P.x, 0, P.z); a.root.rotation.y = P.yaw;
-  const vis = H ? (R.equipped(H, 'weapon') || R.ITEMS.rusty_blade) : R.ITEMS[C.weapon];
-  const wid = H ? H.eq.weapon && H.inv.find(i => i.u === H.eq.weapon).id : C.weapon; const gear = G.assets.gear;
-  const wmap = { sword: ['sword', .53, .18], axe: ['axe', .6, .14], dagger: ['dagger', .5, .1], staff: ['staff', .72, .1, 1.15] }; let [gname, gs, gg, ga] = wmap[vis.vis] || wmap.sword;
-  if (wid === 'hollow_cleaver') { gname = 'greataxe'; gs = .58; gg = .22; } if (wid === 'lumen_edge') { gname = 'greatsword'; gs = .52; gg = .22; }
-  const w = a.attach(gear[gname], true, GRIP.r(gs, gg, ga)); if (wid === 'lumen_edge') w.traverse(m => { if (m.isMesh) { m.material.emissive = new THREE.Color(0x5aa8ff); m.material.emissiveIntensity = .6; m.material.userData.e0 = m.material.emissive.clone(); m.material.userData.ei0 = .6; } });
-  if (C.shield) a.attach(gear[armorId === 'iron_plate' || armorId === 'wardens_mail' ? 'shield_badge' : 'shield'], false, GRIP.l(.58));
-  a.play(G.mode === 'create' ? 'Preview' : 'Idle'); P.weaponVis = vis.vis; return a;
+  // weapon + shield from the arsenal (Rig places them in the hands every frame, IK for two-handed / bows / spears)
+  const W = H ? (R.equipped(H, 'weapon') || R.ITEMS.rusty_blade) : R.ITEMS[C.weapon], two = R.TWO_HANDED[W.kind];
+  const shD = H ? (!two && R.equipped(H, 'shield')) : (!two && C.off && R.ITEMS[C.off]);
+  a.rig = new Rig(a, G.arsenal, { kind: W.kind || 'one', model: W.model || 'sword', shield: shD ? shD.model : null, tint: W.glow || 0, quiver: W.ammo === 'arrows' });
+  a.play(G.mode === 'create' ? 'Preview' : 'Idle'); P.kind = W.kind || 'one'; P.loaded = true; return a;
 }
-// weapon / shield placement in the UAL hand bones (tuned on screenshots)
-// hand bones: fingers +y, thumb side +z, palm -x (right) / +x (left); gear is authored blade-up (+y)
-const GRIP = { r: (s, g, a = 0) => ({ s, rx: Math.PI / 2 + a, ry: 0, rz: 0, x: -.03, y: .085 - Math.sin(a) * g * s, z: .015 + Math.cos(a) * g * s }), l: s => ({ s, rx: 0, ry: -Math.PI / 2, rz: 0, x: -.07, y: .02, z: 0 }) };
 // ------------------------------------------------------------------ play
 function startPlay(fresh) {
   G.mode = 'play'; document.body.classList.remove('creating'); const H = G.save.hero, S = G.stats = R.stats(H), P = G.player;
@@ -129,7 +126,7 @@ on(window, 'keydown', e => {
   if (G.modal === 'loot' && (k === 'e' || k === 'enter' || k === ' ')) { e.preventDefault(); G.lootKey && G.lootKey(); return; }
   if (k === 'tab' || k === 'i' || k === 'j' || k === 'm' || k === 'escape') { e.preventDefault(); if (G.mode !== 'play') return; if (G.modal === 'menu') UI.close('menu'); else if (!G.modal && k !== 'escape') { document.exitPointerLock && document.exitPointerLock(); UI.menu(k === 'j' ? 'jrn' : k === 'm' ? 'map' : k === 'i' ? 'inv' : 'char'); } return; }
   if (G.modal) return; inp.keys[k] = true;
-  if (k === ' ') { e.preventDefault(); inp.dodge = true; } if (k === '1' || k === 'q') inp.fire = true; if (k === '2' || k === 'r') inp.heal = true; if (k === 'e' || k === 'f') inp.use = true; if (k === 'h') inp.pot = true;
+  if (k === ' ') { e.preventDefault(); inp.dodge = true; } if (k === '1' || k === 'q') inp.fire = true; if (k === '2' || k === 'r') inp.heal = true; if (k === 'e' || k === 'f') inp.use = true; if (k === 'h') inp.pot = true; if (k === 'x' || k === '3') inp.swap = true;
 });
 on(window, 'keyup', e => { inp.keys[e.key.toLowerCase()] = false; });
 on(window, 'blur', () => { inp.keys = {}; inp.atkDown = false; inp.block = false; });
@@ -151,13 +148,14 @@ const lookEnd = e => { if (e.pointerId === lookId) { lookId = null; lookLast = n
 function tbtn(id, down, up) { const b = document.getElementById(id); on(b, 'pointerdown', e => { e.preventDefault(); e.stopPropagation(); SFX.initAudio(); b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (_) { } down(); }); const end = e => { b.classList.remove('on'); up && up(); }; on(b, 'pointerup', end); on(b, 'pointercancel', end); }
 tbtn('bAtk', () => { if (G.modal) return; inp.atkDown = true; inp.atkT = 0; inp.heavyFired = false; }, () => { if (inp.atkDown && !inp.heavyFired) inp.light = true; inp.atkDown = false; });
 tbtn('bBlk', () => { inp.block = true; }, () => { inp.block = false; });
-tbtn('bDod', () => { inp.dodge = true; }); tbtn('bFire', () => { inp.fire = true; }); tbtn('bHeal', () => { inp.heal = true; }); tbtn('bPot', () => { inp.pot = true; });
+tbtn('bDod', () => { inp.dodge = true; }); tbtn('bSwap', () => { inp.swap = true; }); tbtn('bFire', () => { inp.fire = true; }); tbtn('bHeal', () => { inp.heal = true; }); tbtn('bPot', () => { inp.pot = true; });
 tbtn('bMenu', () => { if (G.mode !== 'play') return; if (G.modal === 'menu') UI.close('menu'); else if (!G.modal) UI.menu('char'); });
 on(document.getElementById('prompt'), 'click', () => { inp.use = true; });
 
 // ------------------------------------------------------------------ helpers
 const V = new THREE.Vector3(), V2 = new THREE.Vector3();
 function project(x, y, z) { V.set(x, y, z).project(camera); if (V.z > 1) return null; return { x: (V.x * .5 + .5) * innerWidth, y: (-V.y * .5 + .5) * innerHeight }; }
+const blockClip = () => (G.stats.shield ? 'Idle_Shield_Loop' : 'Blocking');
 const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const camFwd = () => [Math.sin(cam.yaw), Math.cos(cam.yaw)];
 function sfx(name, at, vol = 1) { if (!at) return SFX.play(name, 0, vol); const P = G.player, dx = at.x - P.x, dz = at.z - P.z, d = Math.hypot(dx, dz); if (d > 30) return; const [fx, fz] = camFwd(), right = [-fz, fx], pan = (dx * right[0] + dz * right[1]) / Math.max(1, d); SFX.play(name, pan * .8, vol * Math.max(.15, 1 - d / 30)); }
@@ -174,23 +172,87 @@ G.banner = (a, b) => UI.banner(a, b);
 function persist() { R.store(store, G.save); }
 
 // ------------------------------------------------------------------ player actions
+const kindOf = () => KINDS[G.stats.kind] || KINDS.one;
 function startAttack(heavy) {
-  const P = G.player, S = G.stats, cost = heavy ? 18 : 7, winded = P.st < cost; P.st = Math.max(0, P.st - cost); P.stDelay = .9;
-  const t = softTarget(heavy ? 5 : 4.5); if (t) P.yaw = Math.atan2(t.x - P.x, t.z - P.z); else if (Math.hypot(inp.f, inp.r) > .2) P.yaw = Math.atan2(...moveDir().slice(0, 2)); else P.yaw = cam.yaw;
-  const clips = ['1H_Melee_Attack_Slice_Diagonal', '1H_Melee_Attack_Slice_Horizontal', '1H_Melee_Attack_Stab']; const axe = P.weaponVis === 'axe' || P.weaponVis === 'staff';
-  const clip = heavy ? (axe ? '2H_Melee_Attack_Chop' : '1H_Melee_Attack_Chop') : clips[P.combo % 3]; const sp = (heavy ? 1.05 : 1.45) * S.atkSpd;
-  const dur = P.actor.play(clip, { once: true, speed: sp, fade: .08, force: true }); P.state = 'attack'; P.t = 0; P.atk = { heavy, dur, hitAt: dur * (heavy ? .5 : .4), chainAt: dur * .62, done: false, winded }; P.combo = heavy ? 0 : P.combo + 1; P.attacking = true; P.queued = false;
-  sfx(heavy ? 'heavy' : 'swing', null, .9);
+  const P = G.player, S = G.stats, K = kindOf(); if (K.ranged && S.kind !== 'thrown') return;
+  if (S.kind === 'thrown' && !R.countItem(G.save.hero, S.ammo)) { noAmmo(); return; }
+  heavy = heavy && !!K.heavy; const cost = S.wst * (heavy ? 2.4 : 1), winded = P.st < cost; P.st = Math.max(0, P.st - cost); P.stDelay = .9;
+  const t = S.kind === 'thrown' ? aimTarget() : softTarget(heavy ? 5 : 4.5); if (t) P.yaw = Math.atan2(t.x - P.x, t.z - P.z); else if (Math.hypot(inp.f, inp.r) > .2 && S.kind !== 'thrown') P.yaw = Math.atan2(...moveDir().slice(0, 2)); else P.yaw = cam.yaw;
+  const e = heavy ? K.heavy : K.light[P.combo % K.light.length], [clip, k, hf, endF] = e, sp = k * S.atkSpd;
+  const dur = P.actor.play(clip, { once: true, speed: sp, fade: .08, force: true }); P.state = 'attack'; P.t = 0;
+  P.atk = { heavy, dur, hitAt: dur * hf, chainAt: dur * Math.min(.72, hf + .22), end: dur * (endF || .9), done: false, winded, tgt: t }; P.combo = heavy ? 0 : P.combo + 1; P.attacking = true; P.queued = false;
+  sfx(heavy ? 'heavy' : S.kind === 'thrown' ? 'whoosh' : 'swing', null, .9);
 }
 function resolveSwing() {
-  const P = G.player, S = G.stats, a = P.atk, reach = (P.weaponVis === 'dagger' ? 1.95 : P.weaponVis === 'staff' ? 2.5 : 2.25) + (a.heavy ? .35 : 0), arc = a.heavy ? 1.2 : 1.0; let hits = 0;
-  for (const e of G.enemies) { if (!e.alive) continue; const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz) - e.r; if (d > reach) continue; if (Math.abs(angDiff(Math.atan2(dx, dz), P.yaw)) > arc && d > .6) continue;
-    const m = R.meleeDamage(S, a.heavy); let amt = m.amt * (a.winded ? .5 : 1) * (.9 + Math.random() * .2); if (e.state === 'stagger' && !a.heavy) amt *= 1.15;
-    const r = e.takeHit({ amt, kind: a.heavy ? 'heavy' : 'light', crit: m.crit, from: P, kb: a.heavy ? 1.6 : .9 }); if (!r) continue; hits++;
+  const P = G.player, S = G.stats, a = P.atk; if (S.kind === 'thrown') { shoot(1, a.tgt); return; }
+  const reach = S.reach + (a.heavy ? .35 : 0), arc = { spear: .5, dagger: .85, two: 1.3, staff: 1.15 }[S.kind] || 1.0; let hits = 0;
+  for (const e of G.enemies) { if (!e.alive) continue; const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz) - e.r; if (d > reach) continue; if (Math.abs(angDiff(Math.atan2(dx, dz), P.yaw)) > arc * (a.heavy ? 1.15 : 1) && d > .6) continue;
+    const m = R.meleeDamage(S, a.heavy); let amt = m.amt * (a.winded ? .5 : 1) * (.9 + Math.random() * .2); if (e.state === 'stagger' && !a.heavy) amt *= 1.15; if (S.kind === 'dagger' && (e.state === 'idle' || e.state === 'dormant' || e.state === 'stagger')) amt *= 1.5;   // daggers: bonus on unaware / staggered foes
+    const r = e.takeHit({ amt, kind: a.heavy ? 'heavy' : 'light', crit: m.crit, from: P, kb: (a.heavy ? 1.6 : .9) * S.stagger, poise: S.stagger }); if (!r) continue; hits++;
     UI.num({ x: e.x, y: (e.k === 'boss' ? 3.4 : 1.9) + e.y, z: e.z }, Math.max(1, Math.round(r.amt)), r.blocked ? 'blk' : m.crit ? 'crit' : ''); UI.hitMarker(m.crit); sfx(r.blocked ? 'block' : m.crit ? 'crit' : 'hit', e);
-    spark(e.x, (e.k === 'boss' ? 2.6 : 1.3) + e.y, e.z, r.blocked ? 0x9fd0ff : 0xffd0a0, a.heavy ? 14 : 8); }
-  if (hits) { G.hitstop = a.heavy ? .11 : .06; G.shake = Math.max(G.shake, a.heavy ? .22 : .1); skill('blade', .8 + (a.heavy ? .5 : 0) + (hits - 1) * .3); }
+    spark(e.x, (e.k === 'boss' ? 2.6 : 1.3) + e.y, e.z, r.blocked ? 0x9fd0ff : 0xffd0a0, a.heavy ? 14 : 8); if (S.kind === 'spear' && !a.heavy) break; }
+  if (hits) { G.hitstop = a.heavy ? .11 : .06; G.shake = Math.max(G.shake, a.heavy ? .22 : .1); skill(S.wsk, .8 + (a.heavy ? .5 : 0) + (hits - 1) * .3); }
 }
+// ---------------------------------------------------------------- ranged: aim (hold) -> draw -> release -> arrow / bolt / knife with gravity
+const GRAV = 9.8, UPV = new THREE.Vector3(0, 1, 0);
+function noAmmo() { const S = G.stats; UI.msg(`No ${R.ITEMS[S.ammo].n.toLowerCase()} left. Find more in chests or on the fallen.`); sfx('pedoff'); }
+// auto-aim: nearest living foe in front of the camera (wide cone on phones, narrow on desktop)
+function los(x0, z0, x1, z1) { const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / .4); for (let i = 1; i < n; i++) { const t = i / n, [tx, tz] = MAP.tileOf(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t); if (!MAP.passable(G.W.grid, tx, tz, G.W.block)) return false; } return true; }
+function aimTarget() { if (G.forceAim) return G.forceAim.alive ? G.forceAim : null; const S = G.stats, P = G.player; let best = null, bs = 1e9;
+  for (const e of G.enemies) { if (!e.alive) continue; const d = Math.hypot(e.x - P.x, e.z - P.z); if (d > S.reach) continue; const a = Math.abs(angDiff(Math.atan2(e.x - P.x, e.z - P.z), cam.yaw)), cone = touch ? (d < 10 ? .75 : .42) : .14;
+    if (a > cone || !los(P.x, P.z, e.x, e.z)) continue; const sc = d * .15 + a * 4; if (sc < bs) { bs = sc; best = e; } } return best; }
+function aimPoint(t) { if (t) return new THREE.Vector3(t.x, (t.k === 'boss' ? 2.3 : 1.25) + t.y, t.z); // chest of the target
+  const d = new THREE.Vector3(); camera.getWorldDirection(d); const p = camera.position.clone(); let dist = 3;   // free aim: where the crosshair meets a wall (or 30 m)
+  for (; dist < 30; dist += .5) { const q = p.clone().addScaledVector(d, dist), [tx, tz] = MAP.tileOf(q.x, q.z); if (!MAP.inside(tx, tz) || !MAP.passable(G.W.grid, tx, tz, G.W.block) || q.y < 0) break; }
+  return p.addScaledVector(d, Math.max(4, dist - .3)); }
+// launch velocity that lands on `to` under gravity
+function launch(from, to, spd) { const dx = to.x - from.x, dz = to.z - from.z, dy = to.y - from.y, h = Math.hypot(dx, dz) || .01, t = Math.max(.05, Math.hypot(h, dy) / spd); return new THREE.Vector3(dx / t, dy / t + .5 * GRAV * t, dz / t); }
+function startAim() {
+  const P = G.player, S = G.stats; if (!R.countItem(G.save.hero, S.ammo)) { noAmmo(); return; }
+  if (S.kind === 'crossbow' && !P.loaded) { startReload(); return; }
+  P.state = 'aim'; P.t = 0; P.aim = { draw: 0, snd: false }; P.attacking = true; P.actor.play('Pistol_Aim_Neutral', { fade: .12, force: true });
+}
+function startReload() { const P = G.player, S = G.stats; if (!R.countItem(G.save.hero, S.ammo)) return; const want = 1.25 / S.atkSpd, full = P.actor.play('Pistol_Reload', { once: true, speed: 1, fade: .1, force: true }); if (P.actor.cur) P.actor.cur.timeScale = full / want * (P.actor.cur.timeScale || 1); P.state = 'reload'; P.t = 0; P.reloadFor = want * .95; sfx('reload', null, .8); }
+function shoot(draw, tgt) {
+  const P = G.player, S = G.stats, H = G.save.hero, rig = P.actor.rig; if (!R.takeItem(H, S.ammo)) { noAmmo(); return; }
+  P.actor.root.updateMatrixWorld(true); const m = rig.muzzle(), from = m.pos.clone(); if (S.kind === 'thrown') { P.actor.handHolder('r').getWorldPosition(from); }
+  const spd = S.kind === 'crossbow' ? 48 : S.kind === 'thrown' ? 22 : 22 + 26 * draw, aim = aimPoint(tgt && tgt.alive ? tgt : null);
+  const v = launch(from, aim, spd), model = S.kind === 'bow' ? 'arrow' : S.kind === 'crossbow' ? 'bolt' : 'knife', o = G.arsenal.make(model); o.position.copy(from); scene.add(o);
+  G.shots.push({ o, v, t: 0, dmg: R.rangedDamage(S, draw), stuck: 0, spin: model === 'knife', d0: from.clone() });
+  sfx(S.kind === 'bow' ? 'twang' : S.kind === 'crossbow' ? 'xbow' : 'whoosh', null, .9); if (S.kind !== 'thrown') { P.st = Math.max(0, P.st - S.wst); P.stDelay = .6; }
+  persist();
+}
+function updateShots(dt) {
+  for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i], o = s.o, p = o.position; s.t += dt;
+    if (s.stuck) { if (s.t > s.stuck) { scene.remove(o); G.shots.splice(i, 1); } continue; }
+    const steps = 3; let hit = null;
+    for (let k = 0; k < steps && !hit; k++) { const h = dt / steps; s.v.y -= GRAV * h; p.addScaledVector(s.v, h);
+      const [tx, tz] = MAP.tileOf(p.x, p.z), ceil = MAP.inside(tx, tz) ? G.W.grid.ceil[tz * MAP.W + tx] : 0;
+      if (!MAP.inside(tx, tz) || !MAP.passable(G.W.grid, tx, tz, G.W.block) || p.y < .03 || p.y > ceil || s.t > 4) { hit = 'wall'; break; }
+      for (const e of G.enemies) { if (!e.alive) continue; const top = (e.k === 'boss' ? 3.4 : 1.9) + e.y; if (Math.hypot(e.x - p.x, e.z - p.z) < e.r + .22 && p.y > e.y + .1 && p.y < top) { hit = e; break; } } }
+    _dir.copy(s.v).normalize(); o.quaternion.setFromUnitVectors(UPV, _dir); if (s.spin) o.rotateX(-s.t * 26);
+    if (hit === 'wall') { s.stuck = s.t + 2.5; if (p.y < .03) p.y = .03; spark(p.x, p.y, p.z, 0xc8b090, 4); sfx('thunk', p, .6); continue; }
+    if (hit) { const e = hit, S = G.stats, far = s.d0.distanceTo(p); const amt = s.dmg.amt * (.92 + Math.random() * .16) * (far > 12 ? 1.1 : 1);
+      const r = e.takeHit({ amt, kind: 'light', crit: s.dmg.crit, from: { x: p.x - s.v.x * .05, z: p.z - s.v.z * .05 }, kb: S.kind === 'crossbow' ? 1 : .45, poise: S.kind === 'crossbow' ? 1.6 : 1 });
+      if (r) { UI.num({ x: e.x, y: (e.k === 'boss' ? 3.4 : 1.9) + e.y, z: e.z }, Math.max(1, Math.round(r.amt)), r.blocked ? 'blk' : s.dmg.crit ? 'crit' : ''); UI.hitMarker(s.dmg.crit); sfx(r.blocked ? 'block' : 'hit', e); spark(p.x, p.y, p.z, r.blocked ? 0x9fd0ff : 0xffd0a0, 7); skill('marksman', .8 + Math.min(1, far / 15)); }
+      scene.remove(o); G.shots.splice(i, 1); } }
+}
+const _dir = new THREE.Vector3();
+// inventory icons: each weapon model rendered once into a small render target (cached data URL, no second WebGL context)
+const ICONS = {}; let iconRig = null;
+G.weaponIcons = root => { if (!G.arsenal) return; const N = 96;
+  if (!iconRig) { const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xfff4e0, 0x806040, 4.5)); const dl = new THREE.DirectionalLight(0xffffff, 4.5); dl.position.set(1, 2, 3); sc.add(dl);
+    iconRig = { sc, cam: new THREE.OrthographicCamera(-.5, .5, .5, -.5, .01, 10), rt: new THREE.WebGLRenderTarget(N, N, { samples: 4 }), buf: new Uint8Array(N * N * 4) }; iconRig.cam.position.set(0, 0, 5); }
+  root.querySelectorAll('.wi[data-m]').forEach(el => { const id = el.dataset.m; if (!ICONS[id]) { const o = G.arsenal.make(id); if (!o) return; const sh = /^shield/.test(id);
+      o.rotation.set(sh ? 0 : 0, sh ? Math.PI / 2 : .5, sh ? 0 : -Math.PI / 4); if (id === 'bow' || /bow$/.test(id) && id !== 'crossbow') o.rotation.set(0, Math.PI / 2, -Math.PI / 4); iconRig.sc.add(o); o.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()), sz = b.getSize(new THREE.Vector3()), m = Math.max(sz.x, sz.y) * .55; o.position.sub(c);
+      const cm = iconRig.cam; cm.left = cm.bottom = -m; cm.right = cm.top = m; cm.updateProjectionMatrix();
+      const prev = renderer.getRenderTarget(); renderer.setRenderTarget(iconRig.rt); const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha(); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(iconRig.sc, cm); renderer.readRenderTargetPixels(iconRig.rt, 0, 0, N, N, iconRig.buf); renderer.setRenderTarget(prev); renderer.setClearColor(cc, ca);
+      iconRig.sc.remove(o); const cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), im = x.createImageData(N, N), B = iconRig.buf;
+      for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) { const si = ((N - 1 - yy) * N + xx) * 4, di = (yy * N + xx) * 4; for (let k = 0; k < 3; k++) { const v = B[si + k] / 255; im.data[di + k] = 255 * (v <= .0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - .055); } im.data[di + 3] = B[si + 3]; }
+      x.putImageData(im, 0, 0); ICONS[id] = cv.toDataURL(); }
+    el.style.backgroundImage = `url(${ICONS[id]}), radial-gradient(circle,#6a5032,#2a1d10)`; }); };
+G.swap = () => { const P = G.player, H = G.save.hero; if (P.state !== 'move' || P.blocking) return; if (!R.swapWeapon(H)) { UI.msg('No other weapon to swap to. Equip one from the inventory.'); return; } G.stats = R.stats(H); buildHeroActor(); UI.msg('Readied ' + R.equipped(H, 'weapon').n + '.'); sfx('click'); persist(); };
 function startDodge() {
   const P = G.player, S = G.stats; if (P.st < S.dodgeCost * .5) { UI.msg('Too tired to dodge.'); return; } P.st = Math.max(0, P.st - S.dodgeCost); P.stDelay = .8;
   let [dx, dz, l] = moveDir(); if (l < .2) { dx = -Math.sin(P.yaw); dz = -Math.cos(P.yaw); }
@@ -208,7 +270,7 @@ function castHeal() {
 }
 function drink(id = 'potion_hp') { const P = G.player, H = G.save.hero, S = G.stats; if (P.cdPot > 0 || !R.countItem(H, id)) { if (!R.countItem(H, id)) UI.msg('No ' + R.ITEMS[id].n + ' left.'); return; } R.takeItem(H, id); P.cdPot = 1; const D = R.ITEMS[id]; if (D.heal) { const a = Math.min(S.hp - P.hp, D.heal); P.hp += a; UI.num({ x: P.x, y: 2, z: P.z }, '+' + Math.round(a), 'heal'); } if (D.mana) P.mp = Math.min(S.mp, P.mp + D.mana); sfx('potion'); healFx(P.x, P.z, D.heal ? 0x8ef08a : 0x7fa8ff); persist(); }
 G.drink = drink;
-G.equip = u => { const H = G.save.hero; if (R.equip(H, u)) { G.stats = R.stats(H); buildHeroActor(); UI.msg('Equipped ' + R.ITEMS[H.inv.find(i => i.u === u).id].n + '.'); persist(); } };
+G.equip = u => { const H = G.save.hero; if (R.equip(H, u)) { G.stats = R.stats(H); const P = G.player; if (P.alive && P.state !== 'dead') { P.state = 'move'; P.attacking = false; P.blocking = false; } buildHeroActor(); UI.msg('Equipped ' + R.ITEMS[H.inv.find(i => i.u === u).id].n + '.'); persist(); } };
 
 // ------------------------------------------------------------------ fx: sparks, fireballs, wisps, heal motes, gravefire
 const sparkGeo = new THREE.SphereGeometry(.05, 4, 3);
@@ -229,6 +291,7 @@ G.onEnemyDeath = e => {
   const H = G.save.hero; sfx('death', e); gainXp(e.st.xp); UI.msg(`${e.st.n} destroyed. +${e.st.xp} XP`); H.kills[e.k] = (H.kills[e.k] || 0) + 1;
   for (const m of R.questEvent(G.save, { type: 'kill', undead: e.st.undead })) { UI.msg(m, 'b'); if (/return/.test(m)) { sfx('quest'); UI.banner('The Bone Tithe', 'Return to Cinder-Scribe Varro'); } }
   if (Math.random() < (e.k === 'minion' ? .15 : .45)) { R.addItem(H, 'bone_dust'); UI.msg('Found Bone Dust.'); }
+  for (const [id, q] of R.rollDrops(e.k)) { R.addItem(H, id, q); const D = R.ITEMS[id]; UI.msg(`${e.st.n} dropped ${D.n}${q > 1 ? ' ×' + q : ''}.`, D.t === 'weapon' || D.t === 'shield' ? 'g' : ''); if (D.t === 'weapon' || D.t === 'shield') spark(e.x, 1, e.z, 0xffd27a, 12); }
   if (e.k === 'boss') { R.questEvent(G.save, { type: 'boss' }); G.boss = null; setBossDoor(G.W, false); freeHeart(G.W); G.W.chests.throne.obj.visible = true; UI.banner('The Hollow King falls', 'The Heartstone burns bright again'); sfx('quest'); for (const m of G.enemies) if (m.k === 'minion' && m.alive) m.die(); setTimeout(() => UI.msg('Take the Heartstone from the altar.', 'b'), 2500); }
   persist();
 };
@@ -240,8 +303,8 @@ G.enemyStrike = (e, a) => {
 };
 function playerHit(raw, src, kb = 1, kind = 'melee') {
   const P = G.player, S = G.stats; const facing = Math.abs(angDiff(Math.atan2(src.x - P.x, src.z - P.z), P.yaw)) < 1.35;
-  if (P.blocking && facing && kind !== 'ground') { const perfect = P.blockT < .26; const r = R.incoming(S, raw, { blocking: true, perfect }); P.hp -= r.amt; P.st -= r.stam; P.stDelay = 1;
-    if (perfect) { sfx('perfect', src); UI.num({ x: P.x, y: 2.2, z: P.z }, 'Perfect block!', 'blk'); spark(P.x + Math.sin(P.yaw) * .6, 1.4, P.z + Math.cos(P.yaw) * .6, 0x9fd0ff, 16); if (src.stagger && src.k !== 'boss') src.stagger(1.1); else if (src.stagger) src.stagger(.7); skill('block', 2); G.hitstop = .12; }
+  if (P.blocking && facing && kind !== 'ground') { const perfect = P.blockT < (S.shield ? .26 : .34); const r = R.incoming(S, raw, { blocking: true, perfect }); P.hp -= r.amt; P.st -= r.stam; P.stDelay = 1;
+    if (perfect) { sfx('perfect', src); UI.num({ x: P.x, y: 2.2, z: P.z }, S.shield ? 'Perfect block!' : 'Parried!', 'blk'); spark(P.x + Math.sin(P.yaw) * .6, 1.4, P.z + Math.cos(P.yaw) * .6, 0x9fd0ff, 16); if (src.stagger && src.k !== 'boss') src.stagger(1.1); else if (src.stagger) src.stagger(.7); skill('block', 2); G.hitstop = .12; }
     else { sfx('block', src); UI.num({ x: P.x, y: 2, z: P.z }, Math.round(r.amt) || 'Blocked', 'blk'); P.actor.play('Block_Hit', { once: true, speed: 1.5, force: true }); P.state = 'blockhit'; P.t = 0; skill('block', 1); spark(P.x + Math.sin(P.yaw) * .6, 1.4, P.z + Math.cos(P.yaw) * .6, 0xffe0a0, 8); if (P.st <= 0) { P.st = 0; P.blocking = false; UI.msg('Your guard is broken!'); P.state = 'hit'; P.t = -.4; P.actor.play('Hit_B', { once: true, force: true }); } }
     G.shake = Math.max(G.shake, .08); if (P.hp <= 0) die(); return; }
   const r = R.incoming(S, raw, {}); P.hp -= r.amt; UI.num({ x: P.x, y: 2, z: P.z }, Math.round(r.amt), 'me'); sfx('hurt'); G.shake = Math.max(G.shake, .2 * kb); hurtFlash(); skill('armor', .6);
@@ -279,35 +342,54 @@ G.objective = () => { const s = G.save; if (s.ruin.boss && !s.hero) return null;
 
 // ------------------------------------------------------------------ update
 function updatePlayer(dt) {
-  const P = G.player, S = G.stats, A = P.actor; P.t += dt; A.update(dt);
+  const P = G.player, S = G.stats, A = P.actor, pose = A.rig ? A.rig.pose : {}; P.t += dt;
+  if (P.state !== 'aim') { pose.aim = Math.max(0, (pose.aim || 0) - dt * 4.5); pose.draw = Math.max(0, (pose.draw || 0) - dt * 9); }
+  pose.atk = P.state === 'attack' || P.state === 'cast';
+  if (P.state !== 'attack') pose.thrust = Math.max(0, (pose.thrust || 0) - dt * 5); pose.nock = Math.min(1, (pose.nock || 0) + dt * 2.5); pose.loaded = P.loaded ? 1 : 0;
+  A.update(dt);
   P.cdFire = Math.max(0, P.cdFire - dt); P.cdHeal = Math.max(0, P.cdHeal - dt); P.cdPot = Math.max(0, P.cdPot - dt); P.stDelay -= dt;
   if (!P.alive) { A.root.position.set(P.x, 0, P.z); return; }
   // regen
   if (P.stDelay <= 0 && !P.blocking && !(inp.sprint || inp.keys.shift)) P.st = Math.min(S.st, P.st + S.stRegen * dt); P.mp = Math.min(S.mp, P.mp + S.mpRegen * dt);
-  if (inp.atkDown) { inp.atkT += dt; if (!inp.heavyFired && inp.atkT > .34 && (P.state === 'move' || (P.state === 'attack' && P.t > P.atk.chainAt))) { inp.heavyFired = true; startAttack(true); } }
+  const bowish = S.kind === 'bow' || S.kind === 'crossbow';
+  if (inp.atkDown) { inp.atkT += dt; if (!bowish && !inp.heavyFired && inp.atkT > .34 && (P.state === 'move' || (P.state === 'attack' && P.t > P.atk.chainAt))) { inp.heavyFired = true; startAttack(true); } }
   const canAct = P.state === 'move' || (P.state === 'attack' && P.t > P.atk.chainAt) || P.state === 'blockhit' && P.t > .25;
-  if (inp.dodge && (canAct || P.state === 'attack' && P.t > P.atk.hitAt) && P.state !== 'dodge') startDodge();
+  if (bowish) { if (inp.atkDown && P.state === 'move' && !P.blocking && !(P.cdShot > 0)) startAim(); inp.light = false; }
+  if (inp.swap && P.state === 'move') G.swap();
+  if (inp.dodge && (canAct || P.state === 'aim' || P.state === 'reload' || P.state === 'attack' && P.t > P.atk.hitAt) && P.state !== 'dodge') startDodge();
   else if (inp.light && canAct) startAttack(false);
   else if (inp.light && P.state === 'attack') P.queued = true;
   else if (inp.fire && canAct) castFire(); else if (inp.heal && canAct) castHeal();
   if (inp.pot) drink('potion_hp');
   if (inp.use && P.state === 'move') { const it = nearestInteract(); if (it) interact(it); }
-  inp.dodge = inp.light = inp.fire = inp.heal = inp.pot = inp.use = false;
+  inp.dodge = inp.light = inp.fire = inp.heal = inp.pot = inp.use = inp.swap = false; P.cdShot = Math.max(0, (P.cdShot || 0) - dt);
   if (inp.keys) { const k = inp.keys; if (!touch) { inp.f = (k.w || k.arrowup ? 1 : 0) - (k.s || k.arrowdown ? 1 : 0); inp.r = (k.d || k.arrowright ? 1 : 0) - (k.a || k.arrowleft ? 1 : 0); } }
   const [mx, mz, ml] = moveDir(); let spd = 0;
-  const wantBlock = inp.block && (P.state === 'move' || P.state === 'blockhit' || (P.state === 'attack' && P.t > P.atk.hitAt));
-  if (wantBlock && !P.blocking) { P.blocking = true; P.blockT = 0; P.state = 'move'; A.play('Blocking', { fade: .08, force: true }); } else if (!inp.block && P.blocking) { P.blocking = false; }
+  const wantBlock = inp.block && (P.state === 'move' || P.state === 'blockhit' || P.state === 'aim' || (P.state === 'attack' && P.t > P.atk.hitAt));
+  if (wantBlock && !P.blocking) { P.blocking = true; P.blockT = 0; P.state = 'move'; P.attacking = false; A.play(blockClip(), { fade: .08, force: true }); } else if (!inp.block && P.blocking) { P.blocking = false; }
   if (P.blocking) P.blockT += dt;
   switch (P.state) {
-    case 'attack': { const a = P.atk; if (!a.done && P.t >= a.hitAt) { a.done = true; resolveSwing(); } if (P.t < a.hitAt) { const t = softTarget(3.2); if (t) P.yaw += angDiff(Math.atan2(t.x - P.x, t.z - P.z), P.yaw) * Math.min(1, dt * 10); const f = a.heavy ? 2.2 : 1.6; P.vx += Math.sin(P.yaw) * f * dt * 6; P.vz += Math.cos(P.yaw) * f * dt * 6; }
-      if (P.queued && P.t > a.chainAt) startAttack(false); else if (P.t > a.dur * .92) { P.state = 'move'; P.attacking = false; P.actor.cur = null; } break; }
+    case 'attack': { const a = P.atk; if (!a.done && P.t >= a.hitAt) { a.done = true; resolveSwing(); }
+      if (S.kind === 'spear') { const u = P.t / a.hitAt; pose.thrust = u < 1 ? (u < .35 ? -u * .6 : Math.pow((u - .35) / .65, 1.6)) * (a.heavy ? 1.15 : 1) : Math.max(0, 1 - (P.t - a.hitAt) / (a.dur * .35)); } if (P.t < a.hitAt) { const t = softTarget(3.2); if (t) P.yaw += angDiff(Math.atan2(t.x - P.x, t.z - P.z), P.yaw) * Math.min(1, dt * 10); const f = a.heavy ? 2.2 : 1.6; P.vx += Math.sin(P.yaw) * f * dt * 6; P.vz += Math.cos(P.yaw) * f * dt * 6; }
+      if (P.queued && P.t > a.chainAt) startAttack(false); else if (P.t > a.end) { P.state = 'move'; P.attacking = false; P.actor.cur = null; } break; }
+    case 'aim': { const a = P.aim, tgt = aimTarget(); P.aimTgt = tgt; pose.aim = Math.min(1, pose.aim + dt * 5.5);
+      const ap = aimPoint(tgt), dx = ap.x - P.x, dz = ap.z - P.z; P.yaw += angDiff(Math.atan2(dx, dz), P.yaw) * Math.min(1, dt * 14);
+      pose.aimPitch = Math.max(-.55, Math.min(.6, Math.atan2(ap.y - 1.45, Math.hypot(dx, dz))));
+      if (S.kind === 'bow' && pose.aim > .45) { if (!a.snd) { a.snd = true; sfx('draw', null, .7); } a.draw = Math.min(1, a.draw + dt * S.atkSpd / .8); pose.draw = a.draw; }
+      spd = 1.9 * S.spd * ml; P.x += mx * spd * dt; P.z += mz * spd * dt; { const name = spd > .4 ? 'Walking_A' : 'Pistol_Aim_Neutral'; if (A.curName !== name) A.play(name, { fade: .15 }); }
+      const ready = S.kind === 'bow' ? a.draw >= .35 : pose.aim > .8;
+      if (!inp.atkDown && ready) { const d = S.kind === 'bow' ? a.draw : 1; shoot(d, tgt); P.attacking = false; pose.draw = 0; pose.nock = 0; P.cdShot = S.kind === 'bow' ? .28 / S.atkSpd : .1;
+        if (S.kind === 'crossbow') { P.loaded = false; pose.loaded = 0; A.play('Pistol_Shoot', { once: true, speed: 1.4, force: true }); P.state = 'busy'; P.t = 0; P.busyFor = .32; G.reloadNext = true; }
+        else { P.state = 'move'; A.cur = null; } }
+      break; }
+    case 'reload': { if (P.t > P.reloadFor * .6 && !P.loaded) { P.loaded = true; pose.loaded = 1; } if (P.t > P.reloadFor) { P.state = 'move'; A.cur = null; } break; }
     case 'dodge': { const d = P.dodge, k = Math.max(0, 1 - P.t / d.dur); P.iframe = P.t > .03 && P.t < d.dur * .7; const sp = 8.2 * (.35 + k) * (S.spd); P.x += d.dx * sp * dt; P.z += d.dz * sp * dt; if (P.t > d.dur) { P.state = 'move'; P.iframe = false; P.actor.cur = null; } break; }
-    case 'cast': { const c = P.cast; if (!c.done && P.t >= c.at) { c.done = true; if (c.kind === 'fire') { const from = new THREE.Vector3(P.x + Math.sin(P.yaw) * .7, 1.45, P.z + Math.cos(P.yaw) * .7); let dir; if (c.tgt && c.tgt.alive) dir = new THREE.Vector3(c.tgt.x, (c.tgt.k === 'boss' ? 2.4 : 1.2) + c.tgt.y, c.tgt.z).sub(from).normalize(); else dir = new THREE.Vector3(Math.sin(P.yaw), -Math.sin(cam.pitch - .2) * .5, Math.cos(P.yaw)).normalize();
+    case 'cast': { const c = P.cast; if (!c.done && P.t >= c.at) { c.done = true; if (c.kind === 'fire') { const from = new THREE.Vector3(P.x + Math.sin(P.yaw) * .7, 1.45, P.z + Math.cos(P.yaw) * .7); const cr = S.kind === 'staff' && P.actor.rig && P.actor.rig.w.getObjectByName('crystal'); if (cr) { cr.getWorldPosition(from); from.addScaledVector(new THREE.Vector3(Math.sin(P.yaw), 0, Math.cos(P.yaw)), .25); } let dir; if (c.tgt && c.tgt.alive) dir = new THREE.Vector3(c.tgt.x, (c.tgt.k === 'boss' ? 2.4 : 1.2) + c.tgt.y, c.tgt.z).sub(from).normalize(); else dir = new THREE.Vector3(Math.sin(P.yaw), -Math.sin(cam.pitch - .2) * .5, Math.cos(P.yaw)).normalize();
           spawnBolt(from, dir, { speed: 19, col: 0xff7a20, col2: 0xff3a08, core: 0xfff0c0, dmg: S.fire, r: .2, big: 1.6, light: 34 }); sfx('fire'); skill('destruction', .6); }
         else { const amt = Math.min(S.hp - P.hp, S.heal); P.hp += amt; UI.num({ x: P.x, y: 2.1, z: P.z }, '+' + Math.round(amt), 'heal'); healFx(P.x, P.z, 0x8ef08a); sfx('heal'); skill('restoration', .8 + amt / S.hp * 2); vign.style.opacity = 0; } }
       if (P.t > c.dur) { P.state = 'move'; P.actor.cur = null; } break; }
-    case 'hit': case 'blockhit': case 'busy': if (P.t > (P.state === 'busy' ? P.busyFor : P.state === 'hit' ? .42 : .32)) { P.state = 'move'; P.actor.cur = null; if (P.blocking) A.play('Blocking', { force: true }); } break;
-    case 'move': {
+    case 'hit': case 'blockhit': case 'busy': if (P.t > (P.state === 'busy' ? P.busyFor : P.state === 'hit' ? .42 : .32)) { P.state = 'move'; P.actor.cur = null; if (P.blocking) A.play(blockClip(), { force: true }); } break;
+    case 'move': { if (G.reloadNext) { G.reloadNext = false; if (S.kind === 'crossbow' && !P.loaded && !P.blocking) { startReload(); break; } }
       const sprint = (inp.sprint || inp.keys.shift) && ml > .5 && P.st > 2 && !P.blocking; spd = (P.blocking ? 1.7 : sprint ? 7 : 4.6) * S.spd * ml; if (sprint) { P.st = Math.max(0, P.st - 14 * dt); P.stDelay = .5; if (Math.random() < dt * .25) skill('acrobatics', .3); }
       P.x += mx * spd * dt; P.z += mz * spd * dt;
       if (ml > .05) { const want = P.blocking ? cam.yaw : Math.atan2(mx, mz); P.yaw += angDiff(want, P.yaw) * Math.min(1, dt * 12); }
@@ -330,10 +412,10 @@ function clearRun(x0, z0, yaw, max) { const fx = Math.sin(yaw), fz = Math.cos(ya
 function createYaw(p) { let best = MAP.SPAWN.face + Math.PI, bd = 0; for (let k = 0; k < 8; k++) { const y = MAP.SPAWN.face + Math.PI + k * Math.PI / 4, d = clearRun(p.x, p.z, y, 6.5) - (k ? .3 : 0); if (d > bd) { bd = d; best = y; } } return best; }
 function updateCamera(dt) {
   const P = G.player, pivot = V2.set(P.x, 1.6, P.z);
-  let yaw = cam.yaw, pitch = cam.pitch, dist = cam.dist * (innerWidth < innerHeight ? 1.2 : 1);
+  let yaw = cam.yaw, pitch = cam.pitch, dist = cam.dist * (innerWidth < innerHeight ? 1.2 : 1); G.aimZ = (G.aimZ || 0) + ((P.state === 'aim' ? 1 : 0) - (G.aimZ || 0)) * Math.min(1, dt * 6); dist *= 1 - .38 * G.aimZ;
   if (G.mode === 'create') { const f = innerWidth > innerHeight; if (G.createYaw == null) { G.createYaw = createYaw(pivot); P.yaw = G.createYaw + Math.PI + .35; } yaw = G.createYaw + (f ? .35 : .1); pitch = .1; dist = f ? 3.4 : 4.4; pivot.y = f ? 1.2 : 1.35; }
   const fx = Math.sin(yaw), fz = Math.cos(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const shoulder = G.mode === 'create' ? 0 : .45; const sx = -fz * shoulder * -1, sz = fx * shoulder * -1;
+  const shoulder = G.mode === 'create' ? 0 : .45 + .25 * (G.aimZ || 0); const sx = -fz * shoulder * -1, sz = fx * shoulder * -1;
   const want = new THREE.Vector3(pivot.x - fx * dist * cp - sx, pivot.y + dist * sp + .2, pivot.z - fz * dist * cp - sz);
   // pull in front of walls / under ceilings
   const steps = 14; let ok = 1; for (let i = 1; i <= steps; i++) { const t = i / steps, x = pivot.x + (want.x - pivot.x) * t, y = pivot.y + (want.y - pivot.y) * t, z = pivot.z + (want.z - pivot.z) * t, [tx, tz] = MAP.tileOf(x, z); const room = MAP.inside(tx, tz) && G.W.grid.floor[tz * MAP.W + tx]; const ceil = room ? G.W.grid.ceil[tz * MAP.W + tx] : 0; const near = [[.35, 0], [-.35, 0], [0, .35], [0, -.35]].some(([ox, oz]) => { const [ax, az] = MAP.tileOf(x + ox, z + oz); return !MAP.passable(G.W.grid, ax, az); }); if (!room || y > ceil - .3 || near) { ok = (i - 1) / steps; break; } }
@@ -360,7 +442,8 @@ function updateBolts(dt) {
     if (r.t > r.at + .4) { scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); G.rings.splice(i, 1); } }
   for (let i = G.fx.length - 1; i >= 0; i--) { const f = G.fx[i]; f.t += dt; f.v.y -= (f.g || 0) * dt; f.m.position.addScaledVector(f.v, dt); const k = 1 - f.t / f.life; f.m.material.opacity = Math.max(0, k) * (f.spr ? .8 : 1); if (f.grow) f.m.scale.multiplyScalar(1 + f.grow * dt); if (f.t > f.life) { scene.remove(f.m); if (f.m.geometry !== sparkGeo && !f.spr) f.m.geometry.dispose(); f.m.material.dispose(); G.fx.splice(i, 1); } }
 }
-let flowKey = '', flowT = 0;
+let flowKey = '', flowT = 0, $ret = null, $wpn = null, wpnKey = '';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 function updateEnemies(dt) {
   const P = G.player, [tx, tz] = MAP.tileOf(P.x, P.z), k = tx + ',' + tz; flowT -= dt; if (k !== flowKey || flowT < 0) { flowKey = k; flowT = .5; G.flow = MAP.flowField(G.W.grid, tx, tz, G.W.block, 60); }
   const arena = G.W.arena; G.inArena = Math.hypot(P.x - arena.x, P.z - arena.z) < arena.r - 2.2;
@@ -381,9 +464,17 @@ function updateHud(dt) {
   // target bar: boss when awake, otherwise the enemy under the crosshair / last hit
   let tg = G.boss && G.boss.alive ? G.boss : softTarget(14, .35, true); if (tg && tg.alive && (tg.aggro || tg === G.boss)) UI.target({ name: tg.st.n, f: tg.hp / tg.max, boss: tg === G.boss }); else UI.target(null);
   UI.cooldowns(P.cdFire / R.SPELLS.firebolt.cd, P.cdHeal / R.SPELLS.heal.cd, R.countItem(H, 'potion_hp'));
-  const it = P.alive && !G.modal ? nearestInteract() : null; UI.prompt(it); G.curInteract = it; document.getElementById('xh').style.opacity = touch ? 0 : 1;
+  const it = P.alive && !G.modal ? nearestInteract() : null; UI.prompt(it); G.curInteract = it;
+  // weapon chip + ranged reticle (locks onto the auto-aim target)
+  const ret = $ret || ($ret = document.getElementById('ret')), wp = $wpn || ($wpn = document.getElementById('wpn')), W = R.equipped(H, 'weapon'), ranged = S.ranged;
+  const wk = (W ? W.n : '') + '|' + (S.ammo ? R.countItem(H, S.ammo) : '') + '|' + (H.eq.alt ? 1 : 0); if (wk !== wpnKey) { wpnKey = wk; wp.innerHTML = W ? `<b>${esc(W.n)}</b>${S.ammo ? ` <span>· ${R.countItem(H, S.ammo)} ${R.ITEMS[S.ammo].n.split(' ').pop().toLowerCase()}</span>` : ''}${H.eq.alt ? `<br><span>⇄ ${esc(R.equipped(H, 'alt').n)}</span>` : ''}` : ''; }
+  const aiming = P.state === 'aim', show = ranged && P.alive && !G.modal && (aiming || !touch);
+  document.getElementById('xh').style.opacity = touch || ranged ? 0 : 1;
+  if (show) { const t = aiming ? P.aimTgt : aimTarget(); let x = innerWidth / 2, y = innerHeight / 2; if (t) { const q = project(t.x, (t.k === 'boss' ? 2.3 : 1.25) + t.y, t.z); if (q) { x = q.x; y = q.y; } }
+    const k = aiming && S.kind === 'bow' ? 1.25 - .55 * (P.aim ? P.aim.draw : 0) : 1; ret.style.transform = `translate(${(x - innerWidth / 2).toFixed(1)}px,${(y - innerHeight / 2).toFixed(1)}px) scale(${k.toFixed(3)})`; ret.className = 'on' + (t ? ' lock' : ''); }
+  else if (ret.className) ret.className = '';
   // tutorial in the entry hall
-  if (G.tutT != null) { G.tutT += dt; const inEntry = room && room.id === 'entry'; if (!inEntry && G.tutT > 3 || G.tutT > 22) { UI.tutorial(null); G.tutT = null; } else if (G.tutT > 1.2) UI.tutorial(touch ? '<b>Left stick</b> to move, <b>drag</b> to look · <b>⚔</b> tap to attack, hold for a heavy blow · <b>🛡</b> hold to block (block just before a hit to stagger the foe) · <b>➶</b> roll · <b>🔥</b> Firebolt · <b>✚</b> Heal' : '<b>WASD</b> move · <b>click</b> to capture the mouse · <b>LMB</b> attack (hold for heavy) · <b>RMB</b> block (just before a hit = perfect block) · <b>Space</b> roll · <b>1</b> Firebolt · <b>2</b> Heal · <b>E</b> use · <b>Tab</b> menu'); }
+  if (G.tutT != null) { G.tutT += dt; const inEntry = room && room.id === 'entry'; if (!inEntry && G.tutT > 3 || G.tutT > 22) { UI.tutorial(null); G.tutT = null; } else if (G.tutT > 1.2) UI.tutorial(touch ? '<b>Left stick</b> to move, <b>drag</b> to look · <b>⚔</b> tap to attack, hold for a heavy blow (bows: hold to draw, let go to loose) · <b>🛡</b> hold to block (block just before a hit to stagger the foe) · <b>⇄</b> swap weapon · <b>➶</b> roll · <b>🔥</b> Firebolt · <b>✚</b> Heal' : '<b>WASD</b> move · <b>click</b> to capture the mouse · <b>LMB</b> attack (hold for heavy; bows: hold to draw) · <b>RMB</b> block (just before a hit = perfect block) · <b>X</b> swap weapon · <b>Space</b> roll · <b>1</b> Firebolt · <b>2</b> Heal · <b>E</b> use · <b>Tab</b> menu'); }
   explore(P);
   if (P.hp / S.hp < .3 && P.alive) vign.style.opacity = .35 + .15 * Math.sin(G.t * 4); else if (+vign.style.opacity > 0 && vign.style.transition !== 'none') vign.style.opacity = 0;
 }
@@ -397,7 +488,7 @@ function loop() {
   const paused = !!G.modal && G.modal !== 'create';
   let gdt = paused ? 0 : dt; if (G.hitstop > 0) { G.hitstop -= dt; gdt *= .08; }
   if (G.mode === 'create') { const P = G.player; if (P.actor) { P.actor.update(dt); P.yaw += dt * .25; P.actor.root.rotation.y = P.yaw; } }
-  else if (G.mode === 'play' && G.save.hero) { updatePlayer(gdt); updateEnemies(gdt); updateBolts(gdt); if (!paused) { updateHud(dt); if (!G.modal && G.lvlPending && G.save.hero.pending) maybeLevelUp(false); } saveT += dt; if (saveT > 20) { saveT = 0; persist(); } }
+  else if (G.mode === 'play' && G.save.hero) { updatePlayer(gdt); updateEnemies(gdt); updateBolts(gdt); updateShots(gdt); if (!paused) { updateHud(dt); if (!G.modal && G.lvlPending && G.save.hero.pending) maybeLevelUp(false); } saveT += dt; if (saveT > 20) { saveT = 0; persist(); } }
   if (G.W) updateWorld(G.W, G.t, gdt || dt * .2, G.player || { x: 0, z: 0 }, camera);
   if (G.player) updateCamera(dt);
   UI.updateNums(dt, project);
@@ -410,7 +501,7 @@ function teardown() {
   if (torn) return; torn = true; G.running = false; cancelAnimationFrame(raf);
   for (const [el, ev, fn, o] of G.listeners) el.removeEventListener(ev, fn, o); G.listeners = [];
   for (const e of G.enemies) e.dispose(); G.enemies = []; if (G.player && G.player.actor) { scene.remove(G.player.actor.root); G.player.actor.dispose(); }
-  for (const b of G.bolts) scene.remove(b.grp); for (const f of G.fx) { scene.remove(f.m); f.m.material.dispose(); }
+  for (const b of G.bolts) scene.remove(b.grp); for (const s of G.shots) scene.remove(s.o); G.shots = []; if (G.arsenal) G.arsenal.dispose(); if (iconRig) iconRig.rt.dispose(); for (const f of G.fx) { scene.remove(f.m); f.m.material.dispose(); }
   if (G.W) disposeWorld(G.W, scene); if (G.assets) disposeAssets(G.assets); disposeFolk(); for (const g of G.extra || []) g.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } });
   for (const b of G.baked || []) b.geo.dispose(); sparkGeo.dispose(); disposeShared();
   texCache.forEach(p => p.then(t => t.dispose())); if (composer) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); bloom.dispose && bloom.dispose(); }
@@ -418,5 +509,5 @@ function teardown() {
 }
 on(window, 'pagehide', () => { try { persist(); } catch (e) { } teardown(); });
 G.teardown = teardown;
-if (TEST) Object.assign(G, { R, MAP, UI, inp, cam, gainXp, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store });
+if (TEST) Object.assign(G, { R, MAP, UI, inp, cam, gainXp, interact, startAttack, castFire, castHeal, startDodge, maybeLevelUp, spawnEnemies, nearestInteract, persist, store, THREE, shoot, aimTarget, startAim });
 boot().catch(e => { console.error(e); UI.loading(1, 'Could not load the ruin: ' + (e && e.message || e)); });

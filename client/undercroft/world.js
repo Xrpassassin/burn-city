@@ -170,7 +170,7 @@ export async function buildWorld(ctx) {
   // ---- chests
   for (const C of MAP.CHESTS) { const src = P[C.id === 'ante' || C.id === 'throne' ? 'chest_gold' : 'chest']; const o = src.clone(); o.scale.setScalar(.62); o.position.set(wx(C.x), 0, wx(C.z)); o.rotation.y = C.rot; o.traverse(m => { if (m.isMesh) { m.castShadow = hi; m.receiveShadow = true; } }); root.add(o); let lid = null; o.traverse(m => { if (/lid/.test(m.name)) lid = m; });
     const ch = W.chests[C.id] = { ...C, obj: o, lid, open: false, wx: wx(C.x), wz: wx(C.z) }; if (C.afterBoss) o.visible = false; W.block.add(Math.floor(C.x) + ',' + Math.floor(C.z));
-    W.interact.push({ id: 'chest:' + C.id, kind: 'chest', x: wx(C.x), z: wx(C.z), r: 2, verb: C.locked ? 'Pick lock' : 'Open', label: C.locked ? 'Locked chest' : 'Chest', chest: C.id, when: () => !ch.open && o.visible }); }
+    W.interact.push({ id: 'chest:' + C.id, kind: 'chest', x: wx(C.x), z: wx(C.z), r: 2.7, verb: C.locked ? 'Pick lock' : 'Open', label: C.locked ? 'Locked chest' : 'Chest', chest: C.id, when: () => !ch.open && o.visible }); }
   // ---- pedestals (sanctum puzzle)
   MAP.PEDESTALS.forEach(([px, pz], i) => { const X = wx(px), Z = wx(pz), grp = new THREE.Group(); grp.position.set(X, 0, Z); root.add(grp);
     const col = new THREE.Mesh(keep(triUV(fluted(.38, 1.05, 12, 24), 1)), M.marble); col.castShadow = hi; grp.add(col); const cap = new THREE.Mesh(keep(new THREE.CylinderGeometry(.55, .4, .22, 16).translate(0, 1.16, 0)), M.gilt); grp.add(cap);
@@ -224,7 +224,7 @@ export function updateWorld(W, t, dt, focus, cam) {
   W.acc = (W.acc || 0) + dt; if (W.acc > .15) { W.acc = 0; const live = W.sources.filter(s => s.I > 0 || (s.ped && s.ped.on)); live.forEach(s => s.dd = (s.x - focus.x) ** 2 + (s.z - focus.z) ** 2 + (s.y - 2) ** 2 * .2); live.sort((a, b) => a.dd - b.dd); const want = live.slice(0, W.pool.length);
     for (const L of W.pool) if (L.userData.src && !want.includes(L.userData.src)) L.userData.src = null;
     for (const s of want) if (!W.pool.some(L => L.userData.src === s)) { const L = W.pool.find(L => !L.userData.src); if (L) { L.userData.src = s; L.position.set(s.x, s.y, s.z); L.color.set(s.col); L.distance = s.d * 1.45; L.intensity = 0; } } }
-  for (const L of W.pool) { const s = L.userData.src; const target = s ? (s.ped ? (s.ped.on ? 16 : 0) : s.I) * 1.9 * (s.fl ? 1 + Math.sin(t * 11 + s.x) * .07 + Math.sin(t * 17.3 + s.z) * .05 : 1) : 0; L.intensity += (target - L.intensity) * Math.min(1, dt * 6); }
+  for (const L of W.pool) { const s = L.userData.src; const target = s ? (s.ped ? (s.ped.on ? 8 : 0) : s.I) * 1.9 * (s.fl ? 1 + Math.sin(t * 11 + s.x) * .07 + Math.sin(t * 17.3 + s.z) * .05 : 1) : 0; L.intensity += (target - L.intensity) * Math.min(1, dt * 6); }
   // dust follows the focus
   if (W.dust) { W.dust.position.set(focus.x, 0, focus.z); const p = W.dust.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * .05; if (y > 6) y = 0; p.setY(i, y); p.setX(i, p.getX(i) + Math.sin(t * .3 + i) * dt * .05); } p.needsUpdate = true; }
   // traps

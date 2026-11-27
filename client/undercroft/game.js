@@ -363,7 +363,7 @@ function updateEnemies(dt) {
 }
 function updateHud(dt) {
   const P = G.player, S = G.stats, H = G.save.hero; if (!H) return;
-  UI.vitals({ hp: P.hp, hpM: S.hp, mp: P.mp, mpM: S.mp, st: P.st, stM: S.st, xp: H.xp, xpM: R.xpFor(H.lvl), name: H.name, lvl: H.lvl });
+  UI.vitals({ hp: P.hp, hpM: S.hp, mp: P.mp, mpM: S.mp, st: P.st, stM: S.st, xp: H.xp, xpM: R.xpFor(H.lvl), name: H.name, lvl: H.lvl + (H.pending ? ' ▲' : '') });
   const heading = Math.atan2(Math.sin(cam.yaw), -Math.cos(cam.yaw)), marks = []; const o = G.objective(); if (o) marks.push({ b: Math.atan2(o.x - P.x, -(o.z - P.z)), cls: 'mk' });
   for (const e of G.enemies) if (e.alive && e.aggro && Math.hypot(e.x - P.x, e.z - P.z) < 22) marks.push({ b: Math.atan2(e.x - P.x, -(e.z - P.z)), cls: 'en' });
   if (R.questState(G.save, 'lumen') === 'ready' || R.questState(G.save, 'tithe') === 'ready') marks.push({ b: Math.atan2(wx(MAP.EXIT.x) - P.x, -(wx(MAP.EXIT.z) - P.z)), cls: 'mk q2' });

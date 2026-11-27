@@ -171,3 +171,7 @@ body.touch .tut{bottom:auto;top:30%}
 body.creating #hud{display:none}
 @media (max-width:720px){#create .nav{position:sticky;bottom:-12px;margin:6px -14px -12px;padding:10px 14px 12px;background:linear-gradient(#e9d7ac00,#e9d7acf0 35%)}#create .card{max-height:62vh}}
 @media (orientation:portrait){body.touch #target{top:calc(214px + var(--safe-t))}body.touch #target .bar{width:200px}body.touch #target.boss .bar{width:80vw}}
+#create .look{display:flex;flex-direction:column;gap:6px;margin:4px 0 2px}#create .lk{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#create .opt.sm{padding:4px 10px;font-size:13px;min-width:34px;text-align:center}#create .cyc{display:inline-flex;align-items:center;gap:4px}#create .cyc b{font-family:var(--title);font-size:12px;color:#5a3d18;min-width:66px;text-align:center}
+#create .rd2{display:none;font-weight:600}
+@media (max-width:720px){#create .opts.races{grid-template-columns:repeat(4,1fr);gap:4px}#create .opts.races .opt{text-align:center;padding:7px 2px}#create .opts.races .opt b{font-size:11px;letter-spacing:0}#create .opts.races .rd{display:none}#create .rd2{display:inline}#create .card{max-height:54vh}#create .cyc b{min-width:54px;font-size:11px}#create .opt.sm{padding:4px 8px}#create h2{margin:2px 0 4px}}

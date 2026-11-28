@@ -17,6 +17,7 @@ import './citizens.mjs';   // CC BY 3D people for the sidewalk crowd (far VAT in
 import './citybuildings2.mjs';   // CC BY sci-fi street buildings around the BURN, IMM, XRPyro, IMG, DRGN and RACC towers (lazy, ?buildings2=0), see city-credits.html
 import './streetprops.js';
 import './events.js';
+import './traffic.mjs';   // traffic realism: right-hand lanes, signal phases, queues, turns, peds at crosswalks, shop hours (?traffic=classic = the old loop cars)
 import './airport.js';
 import './airport-shuttle.mjs';   // BURN Air 1: shared scenic flight, ride + cabin/cockpit camera, quiet WebAudio sounds (?shuttle=0 disables)
 import './city-space.mjs';   // CC BY ISS (BlendRuN) + CB1 (Keremz) in the City sky and on the airport pad, in-City docking flight; ?space=0 disables, see city-credits.html
@@ -536,7 +537,7 @@ const streets=[];
 const DR=new Map();{const hubs=E.nodes.filter(n=>!n.minor&&n.pos);hubs.forEach(n=>{let R=n.distR;if(n.name!=='XRP'){hubs.forEach(m=>{if(m===n)return;const d=Math.hypot(n.pos.x-m.pos.x,n.pos.z-m.pos.z),sum=n.distR+m.distR;if(d<sum+10)R=Math.min(R,d*n.distR/sum-5)});R=Math.max(R,n.w*2.05+7)}DR.set(n,R)})}
 E.nodes.filter(n=>!n.minor).forEach(n=>{const R=DR.get(n)||n.distR,pr=n.w*2.05;if(n.name==='XRP'){streets.push({type:'ring',c:n.pos,r:40},{type:'ring',c:n.pos,r:62});return}
  if(R*.62>pr+3.5)streets.push({type:'ring',c:n.pos,r:R*.62});streets.push({type:'ring',c:n.pos,r:R*.98})});E.nodes.forEach((n,i)=>{const r=DR.get(n);if(r&&zoneU[i])zoneU[i].z=r});window.__districtR=()=>[...DR].map(([n,r])=>[n.name,+r.toFixed(1),+n.distR.toFixed(1)]);
-CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new THREE.Vector3(Math.cos(n.ang)*62,0,Math.sin(n.ang)*62),b:new THREE.Vector3(Math.cos(n.ang),0,Math.sin(n.ang)).multiplyScalar(RING-n.distR*.98)})});
+CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new THREE.Vector3(Math.cos(n.ang)*62,0,Math.sin(n.ang)*62),b:new THREE.Vector3(Math.cos(n.ang),0,Math.sin(n.ang)).multiplyScalar(RING-(DR.get(n)||n.distR)*.98)})});   // ends ON the district's outer ring (DR may shrink it below distR; the old end left a 2-7 m stub short of the ring, with no junction)
 {const segC=(x,z,a,b)=>{const dx=b.x-a.x,dz=b.z-a.z,l2=dx*dx+dz*dz||1,u=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/l2));return Math.hypot(a.x+u*dx-x,a.z+u*dz-z)};
  [...DR.keys()].filter(n=>n.name!=='XRP'&&!CORE.includes(n.name)&&n.pos).forEach(n=>{const d=Math.hypot(n.pos.x,n.pos.z),R=DR.get(n);if(d-R*.98<80)return;const ux=n.pos.x/d,uz=n.pos.z/d;
   const a=new THREE.Vector3(ux*62,0,uz*62),b=new THREE.Vector3(ux*(d-R*.98),0,uz*(d-R*.98));
@@ -977,7 +978,8 @@ await stage(0.65,'Streets & traffic');
 {let k=0;streets.forEach(s=>{if(s.type!=='line'||k>=24)return;const m=s.b.clone().sub(s.a);const la=s.a.length(),lb=s.b.length();if(Math.min(la,lb)<88&&Math.max(la,lb)>74){const d=(la<lb?s.b:s.a).clone().setY(0).normalize(),c=Math.abs(m.clone().normalize().dot(d));if(c>.98)RIVER_BR.value[k++].set(d.x,d.z)}})}
 const STRIP=(pts,closed,W,P,UV,IX,AJ,ajf)=>{const n=pts.length,v0=P.length/3,m=closed?n+1:n;let along=0;for(let k=0;k<m;k++){const i=k%n,a=pts[i],b=pts[closed?(i+1)%n:Math.min(n-1,i+1)],c=pts[closed?(i-1+n)%n:Math.max(0,i-1)];const tx=b.x-c.x,tz=b.z-c.z,l=Math.hypot(tx,tz)||1,nx=-tz/l,nz=tx/l;if(k)along+=a.distanceTo(pts[(k-1)%n]);
   P.push(a.x+nx*W/2,a.y,a.z+nz*W/2,a.x-nx*W/2,a.y,a.z-nz*W/2);UV.push(W/2,along,-W/2,along);if(AJ){const j=ajf(a,along,nx,nz);AJ.push(...j,...j)}if(k<m-1){const q=v0+k*2,r=q+2;IX.push(q,q+1,r,q+1,r+1,r)}}};
-let STREETM=null,STREETML=null;const ROADJ=[];{const P=[],UV=[],IX=[],AJ=[],SW=9.6,HW=SW/2,RF=2.0;
+let STREETM=null,STREETML=null;const ROADJ=[];const RHS=/[?&]traffic=classic/.test(location.search)?'1.':'-1.';{   // RHS: -1 = right-hand traffic (stop bars on the approach lane of traffic.mjs), 1 = classic left-hand
+const P=[],UV=[],IX=[],AJ=[],SW=9.6,HW=SW/2,RF=2.0;
  const onRing=(p,s)=>s.type==='ring'&&Math.abs(Math.hypot(p.x-s.c.x,p.z-s.c.z)-s.r)<.75;
  // junctions: every avenue end that sits on a ring centreline (avenues are radial, so they meet the ring square-on)
  streets.forEach(s=>{if(s.type!=='line')return;for(const [p,q] of [[s.a,s.b],[s.b,s.a]]){const r=streets.find(o=>onRing(p,o));if(!r)continue;const dx=q.x-p.x,dz=q.z-p.z,l=Math.hypot(dx,dz)||1;ROADJ.push({ring:r,x:p.x,z:p.z,dx:dx/l,dz:dz/l,line:s})}});
@@ -998,9 +1000,9 @@ let STREETM=null,STREETML=null;const ROADJ=[];{const P=[],UV=[],IX=[],AJ=[],SW=9
     if(vJ.y!=0.&&ap>0.&&jl<2.5+RF+.01){vec2 q=vec2(ap-2.5-RF,jl-2.5-RF);e=(q.x<0.&&q.y<0.)?RF-length(q):RF+min(q.x,q.y);mouth=1.;
      if(ap>2.95&&ap<4.65&&jl<2.3)cw=step(.5,fract(vJ.x+.25));}
     if(jl>3.1&&jl<4.9&&a<2.3)cw=step(.5,fract(sx+.25));
-    if(jl>5.05&&jl<5.4&&vJ.x*sx>0.&&a<2.3&&a>.2)sb=1.;
+    if(jl>5.05&&jl<5.4&&vJ.x*sx*${RHS}>0.&&a<2.3&&a>.2)sb=1.;
     if(vJ.y!=0.){nocl=step(jl,5.45);noed=step(2.95,jl)*step(jl,5.05);}}
-   else if(kind>1.5){float dj=min(vJ.x,vJ.y);if(((vJ.y<vJ.x&&sx<0.)||(vJ.x<vJ.y&&sx>0.))&&dj>4.95&&dj<5.3&&a<2.3&&a>.2)sb=1.;nocl=step(dj,5.35);}
+   else if(kind>1.5){float dj=min(vJ.x,vJ.y);if(((vJ.y<vJ.x&&sx*${RHS}<0.)||(vJ.x<vJ.y&&sx*${RHS}>0.))&&dj>4.95&&dj<5.3&&a<2.3&&a>.2)sb=1.;nocl=step(dj,5.35);}
    vec3 c;
    if(e<0.){float n=vn(vS*3.1)*.55+vn(vS*13.)*.3+h21(floor(vS*40.))*.15;c=vec3(.036,.039,.046)*lit*(.82+.36*n);
     float wear=exp(-((abs(a-1.25)-.5)*(abs(a-1.25)-.5))/.0484);c*=1.-.12*wear;c+=vec3(.5,.55,.65)*step(.985,h21(floor(vS*55.)))*.05*lit;
@@ -1043,11 +1045,11 @@ const SHIRT=[0xd23b3b,0x2f6fd8,0xe8e2d6,0x2a2a30,0x3fa66b,0xe0a030,0x8a4fd0,0x1f
 const pedM=new THREE.InstancedMesh(pedGeo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,metalness:0,emissive:0x101418}),Math.max(1,peds.length));pedM.frustumCulled=false;
 peds.forEach((q,i)=>pedM.setColorAt(i,new THREE.Color(SHIRT[(Math.random()*SHIRT.length)|0])));if(pedM.instanceColor)pedM.instanceColor.needsUpdate=true;S.add(pedM);
 const _pp=new THREE.Vector3(),_pq=new THREE.Quaternion(),_pm=new THREE.Matrix4(),_ps=new THREE.Vector3(1,1,1),_pu=new THREE.Vector3(0,1,0);
-function updPeds(dt){const T=performance.now()*.001;peds.forEach((q,i)=>{const s=q.s;if(q.w>0)q.w-=dt;else{q.u+=q.sp*dt*q.d/q.len;if(Math.random()<dt/50)q.w=2.5+Math.random()*5}let hx,hz;   // q.w: a short stop (look around, check the phone); citizens.mjs eases the body in and out
+function updPeds(dt){const T=performance.now()*.001,TP=window.__traffic&&window.__traffic.on?window.__traffic.ped:null;peds.forEach((q,i)=>{const s=q.s;const held=TP?TP(q,dt):false;if(held){}else if(q.w>0)q.w-=dt;else{q.u+=q.sp*dt*q.d/q.len;if(Math.random()<dt/50)q.w=2.5+Math.random()*5}let hx,hz;   // q.w: a short stop (look around, check the phone); citizens.mjs eases the body in and out
  if(s.type==='ring'){q.u=(q.u+1)%1;const a=q.u*6.283,rr=s.r+q.lat*q.side;_pp.set(s.c.x+Math.cos(a)*rr,0,s.c.z+Math.sin(a)*rr);hx=-Math.sin(a)*q.d;hz=Math.cos(a)*q.d}
  else{if(q.u>1||q.u<0){q.u=Math.max(0,Math.min(1,q.u));q.d*=-1}const dx=(s.b.x-s.a.x)/q.len,dz=(s.b.z-s.a.z)/q.len;_pp.copy(s.a).lerp(s.b,q.u);_pp.x+=-dz*q.lat*q.side;_pp.z+=dx*q.lat*q.side;_pp.y=0;hx=dx*q.d;hz=dz*q.d}
- _pp.y=q.w>0?0:Math.abs(Math.sin(T*q.sp*5.2+q.ph))*.05;_pq.setFromAxisAngle(_pu,Math.atan2(hx,hz));_pm.compose(_pp,_pq,_ps);pedM.setMatrixAt(i,_pm)});pedM.instanceMatrix.needsUpdate=true}
-function updGround(dt){updPeds(dt);if(window.__cityLife&&window.__cityLife.traffic)window.__cityLife.traffic(gT,dt,performance.now()/1000);   // red lights, car-following, yielding to sirens
+ _pp.y=q.w>0||held&&!q.cr?0:Math.abs(Math.sin(T*q.sp*5.2+q.ph))*.05;_pq.setFromAxisAngle(_pu,q.hd!=null?q.hd:Math.atan2(hx,hz));_pm.compose(_pp,_pq,_ps);pedM.setMatrixAt(i,_pm)});pedM.instanceMatrix.needsUpdate=true}
+function updGround(dt){updPeds(dt);const TR=window.__traffic;if(TR&&TR.on){if(gcar.visible){gcar.visible=gtP.visible=false}TR.update(dt);return}if(window.__cityLife&&window.__cityLife.traffic)window.__cityLife.traffic(gT,dt,performance.now()/1000);   // red lights, car-following, yielding to sirens
 const P=gtG.attributes.position;gT.forEach((g,i)=>{const s=g.s;
  if(s.type==='ring'){g.u=(g.u+g.sp*dt*g.d*(g.k??1)+1)%1;const a=g.u*6.283,rr=s.r+1.25*g.side;_gp.set(s.c.x+Math.cos(a)*rr,.02,s.c.z+Math.sin(a)*rr);_gt.set(-Math.sin(a)*g.d,0,Math.cos(a)*g.d)}
  else{g.u+=g.sp*dt*g.d*(g.k??1);if(g.u>1||g.u<0){g.u=Math.max(0,Math.min(1,g.u));g.d*=-1;g.side*=-1}_gt.subVectors(s.b,s.a).setY(0).normalize().multiplyScalar(g.d);_gp.copy(s.a).lerp(s.b,g.u).setY(.02)}

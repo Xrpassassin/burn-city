@@ -59,7 +59,7 @@ assert.strictEqual(MC.pickCenter([{ x: 1, z: 1 }], () => true).clear, false);
 // ---- same ruler as the City's token towers (app.js towerH / towerW)
 const app = read('app.js');
 assert.ok(app.includes('return Math.min(122,Math.max(12,12+15.4*(Math.log10(Math.max(100,v||0))-2)))'), 'app.js height ruler unchanged (keep memes-circle-core towerH in step)');
-assert.ok(app.includes('2+7.5*Math.sqrt(Math.max(0,n.tvl||0)/MAXT)'), 'app.js width ruler unchanged');
+assert.ok(app.includes('2+7.5*Math.sqrt(Math.max(0,n.tvl||0)/MAXT)') || app.includes('2+7.5*Math.sqrt(Math.min(1,Math.max(0,n.tvl||0)/MAXT))'), 'app.js width ruler unchanged (min(1,…) only caps promoted districts, whose TVL is outside MAXT)');
 assert.strictEqual(+MC.towerH(1e6).toFixed(3), +(12 + 15.4 * 4).toFixed(3)); assert.strictEqual(MC.towerH(1), 12); assert.strictEqual(MC.towerH(1e20), 122);
 assert.strictEqual(MC.towerW(100, 100), 9.5); assert.strictEqual(MC.towerW(0, 100), 2);
 assert.strictEqual(MC.fmtXrp(2.71e6), '2.71M'); assert.strictEqual(MC.fmtXrp(17.2e6), '17.2M'); assert.strictEqual(MC.fmtXrp(34329), '34K');

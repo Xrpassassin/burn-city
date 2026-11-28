@@ -20,6 +20,7 @@ const MIN_GAP_MS = 150;               // rate limit: >= 150 ms between our XRPL 
 const LP_CHECK_MIN = 0.001;           // LP holders >= 0.1% of LP supply are classified (smaller ones are "not checked")
 const LP_CHECK_MAX = 60;              // at most 60 LP holders classified per pool
 const TOK_PAGES = 25;                 // issuer trustline pages (400 each, 10k lines) scanned per token
+const PROMOTED_TOK_PAGES = 8, PROMOTED_LP_PAGES = 5;   // promoted meme districts (server/memes-promote.js): smaller scans, an incomplete scan stays unverified
 const TOK_CHECK_MIN = 0.0001;         // token holders >= 0.01% of supply are classified
 const TOK_CHECK_MAX = 30;             // at most 30 holders classified per token
 const SKIP_TOKENS = new Set(['XRP', 'RLUSD']);   // XRP has no issuer; RLUSD: 60k+ trustlines, not a city burn token
@@ -125,7 +126,7 @@ function create(opts = {}) {
     let lines = null;
     if (ai.amm) { lines = []; let marker, pages = 0;
       do { const al = await call('account_lines', { account: p.amm, ledger_index: 'validated', limit: 400, ...(marker ? { marker } : {}) }); if (al.__err) { lines = null; break; }
-        lines.push(...(al.lines || [])); marker = al.marker; pages++; } while (marker && pages < 10); }
+        lines.push(...(al.lines || [])); marker = al.marker; pages++; } while (marker && pages < (p.promoted ? PROMOTED_LP_PAGES : 10)); }
     const infos = {};
     if (ai.amm && lines) { const tot = +ai.amm.lp_token.value; const hs = lines.filter(l => l.currency === ai.amm.lp_token.currency && Math.abs(+l.balance) / tot >= LP_CHECK_MIN).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance)).slice(0, LP_CHECK_MAX);
       for (const h of hs) infos[h.account] = await info(h.account); }
@@ -152,7 +153,7 @@ function create(opts = {}) {
     const gw = await call('gateway_balances', { account: issuer, ledger_index: 'validated' });
     const lines = []; let marker, pages = 0, ok = true;
     do { const al = await call('account_lines', { account: issuer, ledger_index: 'validated', limit: 400, ...(marker ? { marker } : {}) }); if (al.__err) { ok = false; break; }
-      lines.push(...(al.lines || [])); marker = al.marker; pages++; } while (marker && pages < TOK_PAGES);
+      lines.push(...(al.lines || [])); marker = al.marker; pages++; } while (marker && pages < (n.promoted ? PROMOTED_TOK_PAGES : TOK_PAGES));
     const scan = ok ? { lines, complete: !marker } : null;
     const issuerInfo = await info(issuer);
     const ammSet = new Set(pools.map(p => p.amm)); const infos = {};
@@ -168,11 +169,14 @@ function create(opts = {}) {
       gateway:ev?.gateway,now:now()});
     return {...legacy,supply_reconciliation:rec};
   }
+  let runN = 0;
   async function refresh(data) {
     if (S.run) return S.run;
+    const withPromoted = runN++ % 2 === 0;   // promoted meme districts: verified every other run (4 h, still inside the 6 h staleness window)
     S.run = (async () => { S.started = iso(now());
       try { const d = data(); if (!d) throw new Error('no eco data');
         const pools = d.pools.filter(p => p.amm && !p.gone);
+        { const live = new Set(d.pools.map(p => p.amm)), names = new Set(d.nodes.map(n => n.name)); for (const k of Object.keys(S.pools)) if (!live.has(k)) delete S.pools[k]; for (const k of Object.keys(S.tokens)) if (!names.has(k)) delete S.tokens[k]; }   // a district that left (promoted meme turnover) leaves no stale record
         const burn = d.nodes.find(n=>n.key===BURN_KEY);
         if(burn) S.tokens[burn.name] = await token(burn,pools);
         // Publish the three tower singularities before scanning potentially
@@ -185,8 +189,9 @@ function create(opts = {}) {
           const n = d.nodes.find(n => n.name === name && n.key === id.issuer + '-' + id.currency);
           if (n) S.tokens[name] = await token(n, pools);
         }
-        for (const p of pools) S.pools[p.amm] = await pool(p);
+        for (const p of pools) { if (p.promoted && !withPromoted) continue; S.pools[p.amm] = await pool(p); }
         for (const n of d.nodes) {
+          if (n.promoted && !withPromoted) continue;
           if (!n.key || n.key===BURN_KEY || !n.key.includes('-') ||
               SKIP_TOKENS.has(n.name) || ECOSYSTEM_TOKENS[n.name]) continue;
           S.tokens[n.name] = await token(n, pools);

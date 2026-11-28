@@ -7,6 +7,7 @@
 const fs = require('fs'), path = require('path'), crypto = require('crypto'), xrpl = require('xrpl');
 const XrplTo = require('./xrplto');   // shared xrpl.to queue + daily budget (eco has top priority); X-Api-Key when XRPLTO_API_KEY is set
 const XM = require('./xrplmeta');      // keyless XRPLMeta token metrics
+const Promote = require('./memes-promote');   // promoted meme districts (first-class source, own file on /data; MEMES_PROMOTE=0 kill switch)
 const FILE = path.join(__dirname, '..', 'client', 'data.js');
 const RPC = ['https://xrplcluster.com/', 'https://s2.ripple.com:51234/', 'https://s1.ripple.com:51234/'];
 const WSS = ['wss://xrplcluster.com', 'wss://s2.ripple.com', 'wss://s1.ripple.com'];
@@ -36,8 +37,19 @@ function loadBase() { const s = fs.readFileSync(FILE, 'utf8'); const e = JSON.pa
     for (const p of d.pools || []) { if (Object.hasOwn(renamed, p.a)) p.a = renamed[p.a]; if (Object.hasOwn(renamed, p.b)) p.b = renamed[p.b];
       if (!amms.has(p.amm) && names.has(p.a) && names.has(p.b)) { e.pools.push(p); amms.add(p.amm); } }
   } catch {}
+  try { mergePromotedSnap(e); } catch {}
   return e; }
-function saveDiscovered() { try { fs.writeFileSync(DISC_FILE, JSON.stringify({ ts: new Date().toISOString(), nodes: eco.nodes.filter(n => n.discovered), pools: eco.pools.filter(p => p.discovered) })); } catch (e) { console.error('save discovered', e.message); } }
+// promoted meme districts: last values (tvl, prices, LP) persisted beside the membership file, so towers are right at boot
+const PROMO_SNAP = () => Promote.FILE().replace(/\.json$/, '-eco.json');
+function mergePromotedSnap(e) {
+  if (!Promote.enabled()) return; const st = Promote.current(); if (!st || !st.members.length) return;
+  const want = new Set(st.members.map(m => m.key)); let snap = null; try { snap = JSON.parse(fs.readFileSync(PROMO_SNAP(), 'utf8')); } catch { return; }
+  const keys = new Set(e.nodes.map(n => n.key)), names = new Set(e.nodes.map(n => n.name)), amms = new Set(e.pools.map(p => p.amm));
+  for (const n of snap.nodes || []) { if (!want.has(n.key) || keys.has(n.key)) continue; const nm = safeNodeName(n.name, n.key); if (names.has(nm)) continue; n.name = nm; e.nodes.push(n); keys.add(n.key); names.add(nm); }
+  for (const p of snap.pools || []) if (!amms.has(p.amm) && names.has(p.a) && names.has(p.b)) { e.pools.push(p); amms.add(p.amm); }
+}
+function saveDiscovered() { try { fs.writeFileSync(DISC_FILE, JSON.stringify({ ts: new Date().toISOString(), nodes: eco.nodes.filter(n => n.discovered), pools: eco.pools.filter(p => p.discovered) })); } catch (e) { console.error('save discovered', e.message); }
+  if (Promote.enabled() && eco.nodes.some(n => n.promoted)) try { fs.mkdirSync(path.dirname(PROMO_SNAP()), { recursive: true }); fs.writeFileSync(PROMO_SNAP(), JSON.stringify({ ts: new Date().toISOString(), nodes: eco.nodes.filter(n => n.promoted), pools: eco.pools.filter(p => p.promoted) })); } catch (e) { console.error('save promoted', e.message); } }
 async function rpc(method, p) {
   if (ws && ws.isConnected()) { try { const r = (await ws.request({ command: method, ...p })).result; return r; } catch (e) { if (e.data && e.data.error === 'actNotFound') return { error: 'actNotFound' }; } }
   let err;
@@ -60,6 +72,7 @@ const idx = () => { const byKey = {}, byName = {}; for (const n of eco.nodes) { 
 async function readPool(p, withLines) {
   const r = await rpc('amm_info', { amm_account: p.amm, ledger_index: 'validated' });
   if (r.error === 'actNotFound' || !r.amm) { delete res[p.amm]; p.tvl_xrp = 0; p.gone = true; return; }
+  if (!eco.pools.includes(p)) { delete res[p.amm]; return; }   // dropped while the read was in flight (promoted thin pool, removed district)
   const a = r.amm; res[p.amm] = { A: side(a.amount), B: side(a.amount2), lp: a.lp_token }; p.fee_pct = (a.trading_fee || 0) / 1000; delete p.gone;
   if (r.ledger_index) lastLedger = r.ledger_index;
   if (withLines) await readLP(p);
@@ -126,7 +139,7 @@ function queue(amm) { pending.add(amm); if (!flushT) flushT = setTimeout(flush, 
 async function flush() {
   flushT = null; const list = [...pending]; pending.clear();
   for (const amm of list) { const p = eco.pools.find(x => x.amm === amm); if (!p) continue;
-    try { await readPool(p, true); status.poolUpdates++; } catch (e) { status.err = 'pool ' + e.message; } }
+    try { await readPool(p, !p.promoted); status.poolUpdates++; } catch (e) { status.err = 'pool ' + e.message; } }
   status.lastPoolUpdate = new Date().toISOString(); recompute(); publish();
 }
 
@@ -152,13 +165,30 @@ async function connect() {
   const url = WSS[wsi++ % WSS.length]; status.stream = 'connecting';
   try {
     const c = new xrpl.Client(url, { connectionTimeout: 15e3 }); await c.connect(); ws = c; status.stream = 'live ' + url;
-    const accts = eco.pools.filter(p => p.amm).map(p => p.amm);
+    const accts = eco.pools.filter(p => p.amm && !p.promoted).map(p => p.amm);   // promoted pools ride their own shards (connectPromoted)
     await c.request({ command: 'subscribe', accounts: accts, streams: ['ledger'] });
     c.on('ledgerClosed', l => { status.ledger = l.ledger_index; });
     c.on('transaction', t => { if (!t.validated) return; const s = JSON.stringify(t.meta || {}) + JSON.stringify(t.tx_json || t.transaction || {});
       for (const a of accts) if (s.includes(a)) queue(a); try { trades(t); } catch {} });
     c.on('disconnected', () => { status.stream = 'reconnecting'; ws = null; setTimeout(connect, 5e3); });
   } catch (e) { status.stream = 'error'; status.err = 'ws ' + e.message; ws = null; setTimeout(connect, 10e3); }
+}
+// promoted pools: their own small subscription shards (public servers cap a connection at ~100 subscription units, and the
+// city's own 75 pools already use most of one), each on the next endpoint in the list; same handlers as the main stream
+const PSUB = 40; let pws = [], pgen = 0;
+async function connectPromoted() {
+  if (process.env.ECO_NO_WS === '1') return;   // tests
+  const gen = ++pgen; const old = pws; pws = []; for (const c of old) { try { c.removeAllListeners('disconnected'); await c.disconnect(); } catch {} }
+  const accts = eco.pools.filter(p => p.amm && p.promoted).map(p => p.amm); status.promotedStream = [];
+  for (let i = 0, k = 0; i < accts.length; i += PSUB, k++) shard(accts.slice(i, i + PSUB), k, 0, gen);
+}
+async function shard(list, k, tries, gen) {
+  if (gen !== pgen) return; const url = WSS[(k + 1 + tries) % WSS.length];
+  try { const c = new xrpl.Client(url, { connectionTimeout: 15e3 }); await c.connect(); if (gen !== pgen) { try { await c.disconnect(); } catch {} return; }
+    await c.request({ command: 'subscribe', accounts: list }); pws.push(c); status.promotedStream[k] = 'live ' + url + ' (' + list.length + ')';
+    c.on('transaction', t => { if (!t.validated) return; const s = JSON.stringify(t.meta || {}) + JSON.stringify(t.tx_json || t.transaction || {}); for (const a of list) if (s.includes(a)) queue(a); try { trades(t); } catch {} });
+    c.on('disconnected', () => { pws = pws.filter(x => x !== c); status.promotedStream[k] = 'reconnecting'; setTimeout(() => shard(list, k, tries + 1, gen), 5e3); });
+  } catch (e) { status.promotedStream[k] = 'error ' + String(e.message).slice(0, 80); setTimeout(() => shard(list, k, tries + 1, gen), 15e3); }
 }
 async function resubscribe(newAmms) { if (!ws || !newAmms.length) return; try { await ws.request({ command: 'subscribe', accounts: newAmms }); } catch {}
   // also make the tx filter see them: simplest is a reconnect
@@ -181,15 +211,18 @@ function applyXt(n) { const x = xtLoad()[n.key]; const fresh = x && Date.now() -
   if (fresh && x.traders != null) { n.active = x.traders; n.active_src = 'traders24h'; return true; } return false; }
 async function market() {
   const { byKey } = idx(); let ok = 0;
-  for (const n of Object.values(byKey)) { const [iss, cur] = splitKey(n.key); const m = await XM.token(cur, iss);
+  for (const n of Object.values(byKey)) { if (n.promoted) { promotedMeta(n); continue; } const [iss, cur] = splitKey(n.key); const m = await XM.token(cur, iss);
     if (m) { ok++; applyMeta(n, m); if (!applyXt(n)) { if (m.takers24h != null) { n.active = m.takers24h; n.active_src = 'takers24h'; } else if (m.holders != null) { n.active = m.holders; n.active_src = 'holders'; } } }
     else applyXt(n); }   // XRPLMeta miss: keep the last values
   status.market = new Date().toISOString(); status.marketOk = ok; recompute(); publish();
 }
+// promoted nodes reuse the memes-circle member metrics (XRPLMeta, hourly) instead of their own XRPLMeta calls
+function promotedMeta(n) { let rows = null; try { rows = require('./memes-circle').members(); } catch {} const r = rows && rows.rows && rows.rows.find(x => x.issuer + '-' + x.currency === n.key);
+  if (!r || !r.m) return false; applyMeta(n, r.m); if (r.m.takers24h != null) { n.active = r.m.takers24h; n.active_src = 'takers24h'; } else if (r.m.holders != null) { n.active = r.m.holders; n.active_src = 'holders'; } return true; }
 async function xrpltoPass() {
   if (Date.now() - XrplTo.lastRun('eco-pass') < XRPLTO_EVERY) return; XrplTo.markRun('eco-pass');
   const { byKey } = idx(); xtLoad(); let got = 0;
-  for (const n of Object.values(byKey)) { let t;
+  for (const n of Object.values(byKey)) { if (n.promoted) continue; let t;
     try { t = await xrplto(n.key); } catch (e) { if (e.code === 'budget' || e.code === 'cooldown' || e.code === 'http_429') { status.err = 'xrpl.to ' + e.code; break; } continue; }
     if (!t || t.exch == null) continue; got++;
     xt[n.key] = { ts: Date.now(), pro1h: t.pro1h ?? null, traders: t.uniqueTraders24h ?? null };
@@ -210,7 +243,7 @@ async function sweep() {
 }
 async function discover() {
   const { byKey, byName } = idx(), known = new Set(eco.pools.map(p => p.amm)), checked = new Set(), added = [];
-  for (const n of Object.values(byKey).filter(x => !x.discovered)) {
+  for (const n of Object.values(byKey).filter(x => !x.discovered && !x.promoted)) {
     if (n.name === 'RLUSD') continue;   // stablecoin: huge holder list, and its pools with city tokens already show up via the other side
     const [iss, cur] = [n.key.slice(0, n.key.indexOf('-')), n.key.slice(n.key.indexOf('-') + 1)]; const pr = n.price_amm || n.price_xrp || 0;
     let marker, pages = 0, cands = [];
@@ -244,9 +277,56 @@ async function discover() {
   }
 }
 
+// ---- promoted meme districts: server/memes-promote.js hands the member + pool list (an empty list under MEMES_PROMOTE=0) ----
+// Promoted nodes carry `promoted: { q, rank, erank, alpha, since }`, promoted pools `promoted: 1`. They are ordinary city nodes and
+// pools from here on (prices, TVL, subscription, sweep, trades, /api/amm-lock), except: no xrpl.to pass, no issuer-trustline
+// discovery scan, metrics from the memes snapshot, and live swaps re-read reserves only (LP lines on the hourly sweep).
+const pstat = { members: 0, pools: 0, dropped: [], ts: null, busy: false };
+let promoteRun = Promise.resolve();
+const realTvl = p => { if (p.a === 'XRP' || p.b === 'XRP') return p.tvl_xrp || 0; const { byName } = idx(); const d = Math.min(byName[p.a]?.price_depth || 0, byName[p.b]?.price_depth || 0);
+  return 2 * Math.min((p.tvl_xrp || 0) / 2, d); };
+function applyPromoted(members, plist) {
+  if (!eco) return null;
+  const want = new Map((members || []).map(m => [m.key, m]));
+  const gone = eco.nodes.filter(n => n.promoted && !want.has(n.key)), goneN = new Set(gone.map(n => n.name));
+  const listAmms = new Set((plist || []).map(p => p.amm));
+  const dropP = p => goneN.has(p.a) || goneN.has(p.b) || (p.promoted && !listAmms.has(p.amm));
+  for (const p of eco.pools.filter(dropP)) delete res[p.amm];
+  eco.pools = eco.pools.filter(p => !dropP(p)); eco.nodes = eco.nodes.filter(n => !goneN.has(n.name));
+  const { byKey, byName } = idx(), fresh = [], newPools = [], day = new Date().toISOString().slice(0, 10);
+  for (const m of members || []) { let n = byKey[m.key]; if (n && !n.promoted) continue;   // already a city district some other way: never twice
+    if (!n) { let name = safeNodeName(m.name, m.key); if (byName[name]) name = (name.slice(0, 40) + '\u00B7' + m.issuer.slice(1, 5));
+      if (byName[name]) continue; n = { name, key: m.key, tvl: 0, pools: 0, top: [], scars: [], burn_txs: 0 }; eco.nodes.push(n); byKey[m.key] = n; byName[name] = n; fresh.push(n); }
+    n.promoted = { q: m.q, rank: m.rank, erank: m.erank, alpha: m.alpha, since: new Date(m.since || Date.now()).toISOString().slice(0, 10) }; }
+  const amms = new Set(eco.pools.map(p => p.amm));
+  for (const q of plist || []) { const A = q.a === 'XRP' ? 'XRP' : byKey[q.a]?.name, B = q.b === 'XRP' ? 'XRP' : byKey[q.b]?.name; if (!A || !B || amms.has(q.amm)) continue;
+    const p = { a: A, b: B, amm: q.amm, tvl_xrp: 0, fee_pct: q.fee_pct || 0, locked_pct: 0, insider_pct: 0, lp_holders: 0, top_lp: [], promoted: 1, since: day }; eco.pools.push(p); amms.add(q.amm); newPools.push(p); }
+  pstat.members = eco.nodes.filter(n => n.promoted).length; pstat.ts = new Date().toISOString();
+  promoteRun = promoteRun.then(() => promoteRead(fresh, newPools, gone.length > 0)).catch(e => { status.err = 'promote ' + e.message; });
+  return { members: pstat.members, pools: eco.pools.filter(p => p.promoted).length, added: fresh.length, removed: gone.length };
+}
+async function promoteRead(fresh, newPools, removed) {
+  pstat.busy = true;
+  try {
+    for (const p of newPools) { try { await readPool(p, false); } catch {} await sleep(100); }   // reserves first (cheap); LP lines only for pools that stay
+    recompute();
+    // a cross pool must carry real liquidity (partner depth-capped, like discovery); a district with no pool left is dropped
+    const thin = newPools.filter(p => p.a !== 'XRP' && p.b !== 'XRP' && realTvl(p) < Promote.MIN_POOL_TVL || p.gone || (p.tvl_xrp || 0) < Promote.MIN_POOL_TVL);
+    if (thin.length) { const t = new Set(thin); for (const p of thin) delete res[p.amm]; eco.pools = eco.pools.filter(p => !t.has(p)); pstat.dropped = thin.map(p => p.a + '/' + p.b).slice(0, 40); try { Promote.markThin(thin.map(p => p.amm)); } catch {} }
+    const lone = eco.nodes.filter(n => n.promoted && !eco.pools.some(p => p.a === n.name || p.b === n.name));
+    if (lone.length) { const l = new Set(lone); eco.nodes = eco.nodes.filter(n => !l.has(n)); }
+    for (const p of newPools.filter(p => eco.pools.includes(p))) { try { await readLP(p); } catch {} await sleep(100); }
+    for (const n of fresh.filter(n => eco.nodes.includes(n))) { const [iss, cur] = splitKey(n.key);
+      try { const g = await rpc('gateway_balances', { account: iss, ledger_index: 'validated' }); const ob = (g.obligations || {})[cur]; if (ob != null) n.circ = +ob; } catch {} await sleep(120);
+      promotedMeta(n); }
+    recompute(); pstat.members = eco.nodes.filter(n => n.promoted).length; pstat.pools = eco.pools.filter(p => p.promoted).length; publish(); saveDiscovered();
+    if (newPools.some(p => eco.pools.includes(p)) || removed || !pws.length) await connectPromoted();
+  } finally { pstat.busy = false; }
+}
+
 async function start() {
   try { eco = loadBase(); publish(); } catch (e) { console.error('eco base', e.message); return; }
-  connect();
+  connect(); connectPromoted();
   setTimeout(async () => { for (const p of eco.pools) if (p.amm) { try { await readPool(p, false); } catch {} } recompute(); publish();
     for (const p of eco.pools) if (p.amm) { try { const r = await rpc('account_tx', { account: p.amm, limit: 25 }); for (const t of r.transactions || []) { const dt = (t.tx_json || t.tx || {}).date, w = t.close_time_iso ? Date.parse(t.close_time_iso) : dt ? (dt + 946684800) * 1000 : null; if (w && Date.now() - w < 30 * 60e3) trades({ ...t, tx_json: t.tx_json || t.tx, hash: t.hash || (t.tx || {}).hash }, w); } await sleep(60); } catch {} } publish();
     try { await market(); } catch {} xrpltoPass().catch(() => {}); try { await sweep(); } catch (e) { console.error('eco sweep', e.message); } }, 3e3);
@@ -259,7 +339,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => ({ ...status, keyed: XrplTo.keyed(), xrplto: XrplTo.stats(), xrplmeta: XM.stats() }), _xrpltoPass: xrpltoPass, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
+  start, applyPromoted, _connectPromoted: connectPromoted, status: () => ({ ...status, keyed: XrplTo.keyed(), xrplto: XrplTo.stats(), xrplmeta: XM.stats(), promoted: { ...Promote.status(), ...pstat, streams: status.promotedStream || [], nodes: eco ? eco.nodes.filter(n => n.promoted).map(n => n.name) : [] } }), _promoteRun: () => promoteRun, _xrpltoPass: xrpltoPass, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

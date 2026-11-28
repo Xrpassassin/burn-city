@@ -732,4 +732,5 @@ for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, () => { try { Homefro
 Eco.start();
 AmmLock.start(Eco);
 MemesCircle.start();
+require('./memes-promote').start(Eco, MemesCircle);   // promoted meme districts in ECO (daily from the memes snapshot; MEMES_PROMOTE=0 kill switch)
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

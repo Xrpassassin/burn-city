@@ -41,6 +41,7 @@ import {initAmmLock} from './amm-lock.js';
 import {goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity,towerSpiralLane,towerJunctionGradient,towerJunctionOpacity} from './amm-gold-vein-profile.mjs';
 import {installCityNature} from './city-nature-render.mjs';
 import {installCityBirds} from './city-birds-render.mjs';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
+import {placePromoted,HOME as PROMO_HOME,quarterA0} from './memes-promote-core.mjs';   // promoted meme districts: placement beside the Meme Circle quarter
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
 
 // ---------- config / device ----------
@@ -115,6 +116,11 @@ const TIER=TIERS[qPref]?qPref:autoTier();const LV=TIERS[TIER];
 if(MOBILE&&TIER==='high')Object.assign(LV,{pr:1.4,aa:false,bloomScale:.5,reflect:false,cars:240,rain:3000,trees:200,sats:.8});
 const stage=(p,txt)=>new Promise(r=>{window.__load&&window.__load(p,txt);requestAnimationFrame(()=>setTimeout(r,0))});
 const E=neutralizeEcoNames(window.ECO);const $=id=>document.getElementById(id);
+// promoted meme districts (server/memes-promote.js, `n.promoted`): ordinary city districts placed beside the Meme Circle quarter.
+// They always sit at the END of E.nodes, so every index-based table built for the existing districts is unchanged. ?promote=0 drops them.
+const PROMO_ON=Q.get('promote')!=='0';{const isP=n=>!!n.promoted,drop=new Set(E.nodes.filter(isP).map(n=>n.name));
+ if(!PROMO_ON){E.nodes=E.nodes.filter(n=>!drop.has(n.name));E.pools=E.pools.filter(p=>!drop.has(p.a)&&!drop.has(p.b))}else E.nodes=[...E.nodes.filter(n=>!isP(n)),...E.nodes.filter(isP)]}
+const BASE_NODES=E.nodes.filter(n=>!n.promoted);
 const fmt=(n,d)=>n==null||isNaN(n)?'—':(+n).toLocaleString(undefined,{maximumFractionDigits:d??(Math.abs(n)<1?10:0)});
 const pct=n=>n==null?'—':(n>=0?'▲':'▼')+Math.abs(n).toFixed(2)+'%';
 const rnd=(s=>()=>(s=(s*16807)%2147483647)/2147483647)(1337); // deterministic layout
@@ -153,27 +159,34 @@ const THEME={XRP:{c:0x9fd8ff},BURN:{c:0xff5a1a,fire:1},XRPyro:{c:0xff2a00,fire:2
 const MINORC=[0x00e5ff,0x66ff99,0xffd166,0xff66c4,0x7aa2ff,0x9effe0];
 const CORE=['BURN','XRPyro','IMM','IMG','RLUSD','666','VEGAS','RACC'];
 const N={};E.nodes.forEach(n=>N[n.name]=n);
-const pools=E.pools.filter(p=>N[p.a]&&N[p.b]);
+let pools=E.pools.filter(p=>N[p.a]&&N[p.b]);
 const RING=175; // core district ring (was 135; widened so active-wallet blocks have room)
 CORE.filter(c=>N[c]).forEach((c,i,arr)=>{const a=i/arr.length*Math.PI*2-Math.PI/2;Object.assign(N[c],{core:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*RING,0,Math.sin(a)*RING)})});
 Object.assign(N.XRP,{pos:new THREE.Vector3(),core:true,ang:0});
 // $BCHAMP landmark: inner plaza between XRP and the core ring, opposite the BURN district
 if(N.BCHAMP){const a=Math.PI/2+Math.PI/CORE.length;Object.assign(N.BCHAMP,{core:true,landmark:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*122,0,Math.sin(a)*122)})}
-const kids={};E.nodes.filter(n=>!n.pos).forEach(n=>{const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
+const kids={};E.nodes.filter(n=>!n.pos&&!n.promoted).forEach(n=>{const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
  const par=ps.map(p=>p.a===n.name?p.b:p.a).find(x=>N[x].core&&x!=='XRP')||'BURN';n.parent=par;(kids[par]=kids[par]||[]).push(n)});
 Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a.tvl).forEach((n,i)=>{const a=P0.ang+(i-(ks.length-1)/2)*.1;const r=RING+92+(i%2)*38;
  n.ang=a;n.pos=new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r);n.minor=true})});
 // ---------- tower scale: height = log10(market cap), one fixed ruler for every token (100 XRP -> 12 u, +15.4 u per 10x, 1B XRP ~ 120 u);
 // footprint AREA = TVL (width = sqrt of TVL relative to the deepest non-XRP token). XRP is the hub and keeps its own fixed size.
 const mcOf=n=>n.name==='XRP'?null:n.mcap!=null?n.mcap:n.mcap_amm!=null?n.mcap_amm:null;
-let MAXT=Math.max(1,...E.nodes.filter(n=>n.name!=='XRP').map(n=>n.tvl||0));
+let MAXT=Math.max(1,...E.nodes.filter(n=>n.name!=='XRP'&&!n.promoted).map(n=>n.tvl||0));   // promoted districts never re-scale the existing towers
 function towerH(n){if(n.name==='XRP')return 125;const v=n.mc!=null?n.mc:n.tvl;return Math.min(122,Math.max(12,12+15.4*(Math.log10(Math.max(100,v||0))-2)))}
-function towerW(n){return n.name==='XRP'?11:+(2+7.5*Math.sqrt(Math.max(0,n.tvl||0)/MAXT)).toFixed(2)}
-E.nodes.forEach((n,i)=>{const th=THEME[n.name]||{c:MINORC[i%MINORC.length]};n.th=th;n.col=new THREE.Color(th.c);
+function towerW(n){return n.name==='XRP'?11:+(2+7.5*Math.sqrt(Math.min(1,Math.max(0,n.tvl||0)/MAXT))).toFixed(2)}
+const PZC={kings:0xffc44d,grinders:0x3dff8a,degens:0xc04dff};E.nodes.forEach(n=>{if(n.promoted)n.minor=true});
+E.nodes.forEach((n,i)=>{const th=THEME[n.name]||(n.promoted?{c:PZC[n.promoted.q]||0xffc44d}:{c:MINORC[i%MINORC.length]});n.th=th;n.col=new THREE.Color(th.c);
  // HEIGHT = market cap in XRP (circulating supply x AMM price, log scale); BASE WIDTH = pool TVL in XRP (sqrt scale)
  n.mc=mcOf(n);n.h=towerH(n);
  n.w=towerW(n);
  n.distR=n.name==='XRP'?66:n.minor?n.w*3.4+5:n.landmark?n.w*2.4+14:n.w*3+28;});
+// promoted districts: just outside the Meme Circle quarter, beside their own zone's wedge (memes-promote-core.mjs), clear of everything
+{const PN=E.nodes.filter(n=>n.promoted);if(PN.length){const cen=PROMO_HOME,a0=quarterA0(cen),taken=BASE_NODES.filter(n=>n.pos).map(n=>({x:n.pos.x,z:n.pos.z,r:n.distR}));
+ const P=placePromoted(PN.map(n=>({name:n.name,q:n.promoted.q,r:n.distR})),{cen,a0,taken}),by=new Map(P.map(p=>[p.name,p]));
+ const lost=new Set(PN.filter(n=>!by.has(n.name)).map(n=>n.name));if(lost.size){E.nodes=E.nodes.filter(n=>!lost.has(n.name));E.pools=E.pools.filter(p=>!lost.has(p.a)&&!lost.has(p.b));for(const k of lost)delete N[k];pools=pools.filter(p=>N[p.a]&&N[p.b])}
+ PN.forEach(n=>{const p=by.get(n.name);if(!p)return;n.pos=new THREE.Vector3(p.x,0,p.z);n.ang=Math.atan2(p.z,p.x);n.promoZone=p.zone});
+ window.__memesPromote={cen,a0,keys:new Set(PN.filter(n=>by.has(n.name)).map(n=>n.key)),nodes:PN.filter(n=>by.has(n.name)).map(n=>({name:n.name,key:n.key,q:n.promoted.q,rank:n.promoted.rank,x:n.pos.x,z:n.pos.z,r:n.distR})),unplaced:[...lost]}}}
 
 await stage(0.12,'Sky & terrain');
 // ---------- sky, moon, stars, aurora, mountains ----------
@@ -237,7 +250,7 @@ const shoot={line:new THREE.Line(new THREE.BufferGeometry().setFromPoints([new T
 // ---------- ground: reflector + data-driven surface shader (streets, scorched/frost zones, puddles) ----------
 const GROUND=1420;
 if(LV.reflect){const ref=new Reflector(new THREE.CircleGeometry(560,64),{textureWidth:1024,textureHeight:1024,color:0x0a0e1a});ref.rotation.x=-Math.PI/2;ref.position.y=-.5;S.add(ref)}
-const zoneU=E.nodes.map(n=>new THREE.Vector4(n.pos.x,n.pos.z,n.distR,n.th.fire?n.th.fire:n.th.ice?-1:0));
+const zoneU=BASE_NODES.map(n=>new THREE.Vector4(n.pos.x,n.pos.z,n.distR,n.th.fire?n.th.fire:n.th.ice?-1:0));
 const groundMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,fog:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,uniforms:{...fogU(),zones:{value:zoneU},refl:{value:LV.reflect?1:0},t:U.t,day:U.day,wet:U.wet,flash:U.flash},
  vertexShader:`varying vec2 v;\n${FOGV}\nvoid main(){v=vec2(position.x,-position.y);vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
  fragmentShader:`uniform float t,day,wet,flash,refl;uniform vec4 zones[${zoneU.length}];varying vec2 v;\n#include <fog_pars_fragment>\n${NOISE}
@@ -534,7 +547,7 @@ const sats=[];window.__sats=sats;   // read-only layout hook (spacing audit)
 const PARKA=window.__skate&&window.__skate.parkArea;
 // neighbourhood density = active wallets (n.active: xrpl.to 24h unique traders, else XRPLMeta 24h takers, else holders), log scale, capped per tower
 const segD=(x,z,p,q)=>{const dx=q.x-p.x,dz=q.z-p.z,l=dx*dx+dz*dz||1,u=Math.max(0,Math.min(1,((x-p.x)*dx+(z-p.z)*dz)/l));return Math.hypot(p.x+u*dx-x,p.z+u*dz-z)};
-const poolSegs=pools.map(p=>[N[p.a].pos,N[p.b].pos]);
+const poolSegsAll=pools.map(p=>[N[p.a].pos,N[p.b].pos]);let poolSegs=pools.filter(p=>!N[p.a].promoted&&!N[p.b].promoted).map(p=>[N[p.a].pos,N[p.b].pos]);   // existing districts + infill lay out exactly as before; promoted districts get their satellites after the infill
 const streets=[];
 // district ring streets must never cross a neighbouring district's rings: split the gap between overlapping districts in proportion to their radii (deterministic, depends only on positions/sizes), never below the podium + a street
 const DR=new Map();{const hubs=E.nodes.filter(n=>!n.minor&&n.pos);hubs.forEach(n=>{let R=n.distR;if(n.name!=='XRP'){hubs.forEach(m=>{if(m===n)return;const d=Math.hypot(n.pos.x-m.pos.x,n.pos.z-m.pos.z),sum=n.distR+m.distR;if(d<sum+10)R=Math.min(R,d*n.distR/sum-5)});R=Math.max(R,n.w*2.05+7)}DR.set(n,R)})}
@@ -553,7 +566,7 @@ CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new TH
 // road clearance (streets are 9.6 m incl. sidewalks); used deterministically by every placement below and by the load-time audit
 const ROAD_HW=4.8,onRoad=(x,z,pad=0)=>streets.some(s=>(s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b))<ROAD_HW+pad);window.__streetsDef=streets;window.__onRoad=onRoad;
 
-E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/10:0;n.dens=Math.min(1,Math.log10(1+act)/3.3);
+function satsFor(n){const act=n.active!=null?n.active:n.holders!=null?n.holders/10:0;n.dens=Math.min(1,Math.log10(1+act)/3.3);
  // top holders (nightly tools/holders.py: share bands + roles only, never addresses) are the main buildings; density filler stays small
  const HB=[.1,.16,.24,.34,.46,.6],ROLEC={amm:0x3cf3ff,blackhole:0x2a2a33,exchange:0xffc23a};n.holderB=[];
  if(n.top&&n.top.length&&!n.minor){const tn=n.top.length;n.top.forEach(([b,role],j)=>{for(let tr=0;tr<8;tr++){const a=(j+tr*.37)/tn*Math.PI*2+.3,r=Math.max(n.w*2.9,n.w*2.05+(1.6+b*.35)*1.02+2.2)+(j%2)*4.5+tr*1.5;const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r,bw=1.6+b*.35,h=4+n.h*HB[b];
@@ -567,13 +580,14 @@ E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/
   const r=Math.max(r0,n.w*2.05+bw*1.02+2.2),x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;   // >= 2.2 m off the tower pad
   if(PARKA&&Math.abs(x-PARKA.x)<PARKA.hx+bw+2&&Math.abs(z-PARKA.z)<PARKA.hz+bw+2)continue;
   if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(onRoad(x,z,bw*1.02+1))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+2))continue;
-  sats.push({x,z,w:bw,h,c:n.col,rot:rnd()*Math.PI,n});colliders.push({x,z,r:bw*1.02,h});i++}});
+  sats.push({x,z,w:bw,h,c:n.col,rot:rnd()*Math.PI,n});colliders.push({x,z,r:bw*1.02,h});i++}}
+BASE_NODES.forEach(satsFor);
 // infill: ordinary low/mid-rise city blocks lining the streets between districts (same facades, rooftops & signs as satellites), deterministic
 {const r0=(s=>()=>(s=(s*1664525+1013904223)>>>0)/4294967296)(90210);const cap=Math.round((TIER==='low'?160:TIER==='medium'?520:1000));
  const hubs=E.nodes.filter(n=>n.pos),Rmax=Math.max(...[...DR].map(([n,r])=>Math.hypot(n.pos.x,n.pos.z)+r*.9));
  const IPAL=[0x9aa6b8,0x8fb3c9,0xc2b59b,0xa59bc0,0x9cc0b0,0xc9a99a,0xb8c4d0,0x7f93ad].map(c=>new THREE.Color(c));
  const distS=(x,z)=>streets.reduce((m,s)=>Math.min(m,s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b)),1e9);
- const inD=(x,z,pad)=>hubs.some(n=>Math.hypot(x-n.pos.x,z-n.pos.z)<(DR.get(n)||n.distR)+pad);let placed=0;const inLake=estateLake(E.nodes,[LPD.c]);
+ const inD=(x,z,pad)=>hubs.some(n=>Math.hypot(x-n.pos.x,z-n.pos.z)<(DR.get(n)||n.distR)+pad);let placed=0;const inLake=estateLake(BASE_NODES,[LPD.c]);
  for(let tries=0;tries<cap*17&&placed<cap;tries++){/* 17 (was 14): the 2 m spacing rule rejects more candidates; keeps the density */const a=r0()*6.2832,r=95+Math.sqrt(r0())*(Rmax-95),x=Math.cos(a)*r,z=Math.sin(a)*r;
   const ds=distS(x,z),bw=1.6+r0()*2.6;if(ds>34&&r0()<.85)continue;if(ds<4.8+bw*1.02+1)continue;if(inD(x,z,bw+2))continue;
   if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+2))continue;
@@ -582,6 +596,7 @@ E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/
   let rot=r0()*Math.PI;{let best=1e9;streets.forEach(s=>{const d=s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b);if(d<best){best=d;rot=s.type==='ring'?Math.atan2(z-s.c.z,x-s.c.x):Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z)}})}
   sats.push({x,z,w:bw,h,c:IPAL[(r0()*IPAL.length)|0].clone().multiplyScalar(.8+r0()*.3),rot,n:null,infill:1});colliders.push({x,z,r:bw*1.02,h});placed++}
  window.__infill=placed}
+poolSegs=poolSegsAll;E.nodes.filter(n=>n.promoted).forEach(satsFor);   // promoted districts' blocks come after the infill (same per-district rules)
 {const segs=[],trims=[],crowns=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>22?4:s.h>12?3:s.h>6?2:(rnd()<.4?2:1),FR=[[1],[.62,.38],[.5,.3,.2],[.4,.26,.2,.14]][ns-1].map(f=>f*(.85+rnd()*.3)),fs=FR.reduce((a,b)=>a+b,0),slab=rnd()<.28,shr=.7+rnd()*.18,ca=Math.cos(s.rot),sa=Math.sin(s.rot);let ox=0,oz=0;s._seg=segs.length;s._trim=trims.length;
  for(let j=0;j<ns;j++){const sh=s.h*FR[j]/fs,ax=slab?1.2:1,az=slab?.8:1;if(j&&rnd()<.6){const o=(rnd()-.5)*w*.22;ox+=o*ca;oz+=o*sa}
   segs.push({x:s.x+ox,z:s.z+oz,y:y+sh/2,w,sx:w*ax,sz:w*az,h:sh,c:s.c,rot:s.rot});if(ns>1&&j<ns-1||s.h>9)trims.push({x:s.x+ox,z:s.z+oz,y:y+sh,sx:w*ax*(j===ns-1?.86:.9),sz:w*az*(j===ns-1?.86:.9),c:s.c,rot:s.rot});y+=sh;w*=shr}
@@ -630,19 +645,20 @@ E.nodes.forEach(n=>{if(n.th.fire)fireFX(n);if(n.th.ice)iceFX(n)});
 
 await stage(0.55,'Building pool bridges');
 // ---------- bridges (AMM pools): locked = solid cyan light-road, unlocked = thin flickering scaffold rails ----------
-const maxT=Math.max(...pools.map(p=>p.tvl_xrp));const bridges=[];const rankT=[...pools].sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
+const maxT=Math.max(...pools.filter(p=>!p.promoted).map(p=>p.tvl_xrp));const bridges=[];const rankT=[...pools.filter(p=>!p.promoted)].sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
 // garage decks: on a tower with many bridges, neighbouring bridges land on alternating levels so each gets a full-size hangar bay
-const DECK={};E.nodes.forEach(n=>{if(!n.seg0)return;const ends=[];pools.forEach(p=>{const o=p.a===n.name?N[p.b]:p.b===n.name?N[p.a]:null;if(o)ends.push({p,a:Math.atan2(o.pos.z-n.pos.z,o.pos.x-n.pos.x)})});if(!ends.length)return;
+const DECK={};E.nodes.forEach(n=>{if(!n.seg0)return;const ends=[];pools.forEach(p=>{if(p.promoted&&!n.promoted)return;const o=p.a===n.name?N[p.b]:p.b===n.name?N[p.a]:null;if(o)ends.push({p,a:Math.atan2(o.pos.z-n.pos.z,o.pos.x-n.pos.x)})});if(!ends.length)return;
  ends.sort((x,y)=>x.a-y.a);const R=(n.seg0.cw+n.seg0.top)/2,need=3.6/Math.max(1,R*Math.cos(Math.PI/n.seg0.sides)),Lv=Math.max(1,Math.min(4,Math.ceil(ends.length*need*1.5/6.283),Math.floor((n.seg0.sh-3)/3.2)||1)),dy=3.2;
  const mid=Math.min(n.h*.33,40),y0=Math.max(2.2,Math.min(mid-(Lv-1)*dy/2,n.seg0.sh-1.6-(Lv-1)*dy));const lvA=[...Array(Lv)].map(()=>[]),gapTo=(L,x)=>L.reduce((m,y)=>Math.min(m,Math.abs(Math.atan2(Math.sin(x-y),Math.cos(x-y)))),9);
  ends.forEach(e=>{let best=0,bg=-1;for(let l=0;l<Lv;l++){const g=gapTo(lvA[l],e.a);if(g>bg+1e-6){bg=g;best=l}}lvA[best].push(e.a);DECK[n.name+'|'+e.p.amm+'|'+e.p.a+e.p.b]={y:y0+best*dy,lv:best}})});
 const deckY=(n,p)=>{const d=DECK[n.name+'|'+p.amm+'|'+p.a+p.b];return d?d.y:Math.min(n.h*.33,40)};
 // rails land on the tower TOP: roof edge facing the partner tower (landing-pad height on flagship tier); falls back to the old deck height
 // tall / busy towers (e.g. XRP): rails fan out to staggered landing points on a ring below the top; a much lower partner lands on a lower tier
-const RCNT={},RTOT={};pools.forEach(p=>{RTOT[p.a]=(RTOT[p.a]||0)+1;RTOT[p.b]=(RTOT[p.b]||0)+1});
+const RCNT={},RTOT={},RTB={};pools.forEach(p=>{RTOT[p.a]=(RTOT[p.a]||0)+1;RTOT[p.b]=(RTOT[p.b]||0)+1;if(!p.promoted){RTB[p.a]=(RTB[p.a]||0)+1;RTB[p.b]=(RTB[p.b]||0)+1}});
+const RT=p=>p&&p.promoted?RTOT:RTB;   // existing rails keep their own fan-out / dimming; promoted rails count everything
 const roofTop=n=>n.roofY==null?null:n.roofY*(n.sy||1)+(n.tier>=4?.95:.4);
 const topAt=(n,o,p)=>{const top=roofTop(n);if(top==null)return n.pos.clone().setY(deckY(n,p));const d=_v.set(o.pos.x-n.pos.x,0,o.pos.z-n.pos.z).normalize(),ot=roofTop(o)??deckY(o,p);
- const busy=(RTOT[n.name]||0)>6||top>90,slot=RCNT[n.name]=(RCNT[n.name]||0)+1;let y=top,R=(n.roofCw||n.w)*(n.sxz||1)*.6,ang=0;
+ const busy=(RT(p)[n.name]||0)>6||top>90,slot=RCNT[n.name]=(RCNT[n.name]||0)+1;let y=top,R=(n.roofCw||n.w)*(n.sxz||1)*.6,ang=0;
  if(busy||top-ot>25){y=Math.max(12,Math.min(top,ot+10+(slot%6)*3.2));if(y<top-1){R=n.w*(n.sxz||1)*1.08+.6;ang=((slot%5)-2)*.09}}
  const c=Math.cos(ang),s_=Math.sin(ang),dx=d.x*c-d.z*s_,dz=d.x*s_+d.z*c;return new THREE.Vector3(n.pos.x+dx*R,y,n.pos.z+dz*R)};
 // gentle arc, raised until it clears every other tower it passes over (top + 3 m, spires included)
@@ -676,8 +692,8 @@ const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clon
  const gp=THREE.CurvePath.prototype.getPoint;cp.getPoint=(t,o)=>gp.call(cp,Math.min(1-1e-7,Math.max(0,t)),o);   // CurvePath.getPoint(1) can return null (float), clamp
  cp.v0=P0;cp.v2=P3;return cp};   // v0/v2 kept: garage decks read the end heights
 pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
- const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
- const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=RAILSYNC?[helixAt(curve0,0,A),helixAt(curve0,1,B)]:null,curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
+ const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(Math.min(1,p.tvl_xrp/maxT)));
+ const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(Math.min(1,p.tvl_xrp/maxT)),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=RAILSYNC?[helixAt(curve0,0,A),helixAt(curve0,1,B)]:null,curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=!!p.promoted||TIER==='low'&&rankT.indexOf(p)>=12;   // promoted rails: no kiosk / side rails (their tubes draw in one merged batch)
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
  const core=new THREE.Mesh(new THREE.TubeGeometry(curve,64,Math.max(.06,r*.28),5),new THREE.MeshBasicMaterial({color:0xe8ffff,transparent:true,opacity:minor?.3:.35+.65*L}));g.add(core);b0.solid=solid;b0.core=core;
@@ -722,7 +738,7 @@ let swirlRecolor=null;
   'vec3 col=c*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
  const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
  bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
-   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RT(b.p)[b.p.a]||1,RT(b.p)[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
  // Remove the old endpoint torus/seal rings. Text labels remain available
  // for pool details and strict forever certification.
  const lk=bridges.filter(b=>(b.forever||b.L>=.01)&&!b.minor);
@@ -736,6 +752,7 @@ let swirlRecolor=null;
 // unverified LP percentage can create a gold bar.
 const ammGoldGeos=[],ammGoldRanges=[];let ammGoldCount=0,refreshAmmGold=()=>{};
 function addAmmGoldTube(b,curve,segments,radius,taper){
+ if(b.p.promoted)segments=Math.max(8,Math.round(segments/2));   // promoted districts: half the gold-core segments (long, distant rails)
  const sides=TIER==='low'?4:6,geo=new THREE.TubeGeometry(curve,segments,radius,sides,false),
   pos=geo.getAttribute('position'),centers=new Float32Array(pos.count*3),
   lock=new Float32Array(pos.count),fadeA=new Float32Array(pos.count),v=new THREE.Vector3();
@@ -763,7 +780,7 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
 // Join: cubic Bezier lead-in leaves the rail end along the rail tangent and lands on the helix along the helix tangent (C1, no kink);
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
 {const LOW=TIER==='low',SEGH=LOW?16:MOBILE?24:36,SEGB=LOW?5:MOBILE?7:10,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
- bridges.forEach(b=>{if(!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
+ bridges.forEach(b=>{if(!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RT(b.p)[b.p.a]||1,RT(b.p)[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
  [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const hs=b.hx&&b.hx[end];if(b.hx&&!hs)return;const k=hs?hs.k:(per[n.name]=(per[n.name]||0)+1),slot=hs?.slot||towerSpiralLane(k);
   const p0=b.curve.getPoint(end?1:0);b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
   const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+slot.radialOffset,a0=Math.atan2(dz,dx);
@@ -864,8 +881,10 @@ bridges.forEach(b=>{const vs=[vol(N[b.p.a]),vol(N[b.p.b])].filter(v=>v!=null);co
 // ---------- pool activity colouring: percentile of (24h volume + live trades), calm blue -> purple -> orange -> fire red; busier = faster pulse ----------
 const WHITE_C=new THREE.Color(0xffffff);const ACT_STOPS=[[0,new THREE.Color(0x2f7bff)],[.45,new THREE.Color(0x9a4bff)],[.75,new THREE.Color(0xff8a2a)],[1,new THREE.Color(0xff3d14)]];
 function actColor(a,out){for(let i=1;i<ACT_STOPS.length;i++)if(a<=ACT_STOPS[i][0]){const [a0,c0]=ACT_STOPS[i-1],[a1,c1]=ACT_STOPS[i];return out.copy(c0).lerp(c1,(a-a0)/(a1-a0))}return out.copy(ACT_STOPS[3][1])}
-function actScore(){const sc=bridges.map(b=>Math.log10(1+Math.min(b.vol||0,Math.max(1,b.p.tvl_xrp)*3)+(b.liveVol||0)*6));const ord=sc.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]),n=Math.max(1,ord.length-1);
- ord.forEach(([v,i],r)=>{const b=bridges[i];b.act=r/n;b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)});if(swirlRecolor)swirlRecolor()}
+function actScore(){const sc=bridges.map(b=>Math.log10(1+Math.min(b.vol||0,Math.max(1,b.p.tvl_xrp)*3)+(b.liveVol||0)*6));const ord=sc.map((v,i)=>[v,i]).filter(([v,i])=>!bridges[i].p.promoted).sort((x,y)=>x[0]-y[0]),n=Math.max(1,ord.length-1);
+ ord.forEach(([v,i],r)=>{const b=bridges[i];b.act=r/n;b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)});
+ // promoted rails are coloured on the existing rails' scale (where they would rank among them), so adding them never recolours the city
+ bridges.forEach((b,i)=>{if(!b.p.promoted)return;let k=0;for(const [v] of ord)if(v<sc[i])k++;b.act=Math.min(1,k/n);b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)});if(swirlRecolor)swirlRecolor()}
 let actDirty=0;setInterval(()=>{bridges.forEach(b=>{if(b.liveVol)b.liveVol*=.93});if(actDirty){actDirty=0;actScore()}},10000);
 
 const hoverGeo=(()=>{const col=(g,r,gg,b)=>{const n=g.attributes.position.count,c=new Float32Array(n*3);for(let i=0;i<n;i++)c.set([r,gg,b],i*3);g.setAttribute('color',new THREE.BufferAttribute(c,3));return g};
@@ -963,7 +982,7 @@ let lastToast=0,tradeCssOn=false;function whaleToast(e,i){const now=performance.
 window.__trade={showTrade,pickShip,whaleToast};
 // ---------- live tower shapes: height follows market cap, footprint follows TVL; towers ease to new size as the numbers move ----------
 const RESHAPE=new Set();
-function reshapeTowers(){MAXT=Math.max(1,...E.nodes.filter(n=>n.name!=='XRP').map(n=>n.tvl||0));
+function reshapeTowers(){MAXT=Math.max(1,...E.nodes.filter(n=>n.name!=='XRP'&&!n.promoted).map(n=>n.tvl||0));
  E.nodes.forEach(n=>{if(!n.group||n.name==='XRP')return;const ty=Math.min(2,Math.max(.5,towerH(n)/n.h0)),tx=Math.min(1.8,Math.max(.55,towerW(n)/n.w0));
   if(Math.abs(ty-n.ty)>.01||Math.abs(tx-n.txz)>.01){n.ty=ty;n.txz=tx;RESHAPE.add(n)}
   if(n.lblEl&&!n.minor){const sm=n.lblEl.querySelector('small');if(sm)sm.textContent=fmt(n.tvl)+' XRP TVL'}})}
@@ -1097,7 +1116,7 @@ function billTex(n){const c=document.createElement('canvas');c.width=512;c.heigh
  x.fillStyle='#fff';x.font='bold 64px monospace';x.fillText(n.name==='XRP'?'XRP':'$'+n.name,24,78);x.font='30px monospace';x.fillStyle='#cfe8ff';x.fillText(n.name==='XRP'?'LEDGER HUB · '+pools.filter(p=>p.a==='XRP'||p.b==='XRP').length+' pools':fmt(n.price_xrp,n.price_xrp<1?12:4)+' XRP',24,130);
  x.fillStyle=n.pro24h==null?'#888':n.pro24h>=0?'#3dff8a':'#ff4a4a';x.fillText(n.name==='XRP'?'MOOD '+pct(MOOD):'24h '+pct(n.pro24h),24,176);x.fillStyle='#7ee0ff';x.fillText('TVL '+fmt(n.tvl)+' XRP',24,222);
  for(let y=0;y<256;y+=4){x.fillStyle='rgba(0,0,0,.18)';x.fillRect(0,y,512,1)}return new THREE.CanvasTexture(c)}
-const moodTok=E.nodes.filter(n=>n.pro24h!=null&&n.name!=='XRP'&&n.name!=='RLUSD');const MOOD=moodTok.reduce((s,n)=>s+n.pro24h*n.tvl,0)/Math.max(1,moodTok.reduce((s,n)=>s+n.tvl,0));
+const moodTok=E.nodes.filter(n=>n.pro24h!=null&&n.name!=='XRP'&&n.name!=='RLUSD'&&!n.promoted);/* weather = the existing city market: promoted meme districts never move it */const MOOD=moodTok.reduce((s,n)=>s+n.pro24h*n.tvl,0)/Math.max(1,moodTok.reduce((s,n)=>s+n.tvl,0));
 E.nodes.filter(n=>!n.minor).forEach(n=>{const out=n.name==='XRP'?new THREE.Vector3(1,0,1).normalize():n.pos.clone().setY(0).normalize();const m=new THREE.Mesh(new THREE.PlaneGeometry(20,10),new THREE.MeshBasicMaterial({map:billTex(n),transparent:true,side:2,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.9}));
  m.position.copy(n.pos).addScaledVector(out,n.w*1.9+3).setY(Math.min(n.h*.5,48));m.lookAt(m.position.clone().add(out));m.userData={kind:'billboard',node:n};S.add(m);pick.push(m);const ph=Math.random()*9;anim.push(t=>m.material.opacity=Math.random()<.01?.3:.82+.12*Math.sin(t*2+ph))});
 
@@ -1280,7 +1299,7 @@ function priceFmt(v){if(v==null)return '—';const a=Math.abs(v);return a>=1?fmt
 function descNode(n){const iss=issuerOf(n),col='#'+n.col.getHexString(),bu=n.burn_complete&&n.burned_pct!=null?{burned_pct:n.burned_pct,burned:n.burn_vol}:BURNED[n.name],isX=n.name==='XRP';
  const nb=(n.burn_txs||0)+(n.liveBurns||0),ch=n.pro24h,full=descNodeTable(n),tbl=full.slice(full.indexOf('<table>'),full.indexOf('<div class="cardBtns">'));
  const kp=(l,v,sub)=>`<div class="kpi"><span>${l}</span><b>${v}</b>${sub?`<i>${sub}</i>`:''}</div>`;
- return `<button class="x" aria-label="Close">✕</button><div class="chead" style="--tc:${col}"><div class="tk">${escH(n.name.slice(0,2))}</div><div><h2 style="color:${col}">${escH(n.name)}</h2><div class="dim">$${escH(n.name)}${iss?` · <span title="${iss}">${iss.slice(0,6)}…${iss.slice(-4)}</span>`:''}${n.minor?' · minor':''}</div></div>${ch!=null?`<span class="chg ${ch>=0?'up':'dn'}">${pct(ch)}</span>`:''}</div>
+ return `<button class="x" aria-label="Close">✕</button><div class="chead" style="--tc:${col}"><div class="tk">${escH(n.name.slice(0,2))}</div><div><h2 style="color:${col}">${escH(n.name)}</h2><div class="dim">$${escH(n.name)}${iss?` · <span title="${iss}">${iss.slice(0,6)}…${iss.slice(-4)}</span>`:''}${n.promoted?'':n.minor?' · minor':''}</div>${n.promoted?`<div class="dim" style="color:${col}">🏙 Meme Circle · ${escH(({kings:'Kings Row',grinders:'Grinder Yards',degens:'Degen Strip'})[n.promoted.q]||'Meme Circle')} · Alpha #${+n.promoted.rank||'—'}${n.promoted.alpha!=null?' · α '+(+n.promoted.alpha).toFixed(1):''} · promoted district</div>`:''}</div>${ch!=null?`<span class="chg ${ch>=0?'up':'dn'}">${pct(ch)}</span>`:''}</div>
  <div class="kpis">${kp('Price',isX?'1 XRP':n.price_xrp!=null?priceFmt(n.price_xrp)+' XRP':na,'')}${isX?'':kp('Market cap',n.mc!=null?fmtS(n.mc)+' XRP':na,n.mc!=null?'tower height':'height from TVL')}${kp('TVL',fmtS(n.tvl)+' XRP','base width')}${kp('LP locked',(n.lockedShare*100).toFixed(1)+'%',LOCKT[n.tier][1])}${isX?'':kp('Burned',bu&&bu.burned_pct!=null?`<span style="color:#ff8a2a">${bu.burned_pct.toFixed(2)}%</span>`:nb?'🔥 '+fmt(nb)+' txs':na,bu&&bu.burned!=null?fmtS(bu.burned)+' '+n.name:nb?'supply % not verified':'')}</div>
  ${isX||!iss?'':`<div class="rb"><div class="rbh">🔥 Recent burns <span class="dim">sent to issuer</span></div><div class="rbl" data-iss="${escH(iss)}" data-cur="${escH(n.key.split('-')[1])}" data-tok="${escH(n.name)}"><span class="dim">Loading from the ledger…</span></div></div>`}
  <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade ${isX?'':'$'+escH(n.name)+' '}on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>
@@ -1300,7 +1319,7 @@ function descAd(a){const e=t=>String(t||'').replace(/[<&"]/g,'');return `<button
   const pc=100*(+l.balance)/n.circ,b=pc<.5?0:pc<1?1:pc<2?2:pc<5?3:pc<10?4:5;const sb=n.holderB.find(x=>!x.holder.role&&x.holder.b===b);if(!sb||(b===0&&pc<.05))return;
   const m=new THREE.Mesh(new THREE.BoxGeometry(sb.w*1.5,sb.h*1.15,sb.w*1.5),gm);m.position.set(sb.x,sb.h*.55,sb.z);S.add(m);n.myHold=pc;anim.push(t=>m.material.opacity=.3+.2*Math.sin(t*2.5))})})();
 window.__holderNick=null; // hook: opt-in nickname for your own holder building (later)
-const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LPD.c],colliders,streetMat:STREETML,STRIP});window.__estate=ESTATE;
+const ESTATE=buildEstate({S,U,pick,anim,nodes:BASE_NODES,low:TIER==='low',avoid:[LPD.c],colliders,streetMat:STREETML,STRIP});window.__estate=ESTATE;
 // ---------- ledger veins: faint light trails in the ground under every AMM bridge; a pulse runs along on each live trade ----------
 {const NV=Math.min(TIER==='low'?8:(TIER==='medium'||MOBILE)?14:40,bridges.length),P=[],UV=[],IX=[],BI=[],act=new Float32Array(40),pt=new Float32Array(40).fill(-99);
  bridges.slice(0,NV).forEach((b,i)=>{if(!b.curve)return;const pts=[];for(let k=0;k<=32;k++){const q=b.curve.getPoint(k/32);pts.push(new THREE.Vector3(q.x,.07,q.z))}const n0=P.length/3;STRIP(pts,false,1.3,P,UV,IX);for(let k=n0;k<P.length/3;k++)BI.push(i)});
@@ -1772,8 +1791,39 @@ function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again
  if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
 try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick,onVerifiedPool:refreshAmmGold})}catch(e){console.warn('amm-lock',e)}
-try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:E.nodes,onRoad:(x,z,r)=>onRoad(x,z,r)||ESTATE.beach.contains(x,z,r),colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
-try { if(!Q.has('nobirds')) window.__cityBirds=installCityBirds({scene:S,nodes:E.nodes,tier:TIER,anim}); } catch(e) {console.warn('city birds optional pass',e)}
+// ---------- promoted meme districts (memes-promote-core.mjs): every promoted rail's tubes in TWO merged draws, towers swap to ONE
+// instanced impostor draw beyond a per-tier distance. The per-bridge meshes stay (hidden) as the data source: their colours,
+// opacities, pulses and activity are copied into a tiny per-bridge texture each frame, so every existing rail behaviour still applies.
+{const PB=bridges.filter(b=>b.p.promoted&&b.solid&&b.core),PT=E.nodes.filter(n=>n.promoted&&n.group),ST={bridges:PB.length,towers:PT.length,near:0,draws:0};window.__promoteStats=()=>({...ST,lod:LODD});
+ const LODD=Q.get('promotelod')?+Q.get('promotelod'):TIER==='low'?420:TIER==='medium'?650:950;
+ if(PB.length){const W=PB.length,data=new Uint8Array(W*3*4),tex=new THREE.DataTexture(data,W,3,THREE.RGBAFormat);tex.magFilter=tex.minFilter=THREE.NearestFilter;tex.needsUpdate=true;
+  const SEG=TIER==='low'?28:MOBILE?36:48,merged=key=>{const gs=PB.map((b,i)=>{const g=key==='solid'?new THREE.TubeGeometry(b.curve,SEG,b.r,TIER==='low'?5:7):new THREE.TubeGeometry(b.curve,SEG,Math.max(.06,b.r*.28),4);for(const k of Object.keys(g.attributes))if(k!=='position'&&k!=='uv')g.deleteAttribute(k);   // lighter tubes than the per-bridge 64x8 (these rails are long and far from downtown)
+g.setAttribute('bi',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(i),1));return g});const m=mergeGeometries(gs,false);gs.forEach(g=>g.dispose());return m};
+  const VS=`attribute float bi;varying float vB;varying vec2 vU;\n#include <fog_pars_vertex>\nvoid main(){vB=bi;vU=uv;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`;
+  const at=row=>`texture2D(tex,vec2((floor(vB+.5)+.5)/${W}.,${(row+.5)/3}))`;
+  const solidM=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:true,uniforms:{...fogU(),tex:{value:tex}},vertexShader:VS,
+   fragmentShader:`uniform sampler2D tex;varying float vB;varying vec2 vU;\n#include <fog_pars_fragment>\nvoid main(){vec4 s=${at(0)};if(s.a<.004)discard;gl_FragColor=vec4(s.rgb,s.a);\n${TAIL}\n}`});
+  const coreM=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t,tex:{value:tex}},vertexShader:VS.replace(/\n#include <fog_pars_vertex>\n/,'\n').replace(/\n#include <fog_vertex>\n/,'\n'),
+   fragmentShader:`uniform sampler2D tex;uniform float t;varying float vB;varying vec2 vU;void main(){vec4 c=${at(1)};if(c.a<.004)discard;float sp=${at(2)}.r*2.;float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);gl_FragColor=vec4(c.rgb*(.55+1.1*streak),c.a*(.55+.45*streak));}`});
+  const mS=new THREE.Mesh(merged('solid'),solidM),mC=new THREE.Mesh(merged('core'),coreM);mS.userData.noBatch=mC.userData.noBatch=1;mS.name='promoted-rails';mC.name='promoted-rail-cores';S.add(mS,mC);ST.draws+=2;
+  PB.forEach(b=>{b.solid.visible=false;b.core.visible=false});   // still picked (raycasts ignore .visible), still animated, just not drawn one by one
+  const B=v=>Math.max(0,Math.min(255,Math.round(v*255)));
+  anim.push(()=>{for(let i=0;i<W;i++){const b=PB[i],v=b.group.visible,sm=b.solid.material,cm=b.core.material,o0=i*4,o1=(W+i)*4,o2=(2*W+i)*4;
+   data[o0]=B(sm.color.r);data[o0+1]=B(sm.color.g);data[o0+2]=B(sm.color.b);data[o0+3]=v?B(sm.opacity):0;
+   const cc=cm.uniforms?cm.uniforms.c.value:cm.color;data[o1]=B(cc.r);data[o1+1]=B(cc.g);data[o1+2]=B(cc.b);data[o1+3]=v?B(cm.uniforms?cm.uniforms.op.value:cm.opacity):0;
+   data[o2]=B((cm.uniforms?cm.uniforms.sp.value:.5)/2)}tex.needsUpdate=true})}
+ // far LOD: hide each promoted tower group past LODD and show it in one instanced impostor draw instead (replay keeps control of its own visibility)
+ if(PT.length){const imM=new THREE.ShaderMaterial({fog:true,uniforms:{...fogU()},vertexShader:`varying vec3 vC;varying vec2 vF;varying float vY;\n#include <fog_pars_vertex>\nvoid main(){vC=instanceColor;vY=position.y;vF=vec2(position.x+position.z,position.y)*vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
+   fragmentShader:`varying vec3 vC;varying vec2 vF;varying float vY;\n#include <fog_pars_fragment>\nvoid main(){vec2 g=fract(vF/vec2(2.4,3.2));float win=step(.2,g.x)*step(g.x,.8)*step(.25,g.y)*step(g.y,.75);vec3 c=vec3(.03,.035,.05)+vC*(.18+.5*win)+vC*smoothstep(.9,1.,vY)*1.2;gl_FragColor=vec4(c,1.);\n${TAIL}\n}`});
+  const im=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1).translate(0,.5,0),imM,PT.length);im.frustumCulled=false;im.name='promoted-impostors';
+  PT.forEach((n,i)=>im.setColorAt(i,n.col.clone()));S.add(im);ST.draws+=1;const z0=new THREE.Matrix4().makeScale(0,0,0),M=new THREE.Matrix4(),_pv=new THREE.Vector3(),_ps=new THREE.Vector3(),_pq=new THREE.Quaternion();let acc=1;
+  anim.push((t,dt)=>{if((acc+=dt||.016)<.35)return;acc=0;let far=0;ST.near=0;for(let i=0;i<PT.length;i++){const n=PT[i];if(n.rp){im.setMatrixAt(i,z0);continue}
+   const near=C.position.distanceTo(_pv.set(n.pos.x,Math.min(C.position.y,n.h*.5),n.pos.z))<LODD;if(n.group.visible!==near)n.group.visible=near;
+   if(near){ST.near++;im.setMatrixAt(i,z0)}else{far++;const g=n.group.scale,w=n.w0*1.25*g.x;M.compose(_pv.set(n.pos.x,0,n.pos.z),_pq.identity(),_ps.set(w,n.h0*g.y,w));im.setMatrixAt(i,M)}}
+   im.visible=far>0;im.instanceMatrix.needsUpdate=true})}}
+
+try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:BASE_NODES,onRoad:(x,z,r)=>onRoad(x,z,r)||ESTATE.beach.contains(x,z,r),colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
+try { if(!Q.has('nobirds')) window.__cityBirds=installCityBirds({scene:S,nodes:BASE_NODES,tier:TIER,anim}); } catch(e) {console.warn('city birds optional pass',e)}
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
 
 function updFX(t,dt){

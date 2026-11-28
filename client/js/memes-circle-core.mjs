@@ -4,6 +4,8 @@
 // `pickTowers(data, { max: 150 })` + smaller LOD tiers; nothing else in this file needs to change shape.
 
 // The four quadrants of the chart -> in-game districts. In-game names only: the chart's "Under Surveillance" is "The Watchline".
+import { shapeW, gradeOf } from './tower-shape-core.mjs';   // tower shape: base = AMM liquidity (absolute log ruler), grade
+
 export const ZONES = {
   kings:     { id: 'kings',     name: 'Kings Row',     blurb: 'Strong market + healthy holders', col: 0xffc44d, haze: 0xffb347, tint: [1.0, .78, .42] },
   grinders:  { id: 'grinders',  name: 'Grinder Yards', blurb: 'Healthy holders, still building size', col: 0x3dff8a, haze: 0x2bd46a, tint: [.35, 1.0, .55] },
@@ -70,16 +72,19 @@ export function slotsFor(zone, center, a0, R = QUARTER.R) {
 
 // Place towers (already in priority order) into their zone's slots, skipping slots too close to a placed neighbour. If a district
 // runs out of room (flat TVL spread = many wide towers), footprints shrink step by step until everyone fits (heights never change).
-export function layoutTowers(towers, center, a0, R = QUARTER.R) {
-  const maxTvl = Math.max(1, ...towers.map(t => +t.tvl || 0));
+// Shaped (default): base = shapeW(tvl) on the City's absolute liquidity ruler, so a meme's base means the same as a district's;
+// `shape: 'classic'` keeps the old sqrt-of-the-deepest-meme ruler. Each placed tower carries its grade (judged on the drawn base).
+export function layoutTowers(towers, center, a0, R = QUARTER.R, { shape = 'shaped' } = {}) {
+  const maxTvl = Math.max(1, ...towers.map(t => +t.tvl || 0)), wOf = t => shape === 'classic' ? towerW(t.tvl, maxTvl) : shapeW(t.tvl);
   let best = [];
   for (const k of [1, .85, .7, .58, .48, .4]) {
     const placed = [], free = {}; for (const id of ORDER) free[id] = slotsFor(id, center, a0, R);
     for (const t of towers) {
-      const w = +(towerW(t.tvl, maxTvl) * k).toFixed(2), h = towerH(t.mcap), list = free[t.q]; if (!list) continue;
+      const w = +(wOf(t) * k).toFixed(2), h = towerH(t.mcap), list = free[t.q]; if (!list) continue;
       const i = list.findIndex(s => placed.every(p => Math.hypot(p.x - s.x, p.z - s.z) > (p.w + w) * .75 + 4));
       if (i < 0) continue; const s = list.splice(i, 1)[0];
-      placed.push({ t, x: s.x, z: s.z, w, h, zone: t.q, ring: s.ring, face: Math.atan2(center.z - s.z, center.x - s.x) });
+      const g = shape === 'classic' ? { grade: 'standard', pencil: false } : gradeOf(w, h);   // the quarter draws the ruler value as the box side; grade on the same ruler as the districts
+      placed.push({ t, x: s.x, z: s.z, w, h, zone: t.q, ring: s.ring, face: Math.atan2(center.z - s.z, center.x - s.x), grade: g.grade, pencil: g.pencil });
     }
     if (placed.length > best.length) best = placed;
     if (placed.length === towers.filter(t => free[t.q]).length) break;

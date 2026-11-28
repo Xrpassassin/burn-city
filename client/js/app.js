@@ -42,6 +42,7 @@ import {goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpac
 import {installCityNature} from './city-nature-render.mjs';
 import {installCityBirds} from './city-birds-render.mjs';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
 import {placePromoted,HOME as PROMO_HOME,quarterA0} from './memes-promote-core.mjs';   // promoted meme districts: placement beside the Meme Circle quarter
+import {towerShape,shapeMode,plotMaxW} from './tower-shape-core.mjs';   // tower shape: base = AMM liquidity, height = market cap, grade (?shape=classic = old ruler)
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
 
 // ---------- config / device ----------
@@ -174,13 +175,19 @@ Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a
 const mcOf=n=>n.name==='XRP'?null:n.mcap!=null?n.mcap:n.mcap_amm!=null?n.mcap_amm:null;
 let MAXT=Math.max(1,...E.nodes.filter(n=>n.name!=='XRP'&&!n.promoted).map(n=>n.tvl||0));   // promoted districts never re-scale the existing towers
 function towerH(n){if(n.name==='XRP')return 125;const v=n.mc!=null?n.mc:n.tvl;return Math.min(122,Math.max(12,12+15.4*(Math.log10(Math.max(100,v||0))-2)))}
-function towerW(n){return n.name==='XRP'?11:+(2+7.5*Math.sqrt(Math.min(1,Math.max(0,n.tvl||0)/MAXT))).toFixed(2)}
+function towerWClassic(n){return n.name==='XRP'?11:+(2+7.5*Math.sqrt(Math.min(1,Math.max(0,n.tvl||0)/MAXT))).toFixed(2)}
+// tower shape (tower-shape-core.mjs, Derrik Nov 28): base width = total AMM liquidity on an ABSOLUTE log ruler, fitted to the plot the
+// district already has (n.wMax: positions and district radii never move); height = the same mcap ruler as towerH. ?shape=classic = old sqrt ruler.
+const SHAPE=shapeMode(location.search)==='shaped';window.__shapeMode=SHAPE?'shaped':'classic';
+function towerW(n){return n.name==='XRP'?11:SHAPE&&n.wMax!=null?towerShape(n.tvl,n.mc,{maxW:n.wMax}).w:towerWClassic(n)}
 const PZC={kings:0xffc44d,grinders:0x3dff8a,degens:0xc04dff};E.nodes.forEach(n=>{if(n.promoted)n.minor=true});
 E.nodes.forEach((n,i)=>{const th=THEME[n.name]||(n.promoted?{c:PZC[n.promoted.q]||0xffc44d}:{c:MINORC[i%MINORC.length]});n.th=th;n.col=new THREE.Color(th.c);
  // HEIGHT = market cap in XRP (circulating supply x AMM price, log scale); BASE WIDTH = pool TVL in XRP (sqrt scale)
  n.mc=mcOf(n);n.h=towerH(n);
- n.w=towerW(n);
- n.distR=n.name==='XRP'?66:n.minor?n.w*3.4+5:n.landmark?n.w*2.4+14:n.w*3+28;});
+ n.w=towerWClassic(n);
+ n.distR=n.name==='XRP'?66:n.minor?n.w*3.4+5:n.landmark?n.w*2.4+14:n.w*3+28;   // district radius from the classic width: every plot stays where it was
+ if(SHAPE&&n.name!=='XRP'){n.wMax=+plotMaxW(n.distR,n.minor).toFixed(2);const sh=towerShape(n.tvl,n.mc,{maxW:n.wMax});n.w=sh.w;n.h=sh.h;n.grade=sh.grade;n.pencil=sh.pencil;n.shapeQ=sh.q}});
+window.__towerShapes=()=>E.nodes.filter(n=>n.name!=='XRP').map(n=>({name:n.name,tvl:n.tvl,mc:n.mc,w:n.w,h:n.h,grade:n.grade||'classic',pencil:!!n.pencil,wMax:n.wMax,promoted:!!n.promoted,x:n.pos?+n.pos.x.toFixed(1):null,z:n.pos?+n.pos.z.toFixed(1):null}));
 // promoted districts: just outside the Meme Circle quarter, beside their own zone's wedge (memes-promote-core.mjs), clear of everything
 {const PN=E.nodes.filter(n=>n.promoted);if(PN.length){const cen=PROMO_HOME,a0=quarterA0(cen),taken=BASE_NODES.filter(n=>n.pos).map(n=>({x:n.pos.x,z:n.pos.z,r:n.distR}));
  const P=placePromoted(PN.map(n=>({name:n.name,q:n.promoted.q,r:n.distR})),{cen,a0,taken}),by=new Map(P.map(p=>[p.name,p]));
@@ -284,15 +291,15 @@ const river=new THREE.Mesh(new THREE.RingGeometry(75,87,160,1),new THREE.ShaderM
 river.rotation.x=-Math.PI/2;river.position.y=.12;S.add(river);
 
 // ---------- building material: shader windows, fake AO, top-edge glow (instanced + non-instanced) ----------
-function bMat(color=0xffffff,dens=1){return new THREE.ShaderMaterial({fog:true,defines:TIER==='low'?{LOWQ:''}:{},uniforms:{...fogU(),c:{value:new THREE.Color(color)},d:{value:dens},t:U.t,day:U.day,flash:U.flash},
+function bMat(color=0xffffff,dens=1,lit=0){return new THREE.ShaderMaterial({fog:true,defines:TIER==='low'?{LOWQ:''}:{},uniforms:{...fogU(),c:{value:new THREE.Color(color)},d:{value:dens},uLit:{value:lit},t:U.t,day:U.day,flash:U.flash},   // lit: extra lit-window share (grand towers), a uniform so every facade keeps ONE program
  vertexShader:`varying vec3 wp,wn,vC,vN,vV;varying float ly;\n${FOGV}\nvoid main(){mat4 M=modelMatrix;\n#ifdef USE_INSTANCING\nM=modelMatrix*instanceMatrix;\n#endif\n
  vec4 w=M*vec4(position,1.);wp=w.xyz;wn=normalize(transpose(inverse(mat3(M)))*normal);ly=position.y;\n#ifdef USE_INSTANCING_COLOR\nvC=instanceColor;\n#else\nvC=vec3(1.);\n#endif\nvec4 mvPosition=viewMatrix*w;vV=-mvPosition.xyz;vN=normalize((viewMatrix*vec4(wn,0.)).xyz);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
- fragmentShader:`uniform vec3 c;uniform float d,t,day,flash;varying vec3 wp,wn,vC,vN,vV;varying float ly;\n#include <fog_pars_fragment>\n${NOISE}
+ fragmentShader:`uniform vec3 c;uniform float d,t,day,flash,uLit;varying vec3 wp,wn,vC,vN,vV;varying float ly;\n#include <fog_pars_fragment>\n${NOISE}
  // procedural facade: glass curtain wall w/ mullions + floor bands, gradient-sky reflection, random lit windows (more at night), distance LOD, base AO. NaN-safe (clamped pow/normalize).
  void main(){vec3 col=c*vC;vec3 o=mix(vec3(.016,.02,.038),vec3(.12,.135,.16),day);vec3 N=normalize(wn+vec3(0.,1e-5,0.)),vw=normalize(cameraPosition-wp+vec3(1e-4));
  float ndv=clamp(abs(dot(N,vw)),0.,1.),fr=pow(1.-ndv,3.);
  if(abs(N.y)<.6){vec2 uv=vec2(abs(N.x)>abs(N.z)?wp.z:wp.x,wp.y)*vec2(.95,.75)*d;vec2 cell=floor(uv),f=fract(uv);
-  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day),h21(cell+floor(t*.04+h21(cell)*30.)));lit*=mix(.2,1.,step(.28,h21(vec2(cell.y*1.9+7.,floor((wp.x+wp.z)*.09)))));float warm=step(.8,h21(cell*3.1));
+  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day)-uLit,h21(cell+floor(t*.04+h21(cell)*30.)));lit*=mix(.2,1.,step(.28,h21(vec2(cell.y*1.9+7.,floor((wp.x+wp.z)*.09)))));float warm=step(.8,h21(cell*3.1));
   vec3 wc=mix(col,vec3(1.,.82,.58),warm*.65)*(.25+.55*h21(cell*1.7))*(1.-day*.75);
  #ifdef LOWQ
   o+=wc*win*lit;
@@ -326,13 +333,13 @@ const pick=[],colliders=[],anim=[],labelEls=[];
 const segGeo=new THREE.CylinderGeometry(.82,1,1,4,1);segGeo.rotateY(Math.PI/4);
 const LOCKT=[[0,'Under construction'],[.15,'Framed'],[.4,'Standard'],[.7,'Premium'],[.92,'Flagship']];
 const lockTier=L=>{let t=0;LOCKT.forEach(([th],i)=>{if(L>=th)t=i});return t};
-const TDENS=[.6,.85,1.15,1.35,1.55];const tierMat=(c,t)=>matCache[c+'|'+t]||(matCache[c+'|'+t]=bMat(c,TDENS[t]));
+const TDENS=[.6,.85,1.15,1.35,1.55];const tierMat=(c,t)=>matCache[c+'|'+t]||(matCache[c+'|'+t]=bMat(c,TDENS[t]));const grandMat=(c,t)=>matCache[c+'|'+t+'|g']||(matCache[c+'|'+t+'|g']=bMat(c,TDENS[t],.2));   // grand: same program, more lit windows
 // shared tier part materials (keeps batching keys identical across towers)
 const PM={scaf:new THREE.LineBasicMaterial({color:0xffb000,transparent:true,opacity:.5}),warn:new THREE.SpriteMaterial({map:GT,color:0xffa000,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}),
  glass:new THREE.MeshStandardMaterial({color:0x9fd8ff,metalness:.95,roughness:.08,transparent:true,opacity:.22,depthWrite:false}),chrome:new THREE.MeshStandardMaterial({color:0xdfe8ff,metalness:1,roughness:.18}),
  padM:new THREE.MeshStandardMaterial({color:0x10182c,metalness:.8,roughness:.3})};
 const WARN=[[],[]];const scafGeo=new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1,1,3,1));
-function tierParts(n,g,si,y,spH,cw,sides){const T=n.tier,col=n.col;
+function tierParts(n,g,si,y,spH,cw,sides){const T=n.tier,col=n.col;if(n.grade==='plain'&&T>=2)return;   // plain / pencil towers stay plain (no glass sheath, trims or flagship crown)
  if(T<=1){// under construction: amber scaffold cage on the upper body + blinking work lights + tower crane
   const top=si[si.length-1],cover=T===0?si.slice(-2):[top];cover.forEach(q=>{const sc=new THREE.LineSegments(scafGeo,PM.scaf);sc.scale.set(q.cw*2.25,q.sh*1.02,q.cw*2.25);sc.position.y=q.y+q.sh/2;g.add(sc)});
   const ly=top.y+top.sh;for(let k=0;k<(n.minor?1:2);k++)WARN[k].push(n.pos.x+(k?-1:1)*top.cw*1.1,ly+.5,n.pos.z);
@@ -358,16 +365,22 @@ function signatureTop(n,g,y,spH,cw){const k=n.name,em=neonStd(n.th.c,2.2);
 function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);const col=n.col;
  const locked=pools.filter(p=>p.a===n.name||p.b===n.name).reduce((s,p)=>s+p.tvl_xrp*p.locked_pct/100,0)/Math.max(1,n.tvl);n.lockedShare=locked;const T=n.tier=n.name==='XRP'?4:lockTier(locked);
  // architecture by lock tier (base width n.w and total height n.h unchanged): 0 boxy concrete, 1 stepped setbacks, 2 tapered glass, 3+ twisted spires
- const SIL=n.name==='XRP'?2:Math.min(3,T),sides=n.name==='XRP'?12:SIL===0?4:SIL===1?(n.minor?4:6):n.minor?6:8;
- let y=0,cw=n.w;const segs=n.minor?2:n.name==='XRP'?5:4;const mat=tierMat(n.th.c,T);const segInfo=[];
- for(let s=0;s<segs;s++){const sh=n.h*(s===0?.42:.58/(segs-1)),top=cw*(SIL===0?.97:SIL===1?1:s===segs-1?.62:.84);const geo=new THREE.CylinderGeometry(top,cw,sh,sides,1),ug=new THREE.CylinderGeometry(top/cw,1,1,sides,1);
+ // tower shape grade (tower-shape-core.mjs): grand = stepped setbacks + richer lit facade + crown & taller spire (same draw count:
+ // crown parts share the spire material, batchStatic merges them); plain / pencil = slim and plain (no fins, edges, glass or crowns)
+ const GR=n.name==='XRP'?null:n.grade,grand=GR==='grand',plain=GR==='plain',pen=!!n.pencil;
+ const SIL=n.name==='XRP'?2:grand?1:pen?2:Math.min(3,T),sides=n.name==='XRP'?12:grand?(n.minor?6:8):SIL===0?4:SIL===1?(n.minor?4:6):n.minor?6:8;
+ let y=0,cw=n.w;const segs=n.minor?2:n.name==='XRP'?5:4;const mat=grand?grandMat(n.th.c,T):tierMat(n.th.c,T);const segInfo=[];
+ for(let s=0;s<segs;s++){const sh=n.h*(s===0?.42:.58/(segs-1)),top=pen?cw*.96:cw*(SIL===0?.97:SIL===1?1:s===segs-1?.62:.84);const geo=new THREE.CylinderGeometry(top,cw,sh,sides,1),ug=new THREE.CylinderGeometry(top/cw,1,1,sides,1);
   if(sides===4){ug.rotateY(Math.PI/4);geo.rotateY(Math.PI/4)}const m=new THREE.Mesh(ug,mat);m.scale.set(cw,sh,cw);m.position.y=y+sh/2;if(SIL===3&&!n.minor){m.rotation.y=s*.32;}g.add(m);segInfo.push({y,sh,cw,top});
-  if(!n.minor&&T>=2){const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.45}));e.position.copy(m.position);g.add(e)}
+  if(!n.minor&&T>=2&&!plain){const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.45}));e.position.copy(m.position);g.add(e)}
   const ledge=new THREE.Mesh(new THREE.CylinderGeometry(top*1.14,top*1.18,.6,sides),neonStd(n.th.c,.9));ledge.position.y=y+sh;g.add(ledge);
-  if(s===0&&!n.minor&&T>=1)for(let k=0;k<sides;k++){const a=k/sides*Math.PI*2+Math.PI/sides;const fin=new THREE.Mesh(new THREE.BoxGeometry(.35,sh*.9,cw*.28),neonStd(n.th.c,.35));
+  if(s===0&&!n.minor&&T>=1&&!plain)for(let k=0;k<sides;k++){const a=k/sides*Math.PI*2+Math.PI/sides;const fin=new THREE.Mesh(new THREE.BoxGeometry(.35,sh*.9,cw*.28),neonStd(n.th.c,.35));
    fin.position.set(Math.cos(a)*cw*.98,sh*.45,Math.sin(a)*cw*.98);fin.rotation.y=-a;g.add(fin)}
-  y+=sh;cw=SIL===0?top*.96:SIL===1?top*.78:top*.9}
- const spH=n.h*(n.minor?.18:.3);const spire=new THREE.Mesh(new THREE.ConeGeometry(cw*.55,spH,sides),neonStd(n.th.c,1.4));spire.position.y=y+spH/2;g.add(spire);
+  y+=sh;cw=pen?top:grand?top*.8:SIL===0?top*.96:SIL===1?top*.78:top*.9}
+ const spM=neonStd(n.th.c,1.4),spH=n.h*(pen?.14:grand?(n.minor?.24:.34):n.minor?.18:.3);const spire=new THREE.Mesh(new THREE.ConeGeometry(cw*(pen?.98:.55),spH,sides),spM);spire.position.y=y+spH/2;g.add(spire);
+ if(grand&&!(T>=4&&!n.minor)){// grand crown: corner pinnacles + a crown band, all on the spire material (merged into the spire's draw)
+  const pk=sides>=8?4:3;for(let k=0;k<pk;k++){const a=k/pk*6.283+Math.PI/sides,p=new THREE.Mesh(new THREE.ConeGeometry(cw*.13,spH*.42,4),spM);p.position.set(Math.cos(a)*cw*.86,y+spH*.21,Math.sin(a)*cw*.86);g.add(p)}
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(cw*1.02,cw*1.08,Math.max(.5,n.h*.012),sides,1,true),spM);band.position.y=y-Math.max(.5,n.h*.012)*.5-.4;g.add(band)}
  const antH=n.h*.16;const ant=new THREE.Mesh(new THREE.CylinderGeometry(.08,.14,antH,4),new THREE.MeshBasicMaterial({color:0xdde8ff}));ant.position.y=y+spH+antH/2;g.add(ant);
  const beacon=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:col,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));beacon.scale.setScalar(n.w*1.3+2);beacon.position.y=y+spH+antH;g.add(beacon);
  const red=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:0xff2222,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));red.scale.setScalar(2.5);red.position.y=y+spH*.6;g.add(red);
@@ -1289,7 +1302,7 @@ function descNodeTable(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).s
  const burnRow=n.name==='XRP'?'':`<tr><td>Burned to issuer</td><td>${bu&&bu.burned_pct!=null?`<b style="color:#ff8a2a">${bu.burned_pct.toFixed(2)}%</b> <i class="est" title="${fmtS(bu.burned)} burned in ${bu.burn_txs} txs vs ${fmtS(bu.outstanding)} outstanding (ledger scan)">est.</i>`:`${na} <span class="dim" title="Issuer history too long to scan fully; no number shown rather than a partial one">(not verified)</span>`}</td></tr>`;
  return `<button class="x" aria-label="Close">✕</button><h2 style="color:#${n.col.getHexString()}">${escH(n.name)}${n.minor?' <small style="opacity:.6">minor · near '+escH(n.parent)+'</small>':''}</h2><table>
  <tr><td>Price</td><td>${n.name==='XRP'?'1 XRP':n.price_xrp!=null?fmt(n.price_xrp,12)+' XRP <i class="est" title="market price (XRPLMeta / xrpl.to)">est.</i>':na}</td></tr><tr><td>24h / 1h</td><td>${pct(n.pro24h)} / ${pct(n.pro1h)}</td></tr>
- ${n.name==='XRP'?'':`<tr><td>Market cap <span class="dim">(height)</span></td><td>${n.mc!=null?fmt(n.mc)+' XRP'+(n.mcap_src==='xrpl.to'||n.mcap_src==='market'?` <i class="est" title="AMM liquidity under 1,000 XRP, so the market cap is the market data's (XRPLMeta / xrpl.to)">mkt</i>`:n.mcap_src==='amm-thin'?` <i class="est" title="price from a thin pool (<1,000 XRP depth)">thin</i>`:n.mcap==null?'':n.price_src&&n.price_src!=='amm-xrp'?` <i class="est" title="priced via ${n.price_src.replace('amm-via-','')} AMM">est.</i>`:''):na}</td></tr>`}
+ ${n.name==='XRP'?'':`<tr><td>Market cap <span class="dim">(height)</span></td><td>${n.mc!=null?fmt(n.mc)+' XRP'+(n.mcap_src==='xrpl.to'||n.mcap_src==='market'?` <i class="est" title="AMM liquidity under 1,000 XRP, so the market cap is the market data's (XRPLMeta / xrpl.to)">mkt</i>`:n.mcap_src==='amm-thin'?` <i class="est" title="price from a thin pool (<1,000 XRP depth)">thin</i>`:n.mcap==null?'':n.price_src&&n.price_src!=='amm-xrp'?` <i class="est" title="priced via ${n.price_src.replace('amm-via-','')} AMM">est.</i>`:''):na}</td></tr>`}${n.grade&&n.name!=='XRP'?`<tr><td>Tower shape <span class="dim">(base = AMM liquidity · height = market cap)</span></td><td>${({grand:'Grand',standard:'Standard',plain:'Plain'})[n.grade]}${n.pencil?' · pencil <span class="dim">(thin liquidity, high cap)</span>':''} <span class="dim">· base ${(+n.w).toFixed(1)} · height ${Math.round(n.h)}</span></td></tr>`:''}
  ${n.top10_pct!=null?`<tr><td>Top 10 holders hold</td><td>${n.top10_pct}%${n.top_partial?' (partial scan)':''}${n.myHold?` · <b style="color:#fff2a0">you: ${n.myHold<.01?'<0.01':n.myHold.toFixed(2)}%</b>`:''}</td></tr>`:''}${burnRow}${n.name==='XRP'?'':`<tr><td>Burn txs <span class="dim">(${n.scar_txs??0} flames · >10 XRP each; sparks on the energy spiral)</span></td><td>${(n.burn_txs||0)+(n.liveBurns||0)?`${n.burn_complete?'':'≥'}${fmt((n.burn_txs||0)+(n.liveBurns||0))}${n.burn_vol?' · '+fmtS(n.burn_vol)+' '+escH(n.name):''}${n.burn_complete?'':' <span class="dim" title="Only recent issuer history was scanned">(partial scan)</span>'}`:n.burn_txs===0&&n.burn_complete?'0':na}</td></tr>`}
  <tr><td>LP locked <span class="dim">(build tier)</span></td><td>${(n.lockedShare*100).toFixed(1)}% · <b>${LOCKT[n.tier][1]}</b></td></tr>
  <tr><td>Pool TVL <span class="dim">(width)</span></td><td>${fmt(n.tvl)} XRP${ps.some(p=>p.a!=='XRP'&&p.b!=='XRP')?' <i class="est" title="non-XRP pools valued at market price">est.</i>':''}</td></tr><tr><td>24h volume</td><td>${n.vol24h!=null?fmt(n.vol24h)+' XRP':na}</td></tr><tr><td>Holders</td><td>${n.holders!=null?fmt(n.holders):na}</td></tr><tr><td>Active wallets <span class="dim">(block density)</span></td><td>${n.active!=null?fmt(n.active)+(n.active_src==='holders'?' <i class="est" title="no trader data: holder count">holders</i>':' <span class="dim" title="unique wallets that traded in the last 24h (xrpl.to)">24h traders</span>'):na}</td></tr></table>

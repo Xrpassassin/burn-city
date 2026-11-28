@@ -48,7 +48,9 @@ function init(c, data) {
   const blocked = (x, z, r) => (c.colliders || []).some(o => o && !o.memes && Math.hypot(o.x - x, o.z - z) < r + (o.r || 0)) ||
     !!(window.__estate && window.__estate.inLake && window.__estate.inLake(x, z, r)) || Math.hypot(x, z) - r < 330;
   const cands = []; for (const rr of [480, 500, 520, 560, 600]) for (const a of [3.63, 3.55, 3.72, 3.45, 3.82, 3.35]) cands.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr });
-  const cen = MC.pickCenter(cands, blocked, R);
+  // promoted meme districts (app.js + memes-promote-core.mjs) are laid out around HOME; the quarter then stands exactly there
+  const PRO = window.__memesPromote && window.__memesPromote.nodes && window.__memesPromote.nodes.length ? window.__memesPromote : null;
+  const cen = PRO ? { x: PRO.cen.x, z: PRO.cen.z, clear: !blocked(PRO.cen.x, PRO.cen.z, R + 8), pinned: true } : MC.pickCenter(cands, blocked, R);
   const toCity = Math.atan2(-cen.z, -cen.x);
   const a0 = toCity + PI / 4;   // the avenue between Kings Row and Degen Strip ("Market Street") points at downtown
   const A = MC.zoneAngles(a0), mkt = a0 - PI / 4;
@@ -251,7 +253,7 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     list.forEach((p, i) => { const cx = (i % 4) * CW, cy = Math.floor(i / 4) * CH, z = MC.ZONES[p.zone]; const pad = CH * .08;
       g.fillStyle = 'rgba(8,9,14,.82)'; rrect(g, cx + pad, cy + pad, CW - pad * 2, CH - pad * 2, CH * .18); g.fill(); g.strokeStyle = hx(z.col); g.lineWidth = Math.max(1.5, CH * .05); g.stroke();
       g.fillStyle = '#fff'; g.font = `800 ${Math.round(CH * .36)}px system-ui,sans-serif`; fitText(g, p.t.label, cx + CW / 2, cy + CH * .38, CW - CH * .5);
-      g.fillStyle = hx(z.col); g.font = `700 ${Math.round(CH * .24)}px system-ui,sans-serif`; fitText(g, p.zone === 'watchline' ? 'The Watchline' : `#${p.t.rank} · α ${p.t.alpha.toFixed(1)}`, cx + CW / 2, cy + CH * .73, CW - CH * .4); });
+      g.fillStyle = hx(z.col); g.font = `700 ${Math.round(CH * .24)}px system-ui,sans-serif`; fitText(g, p.zone === 'watchline' ? 'The Watchline' : p.ptr ? `#${p.t.rank} · ➜ its own district` : `#${p.t.rank} · α ${p.t.alpha.toFixed(1)}`, cx + CW / 2, cy + CH * .73, CW - CH * .4); });
     atlas.needsUpdate = true; }
   function paintPylon(d) { const g = pylonTex.__c.getContext('2d'), w = PW / 4, h = PW / 4; g.clearRect(0, 0, PW, h);
     MC.ORDER.forEach((id, i) => { const z = MC.ZONES[id], x0 = i * w; g.fillStyle = '#0b0c12'; g.fillRect(x0, 0, w, h); g.strokeStyle = hx(z.col); g.lineWidth = w * .02; g.strokeRect(x0 + w * .02, w * .02, w * .96, h * .96);
@@ -281,10 +283,15 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     const list = MC.pickTowers(d); placed = MC.layoutTowers(list, cen, a0, R);
     for (const o of towerColl) { const i = c.colliders.indexOf(o); if (i >= 0) c.colliders.splice(i, 1); } towerColl = [];
     let gi = 0; glows.forEach(g => { g.w = -1; });
-    placed.forEach((p, i) => { if (i >= CAP) return; Qt.setFromAxisAngle(UP, -p.face + PI / 2); M4.compose(V.set(p.x, 0, p.z), Qt, SC.set(p.w, p.h, p.w)); towers.setMatrixAt(i, M4);
+    // a token promoted to a full city district (window.__memesPromote) keeps its slot as a POINTER: a short plinth whose crown
+    // lies flat and points at its district, so the token never stands twice
+    const proBy = new Map(((window.__memesPromote && window.__memesPromote.nodes) || []).map(n => [n.key, n]));
+    placed.forEach((p, i) => { if (i >= CAP) return; p.ptr = proBy.get(p.t.key) || null; if (p.ptr) { p.w = Math.min(p.w, 2.4); p.h = 5; }
+      Qt.setFromAxisAngle(UP, -p.face + PI / 2); M4.compose(V.set(p.x, 0, p.z), Qt, SC.set(p.w, p.h, p.w)); towers.setMatrixAt(i, M4);
       aInfo.setXYZW(i, ZI[p.zone], (i * .618) % 1, p.t.name === 'BURN' ? 1 : 0, 0);
       const ch = p.zone === 'kings' ? 7 + p.w * .8 : p.zone === 'grinders' ? 5 : p.zone === 'degens' ? 2.5 : 2, cw = p.zone === 'kings' ? p.w * .35 : p.zone === 'grinders' ? .25 : p.zone === 'degens' ? p.w * .72 : .9;
-      M4.compose(V.set(p.x, p.h, p.z), Qt, SC.set(cw, ch, cw)); crowns.setMatrixAt(i, M4);
+      if (p.ptr) { const dx = p.ptr.x - p.x, dz = p.ptr.z - p.z, L = Math.hypot(dx, dz) || 1; const q2 = new THREE.Quaternion().setFromUnitVectors(UP, V.set(dx / L, 0, dz / L)); M4.compose(V.set(p.x, p.h + 1.4, p.z), q2, SC.set(1.4, 4.2, 1.4)); }
+      else M4.compose(V.set(p.x, p.h, p.z), Qt, SC.set(cw, ch, cw)); crowns.setMatrixAt(i, M4);
       crowns.setColorAt(i, new THREE.Color(p.zone === 'kings' ? 0xffc44d : p.zone === 'grinders' ? 0x6bff9a : p.zone === 'degens' ? 0xd86bff : 0xff2a20));
       M4.compose(V.set(p.x, p.h + (p.zone === 'kings' ? ch + 3 : 5), p.z), Qt.identity(), SC.set(15, 3.75, 1)); plates.setMatrixAt(i, M4);
       const u0 = (i % 4) * CW / AW, v0 = 1 - (Math.floor(i / 4) + 1) * CH / AW; aCell.setXYZW(i, u0, v0, CW / AW, CH / AW);
@@ -320,6 +327,10 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
       ['Market cap', MC.fmtXrp(t.mcap) + ' XRP'], ['AMM TVL', MC.fmtXrp(t.tvl) + ' XRP'], ['Holders', String(t.holders)], ['24h / 7d', `${t.pro24h >= 0 ? '+' : ''}${t.pro24h}% / ${t.pro7d >= 0 ? '+' : ''}${t.pro7d}%`], ['Top-10 hold', t.top10 == null ? '—' : t.top10 + '%'], ['LP burned', t.lp_burned == null ? '—' : t.lp_burned + '%']];
     if (t.flags?.length) rows.push(['Signals', t.flags.map(f => MC.FLAG_WORDS[f] || f).join(' · ')]);
     let extra = null; if (/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(t.issuer || '') && /^[0-9A-Za-z]{3,40}$/.test(t.currency || '')) { extra = document.createElement('a'); extra.href = `https://xrpl.to/token/${t.issuer}-${t.currency}`; extra.target = '_blank'; extra.rel = 'noopener noreferrer'; extra.textContent = 'Open on xrpl.to ↗'; extra.style.cssText = 'display:inline-block;margin-top:8px;color:#ffc44d;min-height:32px'; }
+    if (p.ptr) { const box = document.createElement('div'); if (extra) box.append(extra); const go = document.createElement('button'); go.type = 'button'; go.textContent = `Go to the ${p.ptr.name} district`;
+      go.style.cssText = 'display:block;width:100%;min-height:44px;margin-top:10px;border-radius:10px;border:1px solid #ffc44d;background:#2a1f08;color:#ffe6a8;font:700 14px system-ui;cursor:pointer';
+      go.onclick = () => { closeCard(); const a = Math.atan2(p.z - p.ptr.z, p.x - p.ptr.x), r = (p.ptr.r || 20) * .7; window.__walkTo && window.__walkTo(p.ptr.x + Math.cos(a) * r, p.ptr.z + Math.sin(a) * r, { x: p.ptr.x, z: p.ptr.z }); };
+      box.append(go); extra = box; rows.unshift(['Promoted', 'full city district beside the quarter', '#ffc44d']); }
     showCard(t.label, rows, FOOT, extra); }
   function showAlpha() { const d = ST.data; if (!d) return; const L = MC.alphaList(d, 15);
     const go = document.createElement('button'); go.type = 'button'; go.textContent = 'Take me to the Meme Circle'; go.style.cssText = 'display:block;width:100%;min-height:44px;margin-top:10px;border-radius:10px;border:1px solid #ffc44d;background:#2a1f08;color:#ffe6a8;font:700 14px system-ui;cursor:pointer';

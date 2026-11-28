@@ -222,7 +222,7 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     g.add(new THREE.Mesh(mergeGeometries(faces), new THREE.MeshBasicMaterial({ map: pylonTex, fog: true }))); g.position.set(cen.x, 0, cen.z); grp.add(g); return g; })();
   const archTex = canvasTex(1024, 192, (g, w, h) => { g.fillStyle = '#0b0c12'; g.fillRect(0, 0, w, h); const gr = g.createLinearGradient(0, 0, w, 0); MC.ORDER.forEach((id, i) => gr.addColorStop(i / 3, hx(MC.ZONES[id].col))); g.strokeStyle = gr; g.lineWidth = 10; g.strokeRect(8, 8, w - 16, h - 16);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 72px system-ui,sans-serif'; g.fillStyle = '#fff3d6'; g.shadowColor = '#ffb347'; g.shadowBlur = 24; fitText(g, 'CIRCLE OF XRPL MEMES', w / 2, 82, w - 60); g.shadowBlur = 0;
-    g.font = '600 30px system-ui,sans-serif'; g.fillStyle = '#c9c3b8'; fitText(g, 'Kings Row · Grinder Yards · Degen Strip · The Watchline   ·   Data by xrpl.to', w / 2, 148, w - 60); });
+    g.font = '600 30px system-ui,sans-serif'; g.fillStyle = '#c9c3b8'; fitText(g, 'Kings Row · Grinder Yards · Degen Strip · The Watchline   ·   Data by xrpl.to · XRPLMeta', w / 2, 148, w - 60); });
   const arch = (() => { const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color: 0x1a1c24 }); for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(1.6, 14, 1.6).translate(s * 9, 7, 0), m); g.add(p); }
     g.add(new THREE.Mesh(new THREE.BoxGeometry(20, 3.8, 1.2).translate(0, 15.4, 0), m)); for (const s of [-1, 1]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(18.6, 3.5), new THREE.MeshBasicMaterial({ map: archTex, fog: true })); f.position.set(0, 15.4, s * .62); if (s < 0) f.rotation.y = PI; g.add(f); }
     g.position.set(gateP.x, 0, gateP.z); g.rotation.y = -mkt + PI / 2; grp.add(g); return g; })();
@@ -259,7 +259,7 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
       const top = d.tokens.filter(t => t.q === id).sort((a, b) => id === 'watchline' ? b.ms - a.ms : b.alpha - a.alpha).slice(0, 6);
       g.textAlign = 'left'; top.forEach((t, k) => { const y = h * (.37 + k * .1); g.fillStyle = '#fff'; g.font = `700 ${Math.round(w * .055)}px system-ui,sans-serif`; fitText(g, t.label, x0 + w * .08, y, w * .55);
         g.textAlign = 'right'; g.fillStyle = hx(z.col); fitText(g, id === 'watchline' ? 'MS ' + t.ms.toFixed(0) : t.alpha.toFixed(1), x0 + w * .92, y, w * .3); g.textAlign = 'left'; });
-      g.textAlign = 'center'; g.fillStyle = '#8a857c'; g.font = `500 ${Math.round(w * .034)}px system-ui,sans-serif`; fitText(g, 'Data by xrpl.to · on-chain signals, not advice', x0 + w / 2, h * .96, w * .9); });
+      g.textAlign = 'center'; g.fillStyle = '#8a857c'; g.font = `500 ${Math.round(w * .034)}px system-ui,sans-serif`; fitText(g, 'Data by xrpl.to · XRPLMeta · on-chain signals, not advice', x0 + w / 2, h * .96, w * .9); });
     pylonTex.needsUpdate = true; }
   function paintBill(d) { const g = billTex.__c.getContext('2d'), w = BW, h = BW * .625, s = w / 1024; g.fillStyle = '#0a0b10'; g.fillRect(0, 0, w, h);
     g.strokeStyle = '#ffc44d'; g.lineWidth = 8 * s; g.strokeRect(6 * s, 6 * s, w - 12 * s, h - 12 * s);
@@ -274,7 +274,7 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
       g.fillStyle = hx(z.col); g.font = `700 ${16 * s}px system-ui,sans-serif`; g.fillText(z.name.toUpperCase(), x + 12 * s, y + 62 * s);
       g.fillStyle = '#a8a296'; g.font = `500 ${15 * s}px system-ui,sans-serif`; fitText(g, `mcap ${MC.fmtXrp(t.mcap)} · TVL ${MC.fmtXrp(t.tvl)} XRP`, x + 140 * s, y + 62 * s, 170 * s); });
     const ts = d.ts ? new Date(d.ts) : null; g.fillStyle = '#7d786f'; g.font = `500 ${16 * s}px system-ui,sans-serif`;
-    fitText(g, `Data by xrpl.to · updated ${ts ? ts.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—'} · on-chain data signals, not financial advice`, 28 * s, h - 22 * s, w - 56 * s);
+    fitText(g, `Data by xrpl.to · XRPLMeta · updated ${ts ? ts.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—'} · on-chain data signals, not financial advice`, 28 * s, h - 22 * s, w - 56 * s);
     billTex.needsUpdate = true; }
   function apply(d) {
     const list = MC.pickTowers(d); placed = MC.layoutTowers(list, cen, a0, R);
@@ -313,10 +313,10 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
       const a = document.createElement('span'); a.textContent = k; a.style.color = '#a9a296'; const b = document.createElement('span'); b.textContent = v; b.style.cssText = 'font-weight:700;text-align:right' + (col ? ';color:' + col : ''); r.append(a, b); card.append(r); }
     if (extra) card.append(extra);
     const f = document.createElement('div'); f.textContent = foot; f.style.cssText = 'margin-top:8px;color:#8a857c;font-size:11.5px'; card.append(f); document.body.append(card); }
-  const FOOT = 'Data by xrpl.to · Circle of XRPL Memes · on-chain data signals only, not an accusation and not financial advice.';
+  const FOOT = 'Data by xrpl.to · XRPLMeta · Circle of XRPL Memes · on-chain data signals only, not an accusation and not financial advice.';
   function inspect(p) { const t = p.t, z = MC.ZONES[t.q];
     const rows = [['District', z.name, hx(z.col)], ['Alpha', t.q === 'watchline' ? 'not ranked (Watchline)' : `#${t.rank} · ${t.alpha.toFixed(1)}`], ['Market strength', t.ms.toFixed(1)], ['Holder health', t.hh.toFixed(1)], ['Momentum', t.mom.toFixed(1)],
-      ['Market cap', MC.fmtXrp(t.mcap) + ' XRP'], ['AMM TVL', MC.fmtXrp(t.tvl) + ' XRP'], ['Holders', String(t.holders)], ['24h / 7d', `${t.pro24h >= 0 ? '+' : ''}${t.pro24h}% / ${t.pro7d >= 0 ? '+' : ''}${t.pro7d}%`], ['Top-10 hold', t.top10 + '%'], ['LP burned', t.lp_burned + '%']];
+      ['Market cap', MC.fmtXrp(t.mcap) + ' XRP'], ['AMM TVL', MC.fmtXrp(t.tvl) + ' XRP'], ['Holders', String(t.holders)], ['24h / 7d', `${t.pro24h >= 0 ? '+' : ''}${t.pro24h}% / ${t.pro7d >= 0 ? '+' : ''}${t.pro7d}%`], ['Top-10 hold', t.top10 == null ? '—' : t.top10 + '%'], ['LP burned', t.lp_burned == null ? '—' : t.lp_burned + '%']];
     if (t.flags?.length) rows.push(['Signals', t.flags.map(f => MC.FLAG_WORDS[f] || f).join(' · ')]);
     let extra = null; if (/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(t.issuer || '') && /^[0-9A-Za-z]{3,40}$/.test(t.currency || '')) { extra = document.createElement('a'); extra.href = `https://xrpl.to/token/${t.issuer}-${t.currency}`; extra.target = '_blank'; extra.rel = 'noopener noreferrer'; extra.textContent = 'Open on xrpl.to ↗'; extra.style.cssText = 'display:inline-block;margin-top:8px;color:#ffc44d;min-height:32px'; }
     showCard(t.label, rows, FOOT, extra); }
@@ -335,7 +335,7 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     MC.ORDER.forEach(id => { mm.fillStyle = hx(MC.ZONES[id].col) + '55'; mm.beginPath(); mm.moveTo(px, pz); mm.arc(px, pz, rr, A[id] - PI / 4, A[id] + PI / 4); mm.closePath(); mm.fill(); });
     mm.fillStyle = '#ffe6a8'; mm.font = Math.round(cw / 30) + 'px system-ui'; mm.textAlign = 'center'; mm.fillText('Meme Circle', px, pz - rr - 4);   // label above the disc: below it collides with the Undercroft gate label
     mm.fillStyle = '#ffc44d'; mm.fillRect(bill.x * sc - 2, bill.z * sc - 2, 4, 4); });
-  (window.__tourHooks = window.__tourHooks || []).push(V3 => { const k = gateP; return [V3(k.x + Math.cos(mkt) * 70, 46, k.z + Math.sin(mkt) * 70), V3(cen.x, 30, cen.z), 'Circle of XRPL Memes: the top meme tokens as towers in four districts (Kings Row, Grinder Yards, Degen Strip, The Watchline). Data by xrpl.to'] });
+  (window.__tourHooks = window.__tourHooks || []).push(V3 => { const k = gateP; return [V3(k.x + Math.cos(mkt) * 70, 46, k.z + Math.sin(mkt) * 70), V3(cen.x, 30, cen.z), 'Circle of XRPL Memes: the top meme tokens as towers in four districts (Kings Row, Grinder Yards, Degen Strip, The Watchline). Data by xrpl.to · XRPLMeta'] });
 
   // ---- zone-local atmosphere: screen-edge tint + ambient sound, blended by where the player stands (never the global weather)
   const veil = document.createElement('div'); veil.id = 'mcVeil'; veil.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;transition:none;mix-blend-mode:screen'; document.body.append(veil);

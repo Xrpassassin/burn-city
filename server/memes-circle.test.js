@@ -3,7 +3,8 @@
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-'));
 const Score = require('./memes-circle-score');
-const MC = require('./memes-circle');
+process.env.XRPLMETA_GAP_MS = '0';
+const MC = require('./memes-circle'), XM = require('./xrplmeta');
 
 const DAY = 864e5, now = Date.parse('2026-11-27T20:00:00Z');
 let seq = 0;
@@ -58,24 +59,51 @@ for (const t of out.tokens) { assert.ok(t.ms >= 0 && t.ms <= 100 && t.hh >= 0 &&
   const json = (res, code, o) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
   const call = (q = '', headers = {}) => { const res = fakeRes(); const url = new URL('http://x/api/memes-circle' + q); const handled = MC.handle({ headers }, res, url, { json }); return { handled, res, j: res.body ? JSON.parse(res.body) : null }; };
   assert.strictEqual(MC.handle({ headers: {} }, fakeRes(), new URL('http://x/api/other'), { json }), false, 'other routes pass through');
+  // XRPLMeta + ledger stubs: metrics per token from `raw` (x2 market cap so we can tell the source), AMM TVL from amm_info
+  const byId = new Map(raw.map(t => [t.currency + ':' + t.issuer, t])); let xmUp = true, xmCalls = 0;
+  XM._setFetch(async u => { xmCalls++; if (!xmUp) return { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}) };
+    const id = decodeURIComponent(u.split('/v2/token/')[1].split('?')[0]), t = byId.get(id) || { marketcap: 5e4, holders: 300, vol7dxrp: 100 };
+    return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ meta: { token: { name: t.name } }, metrics: { marketcap: String(2 * t.marketcap), holders: t.holders, price: '0.001', volume_24h: '10', volume_7d: String(t.vol7dxrp),
+      changes: { '24h': { price: { percent: 1.5 }, holders: { delta: 3 } }, '7d': { price: { percent: -2 } } } } }) }; });
+  const ammCalls = []; MC._setRpc(async (m, p) => { ammCalls.push(p); return { amm: { account: 'rBudi9ArACZzLrReUWKFZmHve13LD7CbrM', amount: String(15e9), amount2: { currency: 'X', issuer: 'r', value: '1' } } }; });
   // warming up
   let r = call(); assert.ok(r.handled && r.res.code === 503 && r.j.error === 'warming_up');
-  // refresh: all pages fail -> no cache, fail soft
-  MC._setFetch(async () => { throw new Error('down'); });
-  assert.strictEqual(await MC.refresh({ gap: 0 }), false); assert.strictEqual(call().res.code, 503);
-  // refresh ok
+  // xrpl.to down + XRPLMeta down: seed members, no metrics -> fail soft, still warming up
+  let xtCalls = 0; MC._setFetch(async () => { xtCalls++; throw new Error('down'); }); xmUp = false;
+  assert.strictEqual(await MC.refresh(), false); assert.strictEqual(call().res.code, 503); assert.strictEqual(MC.members().source, 'seed');
+  // xrpl.to Memes pages ok -> members (daily) + XRPLMeta metrics + ledger TVL
+  MC._reset(); xmUp = true; xtCalls = 0;
   const pages = [raw.slice(0, 100), raw.slice(100, 205)];
-  let n = 0; MC._setFetch(async () => ({ ok: true, json: async () => ({ tokens: pages[(n++) % 2] }) }));
-  assert.strictEqual(await MC.refresh({ gap: 0 }), true);
-  r = call(); assert.strictEqual(r.res.code, 200); assert.strictEqual(r.j.tokens.length, 150); assert.ok(/xrpl\.to/.test(r.j.attribution)); assert.ok(r.res.headers.etag);
+  let n = 0; MC._setFetch(async () => { xtCalls++; return { ok: true, json: async () => ({ tokens: pages[(n++) % 2] }) }; });
+  assert.strictEqual(await MC.refresh(), true); assert.strictEqual(xtCalls, MC.PULLS.length, 'one read per page');
+  r = call(); assert.strictEqual(r.res.code, 200); assert.strictEqual(r.j.tokens.length, 150); assert.ok(/xrpl\.to/.test(r.j.attribution) && /XRPLMeta/.test(r.j.attribution)); assert.ok(r.res.headers.etag);
+  assert.strictEqual(r.j.sources.members, 'xrpl.to'); assert.strictEqual(MC.members().rows.length, 180, 'top 180 kept as members');
+  const army = r.j.tokens.find(t => t.name === 'ARMY'); const src = raw.find(t => t.issuer === army.issuer);
+  assert.strictEqual(army.mcap, 2 * src.marketcap, 'market cap from XRPLMeta'); assert.strictEqual(army.tvl, 30000, 'TVL = 2 x the XRP side of the AMM');
+  assert.ok(r.j.tokens.every(t => t.top10 != null), 'xrpl.to holder fields kept');
   assert.strictEqual(call('', { 'if-none-match': r.res.headers.etag }).res.code, 304, 'etag revalidation');
   assert.strictEqual(call('?top=15').j.tokens.length, 15);
-  assert.ok(fs.existsSync(path.join(process.env.DATA_DIR, 'memes-circle.json')), 'saved to the data volume');
-  // a later failed refresh keeps the last good list
-  MC._setFetch(async () => ({ ok: false, status: 500, json: async () => ({}) }));
-  assert.strictEqual(await MC.refresh({ gap: 0 }), false); assert.strictEqual(call().res.code, 200, 'stale data still served');
+  assert.ok(fs.existsSync(path.join(process.env.DATA_DIR, 'memes-circle.json')) && fs.existsSync(path.join(process.env.DATA_DIR, 'memes-circle-members.json')), 'snapshot + members saved to the data volume');
+  // next hourly refresh: members are < 24 h old -> no xrpl.to calls, only XRPLMeta
+  xtCalls = 0; xmCalls = 0; assert.strictEqual(await MC.refresh(), true); assert.strictEqual(xtCalls, 0, 'membership read at most daily'); assert.strictEqual(xmCalls, 180);
+  // XRPLMeta down: tokens keep their last good metrics
+  xmUp = false; assert.strictEqual(await MC.refresh(), true); r = call(); assert.strictEqual(r.res.code, 200, 'stale data still served'); assert.strictEqual(r.j.tokens.find(t => t.name === 'ARMY').mcap, army.mcap);
+  xmUp = true;
+  // boot: a saved snapshot serves at once (no warming_up)
+  MC._reset(); assert.strictEqual(call().res.code, 503); MC.start(); assert.strictEqual(call().res.code, 200, 'snapshot served on boot'); MC._reset();
+  // boot with members but no snapshot: built from saved metrics at once
+  fs.unlinkSync(path.join(process.env.DATA_DIR, 'memes-circle.json')); MC.start(); assert.strictEqual(call().res.code, 200, 'built from members on boot'); MC._reset();
+  // seed: empty data volume + xrpl.to unreadable -> ids from server/memes-circle-seed.json, metrics from XRPLMeta, holder fields unknown
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-seed-')); MC._setFetch(async () => { throw new Error('429'); });
+  assert.strictEqual(await MC.refresh(), true); r = call(); assert.strictEqual(r.res.code, 200); assert.strictEqual(r.j.sources.members, 'seed');
+  assert.ok(r.j.tokens.length >= 100 && r.j.tokens.every(t => t.top10 === null), 'seeded from ids only');
+  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'memes-circle-seed.json'), 'utf8'));
+  assert.ok(seed.ids.length >= 100 && seed.ids.every(a => Array.isArray(a) && a.length === 2 && /^r/.test(a[0])), 'seed file is ids only');
+  assert.ok(!/marketcap|holders|tvl/.test(JSON.stringify(seed.ids)), 'no market data in the seed');
+  // ?status=1 carries the budget and source health, never a key
+  const st = call('?status=1').j; assert.ok(st.xrplto && st.xrplmeta && st.membersSource === 'seed' && typeof st.keyed === 'boolean');
   // kill switch
-  process.env.MEMES_CIRCLE = '0'; r = call(); assert.ok(r.handled && r.j.enabled === false && r.res.code === 200); assert.strictEqual(await MC.refresh({ gap: 0 }), false); assert.strictEqual(MC.start(), false);
+  process.env.MEMES_CIRCLE = '0'; r = call(); assert.ok(r.handled && r.j.enabled === false && r.res.code === 200); assert.strictEqual(await MC.refresh(), false); assert.strictEqual(MC.start(), false);
   delete process.env.MEMES_CIRCLE;
   // server wiring: route sits after the shared per-IP limiter, and the module starts with the server
   const srv = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');

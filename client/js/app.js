@@ -106,7 +106,10 @@ const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExpe
 const MOBILE=matchMedia('(pointer:coarse)').matches||/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)||Q.has('mobile');
 const TIERS={low:{pr:1,cars:48,rain:600,trees:50,bloomScale:.35,reflect:false,sats:.3,fx:.2,aa:false},medium:{pr:1.25,cars:160,rain:2200,trees:160,bloomScale:.5,reflect:false,sats:.6,fx:.45,aa:false},high:{pr:1.75,cars:480,rain:6500,trees:360,bloomScale:1,reflect:true,sats:1,fx:1,aa:true}};
 const qPref=Q.get('q')||localStorage.getItem('bc_quality')||'auto';
-const autoTier=()=>{const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;if(MOBILE)return(cores<=4||mem<=3)?'low':'medium';return(cores<=2||mem<=2)?'medium':'high'};
+// Software WebGL (SwiftShader, llvmpipe, Microsoft Basic Render: blocklisted GPUs, VMs, remote desktops, headless CI) rasterizes on
+// the CPU, so 'high' (1.75x pixel ratio, reflections, 480 cars) runs at well under 1 fps there; cap it at 'medium'.
+const softGL=()=>{try{const c=document.createElement('canvas'),gl=c.getContext('webgl2')||c.getContext('webgl');if(!gl)return false;const e=gl.getExtension('WEBGL_debug_renderer_info'),r=String(e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER));gl.getExtension('WEBGL_lose_context')?.loseContext();return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(r)}catch{return false}};
+const autoTier=()=>{const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;if(MOBILE)return(cores<=4||mem<=3)?'low':'medium';return(cores<=2||mem<=2||softGL())?'medium':'high'};
 const TIER=TIERS[qPref]?qPref:autoTier();const LV=TIERS[TIER];
 // phones: High = medium+ (no 2nd-scene reflector, capped DPR, no MSAA, half-res bloom, fewer cars/rain/trees)
 if(MOBILE&&TIER==='high')Object.assign(LV,{pr:1.4,aa:false,bloomScale:.5,reflect:false,cars:240,rain:3000,trees:200,sats:.8});
@@ -1725,6 +1728,10 @@ for(let i=0;i<2;i++){const m=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,c
 const EMB=Math.round(420*Math.max(.3,LV.fx)),embG=new THREE.BufferGeometry(),embP=new Float32Array(EMB*3),embV=new Float32Array(EMB*3);embG.setAttribute('position',new THREE.BufferAttribute(embP,3));
 const embM=new THREE.PointsMaterial({map:GT,color:0xffa24a,size:1.6,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});const emb=new THREE.Points(embG,embM);emb.frustumCulled=false;emb.visible=false;S.add(emb);fxObjs.push(emb);let embT=-1;
 const fxLight=new THREE.PointLight(0xff7a2a,0,110,1.8);if(TIER!=='low')S.add(fxLight); // pre-created: never changes light count (no shader recompiles)
+// Reserved PointLight slots for props that load late (the Blacktide barge on the lake). three.js bakes the light count into every lit
+// shader, so a light added after the first frames recompiles the whole city at once (a 15-20 s main-thread freeze in SwiftShader,
+// a visible hitch on real GPUs). Late props borrow a slot (window.__city.lightSlots) instead of adding a new light.
+const lightSlots=(MOBILE||TIER==='low')?[]:[0,1].map(()=>{const l=new THREE.PointLight(0xffffff,0,1,2);S.add(l);return l});window.__city.lightSlots=lightSlots;
 const take=a=>a.find(x=>x.t<0)||a.reduce((o,x)=>x.t>o.t?x:o);
 // fireball trail: pooled Points (one per ball), positions = recent ball path
 for(const B of FXP.balls){const g=new THREE.BufferGeometry();B.tp=new Float32Array(28*3);g.setAttribute('position',new THREE.BufferAttribute(B.tp,3));

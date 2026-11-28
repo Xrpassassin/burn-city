@@ -185,7 +185,18 @@ function makePirate(coat, phase, x, y, z) {
   return { root, phase, y };
 }
 
-export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders, low, announce }) {
+// Reuse a pre-added PointLight from `slots` (window.__city.lightSlots) when one is free; a brand-new light
+// would change the scene's light count and recompile every lit material in the city.
+export function partyLight(slots, color, intensity, distance, decay) {
+  const light = slots?.length ? slots.shift() : new THREE.PointLight();
+  light.color.set(color);
+  light.intensity = intensity;
+  light.distance = distance;
+  light.decay = decay;
+  return light;
+}
+
+export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders, low, announce, lightSlots }) {
   const { dir, side, inLake } = lake;
   const berth = findPartyBargeBerth({ shoreAt, inLake, dir, side, decks, colliders });
   if (!berth) return null;
@@ -230,9 +241,10 @@ export function createPiratePartyBarge({ scene, lake, shoreAt, decks, colliders,
     // city-wide (one recompile when the lake loads, plus per-pixel cost everywhere), so fake the pools.
     root.add(glowPool(0xffc381, 7, deck.barX - shoreSign * 2, Y, deck.barZ), glowPool(0xadabff, 7.5, ...[deck.dance[0], Y, deck.dance[1]]));
   } else {
-    const barLight = new THREE.PointLight(0xffc381, 120, 30, 1.7);
+    // Borrow the city's reserved light slots so the scene's light count never changes (no city-wide shader recompile).
+    const barLight = partyLight(lightSlots, 0xffc381, 120, 30, 1.7);
     barLight.position.set(deck.barX - shoreSign * 2, Y + 6, deck.barZ);
-    const danceLight = new THREE.PointLight(0xadabff, 110, 26, 1.7);
+    const danceLight = partyLight(lightSlots, 0xadabff, 110, 26, 1.7);
     danceLight.position.set(deck.dance[0], Y + 6, deck.dance[1]);
     root.add(barLight, danceLight);
   }

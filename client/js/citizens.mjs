@@ -23,17 +23,21 @@ const CC = window.__cityCitizens = { ready: false, stats: {} };
 function farMaterial(meta, tex, vatP, vatN) {
   const m = new THREE.MeshStandardMaterial({ map: tex, roughness: .85, metalness: 0, emissive: 0x101418,
     alphaTest: meta.alphaCutoff ?? 0, side: meta.alphaCutoff ? THREE.DoubleSide : THREE.FrontSide });
+  // One shared program for every far model: the per-model sizes ride in a uniform instead of being baked into the
+  // shader text, so the crowd costs one shader compile instead of one per model (each compile stalls the frame
+  // when a new model's first instances appear).
+  const vatInfo = new THREE.Vector4(meta.verts, meta.frames, meta.walkFrames, meta.idleFrame);
   m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { vatP: { value: vatP }, vatN: { value: vatN } });
-    sh.vertexShader = `attribute float vid;\nattribute vec2 aAnim;\nuniform sampler2D vatP;\nuniform sampler2D vatN;\n` + sh.vertexShader
-      .replace('#include <beginnormal_vertex>', `float vatF = fract(aAnim.x) * ${meta.walkFrames}.0;
-float vf0 = floor(vatF), vft = vatF - vf0, vf1 = mod(vf0 + 1.0, ${meta.walkFrames}.0);
-vec2 vu0 = vec2((vid + .5) / ${meta.verts}.0, (vf0 + .5) / ${meta.frames}.0), vu1 = vec2(vu0.x, (vf1 + .5) / ${meta.frames}.0);
-vec2 vuIdle = vec2(vu0.x, (${meta.idleFrame}.0 + .5) / ${meta.frames}.0);
+    Object.assign(sh.uniforms, { vatP: { value: vatP }, vatN: { value: vatN }, vatInfo: { value: vatInfo } });
+    sh.vertexShader = `attribute float vid;\nattribute vec2 aAnim;\nuniform sampler2D vatP;\nuniform sampler2D vatN;\nuniform vec4 vatInfo;\n` + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', `float vatF = fract(aAnim.x) * vatInfo.z;
+float vf0 = floor(vatF), vft = vatF - vf0, vf1 = mod(vf0 + 1.0, vatInfo.z);
+vec2 vu0 = vec2((vid + .5) / vatInfo.x, (vf0 + .5) / vatInfo.y), vu1 = vec2(vu0.x, (vf1 + .5) / vatInfo.y);
+vec2 vuIdle = vec2(vu0.x, (vatInfo.w + .5) / vatInfo.y);
 vec3 objectNormal = normalize(mix(texture2D(vatN, vuIdle).xyz, mix(texture2D(vatN, vu0).xyz, texture2D(vatN, vu1).xyz, vft), aAnim.y));`)
       .replace('#include <begin_vertex>', 'vec3 transformed = mix(texture2D(vatP, vuIdle).xyz, mix(texture2D(vatP, vu0).xyz, texture2D(vatP, vu1).xyz, vft), aAnim.y);');
   };
-  m.customProgramCacheKey = () => 'vat-' + meta.id;
+  m.customProgramCacheKey = () => 'vat-shared';
   return m;
 }
 

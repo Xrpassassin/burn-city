@@ -104,7 +104,7 @@ async function init() {
     DK = kit(part(duck, 'body'), ducks.length, 'duck', grp);
     partyBarge = createPiratePartyBarge({
       scene: grp, lake: e, shoreAt: f.shoreAt, decks: window.__decks,
-      colliders: c.colliders, low: c.MOBILE || c.TIER === 'low',
+      colliders: c.colliders, low: c.MOBILE || c.TIER === 'low', lightSlots: c.lightSlots,
       announce: text => window.__bcToast?.(text, '#ffc381', { key: 'blacktide-toast' }),
     });
     if (partyBarge) {

@@ -1,7 +1,7 @@
 // Install support: service worker + subtle Install button (Chrome/Edge/Android) + one-time iOS hint.
 if ('serviceWorker' in navigator) addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').then(reg => {
-    try { reg.update(); } catch { }
+    try { const u = reg.update(); if (u && u.catch) u.catch(() => {}); } catch { } // WebKit rejects update() async when sw.js fetch races
     reg.addEventListener('updatefound', () => {
       const w = reg.installing; if (!w) return;
       w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) w.postMessage({ type: 'SKIP_WAITING' }); });

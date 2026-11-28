@@ -1,15 +1,17 @@
 // Live city data (window.ECO). Every AMM pool in the city is subscribed on the XRP Ledger: any validated transaction that
 // touches a pool re-reads its reserves within ~2 s, re-prices every token and republishes. Market stats (24h change,
-// volume, holders, traders) from xrpl.to every 2 min. Outstanding supply + LP-lock sweep + new-pool discovery hourly.
+// volume, holders, market cap) from XRPLMeta every 15 min; 1h change + 24h unique traders from xrpl.to every 6 h through the
+// shared xrpl.to budget (server/xrplto.js). Outstanding supply + LP-lock sweep + new-pool discovery hourly.
 // Read-only public requests. Base structure (burn history, scars, holder bands) comes from client/data.js.
 // GET /data.js = full ECO for page load · GET /api/eco/live = compact live values for in-page polling · GET /api/eco = status.
 const fs = require('fs'), path = require('path'), crypto = require('crypto'), xrpl = require('xrpl');
-const XrplTo = require('./xrplto');   // X-Api-Key on api.xrpl.to calls when XRPLTO_API_KEY is set
+const XrplTo = require('./xrplto');   // shared xrpl.to queue + daily budget (eco has top priority); X-Api-Key when XRPLTO_API_KEY is set
+const XM = require('./xrplmeta');      // keyless XRPLMeta token metrics
 const FILE = path.join(__dirname, '..', 'client', 'data.js');
 const RPC = ['https://xrplcluster.com/', 'https://s2.ripple.com:51234/', 'https://s1.ripple.com:51234/'];
 const WSS = ['wss://xrplcluster.com', 'wss://s2.ripple.com', 'wss://s1.ripple.com'];
 const G = require('../client/js/goldlock.js');   // shared strict gold / black-hole rule (also used by the client + lock audit)
-const MARKET_EVERY = 2 * 60e3, SWEEP_EVERY = 60 * 60e3, DISCOVER_MIN_TVL = 50, DISCOVER_NEW_TOKEN_TVL = 2500, DISCOVER_MAX_NEW = 12;
+const MARKET_EVERY = 15 * 60e3, XRPLTO_EVERY = 6 * 3600e3, SWEEP_EVERY = 60 * 60e3, DISCOVER_MIN_TVL = 50, DISCOVER_NEW_TOKEN_TVL = 2500, DISCOVER_MAX_NEW = 12;
 let eco = null, out = null, live = null, ver = 0, ws = null, wsi = 0, lastLedger = null;
 const status = { ok: false, ts: null, pools: 0, tokens: 0, stream: 'off', ledger: null, poolUpdates: 0, lastPoolUpdate: null, market: null, sweep: null, discovered: [], err: null };
 const res = {}, bhCache = new Map(), notAmm = new Set(), pending = new Set(); let flushT = null;
@@ -45,7 +47,7 @@ async function rpc(method, p) {
   }
   throw new Error(String(err));
 }
-async function xrplto(key) { try { const j = await (await fetch('https://api.xrpl.to/v1/token/' + key, { headers: XrplTo.headers({ 'user-agent': 'burn-city/1' }), signal: AbortSignal.timeout(15e3) })).json(); return j.token || j; } catch { return null; } }
+async function xrplto(key) { const r = await XrplTo.request('https://api.xrpl.to/v1/token/' + key, { prio: 'eco', headers: { 'user-agent': 'burn-city/1' }, timeout: 15e3 }); if (!r.ok) return null; const j = await r.json(); return j.token || j; }
 async function isBlackhole(acct) {
   const c = bhCache.get(acct); if (c && Date.now() - c.t < 6 * 3600e3) return c.bh; let bh = false;
   // black hole = master key disabled AND (no RegularKey or RegularKey is a known black-hole address) AND no SignerList (client/js/goldlock.js)
@@ -100,7 +102,7 @@ function recompute() {
     // headline market cap (drives tower height): AMM price when >=1,000 XRP of liquidity backs it; otherwise xrpl.to's market cap;
     // otherwise the thin AMM price (flagged). Stops a token with a few hundred XRP of liquidity from towering over real ones.
     if (n.mcap_amm != null && n.price_depth >= 1000) { n.mcap = n.mcap_amm; n.mcap_src = 'amm'; }
-    else if (n.mcap_xrp > 0) { n.mcap = n.mcap_xrp; n.mcap_src = 'xrpl.to'; }
+    else if (n.mcap_xrp > 0) { n.mcap = n.mcap_xrp; n.mcap_src = 'market'; }
     else if (n.mcap_amm != null) { n.mcap = n.mcap_amm; n.mcap_src = 'amm-thin'; }
     else { n.mcap = null; n.mcap_src = null; }
     if (n.burn_complete && n.circ != null) n.burned_pct = +(100 * n.burn_vol / (n.burn_vol + n.circ)).toFixed(3);
@@ -162,14 +164,38 @@ async function resubscribe(newAmms) { if (!ws || !newAmms.length) return; try { 
   // also make the tx filter see them: simplest is a reconnect
   try { ws.removeAllListeners('disconnected'); await ws.disconnect(); } catch {} ws = null; connect(); }
 
-// ---- xrpl.to market stats ----
+// ---- market stats: XRPLMeta every 15 min (price, 24h/7d change, volume, holders, market cap, takers) ----
+// xrpl.to adds the 1h change and 24h unique traders once every 6 h (35 tokens = 35 of the ~250/day shared budget per pass);
+// those values persist on the data volume so a redeploy neither loses them nor triggers an extra pass.
+const XT_FILE = path.join(process.env.DATA_DIR || (fs.existsSync('/data') ? '/data' : path.join(__dirname, '..', 'data')), 'eco-xrplto.json');
+let xt = null; const XT_FRESH = 8 * 3600e3;
+function xtLoad() { if (xt) return xt; try { xt = JSON.parse(fs.readFileSync(XT_FILE, 'utf8')); } catch { xt = {}; } if (!xt || typeof xt !== 'object') xt = {}; return xt; }
+function xtSave() { try { fs.mkdirSync(path.dirname(XT_FILE), { recursive: true }); fs.writeFileSync(XT_FILE, JSON.stringify(xt)); } catch {} }
+const splitKey = k => [k.slice(0, k.indexOf('-')), k.slice(k.indexOf('-') + 1)];
+function applyMeta(n, m) {
+  if (m.exch != null) n.price_xrp = m.exch; if (m.pro24h != null) n.pro24h = m.pro24h; if (m.pro7d != null) n.pro7d = m.pro7d;
+  if (m.vol24hxrp != null) n.vol24h = m.vol24hxrp; if (m.holders != null) n.holders = m.holders; if (m.marketcap != null) n.mcap_xrp = m.marketcap;
+}
+function applyXt(n) { const x = xtLoad()[n.key]; const fresh = x && Date.now() - x.ts < XT_FRESH;
+  if (fresh && x.pro1h != null) n.pro1h = x.pro1h;
+  if (fresh && x.traders != null) { n.active = x.traders; n.active_src = 'traders24h'; return true; } return false; }
 async function market() {
-  const { byKey } = idx();
-  for (const n of Object.values(byKey)) { const t = await xrplto(n.key); await sleep(100); if (!t || t.exch == null) continue;
-    n.price_xrp = +t.exch; n.pro24h = t.pro24h; n.pro1h = t.pro1h; n.pro7d = t.pro7d; n.vol24h = t.vol24h; n.holders = t.holders;
-    if (t.marketcap != null) n.mcap_xrp = t.marketcap;
-    if (t.uniqueTraders24h != null) { n.active = +t.uniqueTraders24h; n.active_src = 'traders24h'; } else if (t.holders != null) { n.active = +t.holders; n.active_src = 'holders'; } }
-  status.market = new Date().toISOString(); recompute(); publish();
+  const { byKey } = idx(); let ok = 0;
+  for (const n of Object.values(byKey)) { const [iss, cur] = splitKey(n.key); const m = await XM.token(cur, iss);
+    if (m) { ok++; applyMeta(n, m); if (!applyXt(n)) { if (m.takers24h != null) { n.active = m.takers24h; n.active_src = 'takers24h'; } else if (m.holders != null) { n.active = m.holders; n.active_src = 'holders'; } } }
+    else applyXt(n); }   // XRPLMeta miss: keep the last values
+  status.market = new Date().toISOString(); status.marketOk = ok; recompute(); publish();
+}
+async function xrpltoPass() {
+  if (Date.now() - XrplTo.lastRun('eco-pass') < XRPLTO_EVERY) return; XrplTo.markRun('eco-pass');
+  const { byKey } = idx(); xtLoad(); let got = 0;
+  for (const n of Object.values(byKey)) { let t;
+    try { t = await xrplto(n.key); } catch (e) { if (e.code === 'budget' || e.code === 'cooldown' || e.code === 'http_429') { status.err = 'xrpl.to ' + e.code; break; } continue; }
+    if (!t || t.exch == null) continue; got++;
+    xt[n.key] = { ts: Date.now(), pro1h: t.pro1h ?? null, traders: t.uniqueTraders24h ?? null };
+    if (n.price_xrp == null) applyMeta(n, { exch: +t.exch, pro24h: t.pro24h, pro7d: t.pro7d, vol24hxrp: t.vol24h, holders: t.holders, marketcap: t.marketcap });
+    applyXt(n); }
+  if (got) { xtSave(); status.xrplto = new Date().toISOString(); recompute(); publish(); }
 }
 // ---- hourly: supply, full pool + LP sweep, discovery of new AMM pools holding city tokens ----
 async function sweep() {
@@ -213,7 +239,7 @@ async function discover() {
   if (added.length) { // fill market stats for any new tokens, then subscribe to the new pools
     for (const n of eco.nodes.filter(x => x.discovered && x.circ == null)) { const i = n.key.indexOf('-');
       try { const g = await rpc('gateway_balances', { account: n.key.slice(0, i), ledger_index: 'validated' }); const ob = (g.obligations || {})[n.key.slice(i + 1)]; if (ob != null) n.circ = +ob; } catch {} await sleep(120); }
-    for (const n of eco.nodes.filter(x => x.discovered && x.price_xrp == null)) { const t = await xrplto(n.key); if (t && t.exch != null) { n.price_xrp = +t.exch; n.pro24h = t.pro24h; n.vol24h = t.vol24h; n.holders = t.holders; } }
+    for (const n of eco.nodes.filter(x => x.discovered && x.price_xrp == null)) { const [iss, cur] = splitKey(n.key); const m = await XM.token(cur, iss); if (m) applyMeta(n, m); }   // XRPLMeta: no xrpl.to budget
     recompute(); publish(); await resubscribe(added);
   }
 }
@@ -223,8 +249,9 @@ async function start() {
   connect();
   setTimeout(async () => { for (const p of eco.pools) if (p.amm) { try { await readPool(p, false); } catch {} } recompute(); publish();
     for (const p of eco.pools) if (p.amm) { try { const r = await rpc('account_tx', { account: p.amm, limit: 25 }); for (const t of r.transactions || []) { const dt = (t.tx_json || t.tx || {}).date, w = t.close_time_iso ? Date.parse(t.close_time_iso) : dt ? (dt + 946684800) * 1000 : null; if (w && Date.now() - w < 30 * 60e3) trades({ ...t, tx_json: t.tx_json || t.tx, hash: t.hash || (t.tx || {}).hash }, w); } await sleep(60); } catch {} } publish();
-    try { await market(); } catch {} try { await sweep(); } catch (e) { console.error('eco sweep', e.message); } }, 3e3);
+    try { await market(); } catch {} xrpltoPass().catch(() => {}); try { await sweep(); } catch (e) { console.error('eco sweep', e.message); } }, 3e3);
   setInterval(() => market().catch(() => {}), MARKET_EVERY);
+  setInterval(() => xrpltoPass().catch(() => {}), 15 * 60e3);   // no-op until 6 h since the last (persisted) pass
   setInterval(() => sweep().catch(() => {}), SWEEP_EVERY);
 }
 function send(req, res_, o, type) {
@@ -232,7 +259,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => ({ ...status, keyed: XrplTo.keyed() }), data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
+  start, status: () => ({ ...status, keyed: XrplTo.keyed(), xrplto: XrplTo.stats(), xrplmeta: XM.stats() }), _xrpltoPass: xrpltoPass, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover, _curName: curName, _safeNodeName: safeNodeName,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

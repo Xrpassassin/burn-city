@@ -2,7 +2,7 @@
 // Read-only ledger (account_nfts). Collections are matched on exact issuer + taxon (verified, see COLS).
 // Metadata/images come from IPFS via public gateways, are resized once with sharp and cached on the volume.
 const fs = require('fs'), path = require('path'), C = require('./config'), S = require('./store');
-const XrplTo = require('./xrplto');   // X-Api-Key on api.xrpl.to calls when XRPLTO_API_KEY is set
+const XrplTo = require('./xrplto');   // shared xrpl.to queue + daily budget (nft = lowest priority); X-Api-Key when XRPLTO_API_KEY is set
 let sharp = null; try { sharp = require('sharp'); sharp.cache(false); sharp.concurrency(1); } catch { }
 const COLS = {   // sources: xrpl.to collection API + xrpburn.com "Sovereign NFT Vaults" links + ledger NFTokenIDs
   'rKZmQq3gMCNmV6th3wZPhfqgZ3815vUmiV:1': { key: 'fk', name: 'Firekeepers' },          // xrp.cafe/collection/burn-the-sacred-20
@@ -16,7 +16,7 @@ const META_SCHEMA = 2;
 async function marketplaceMeta(id) {
   // Optional marketplace index enriches the canonical on-ledger URI; it never proves ownership.
   try {
-    const r = await fetch(MARKET_API + encodeURIComponent(id), { signal: AbortSignal.timeout(4500), headers: XrplTo.headers({ accept: 'application/json' }) });
+    const r = await XrplTo.request(MARKET_API + encodeURIComponent(id), { prio: 'nft', timeout: 4500, maxQueue: 2, headers: { accept: 'application/json' } });   // lowest priority in the shared xrpl.to budget; denied -> null (on-ledger metadata only)
     if (!r.ok) return null;
     const text = await r.text(); if (text.length > 300e3) return null;
     const x = JSON.parse(text);

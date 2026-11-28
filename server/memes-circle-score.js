@@ -41,7 +41,7 @@ function pickUniverse(tokens, n = N) {
 function holderHealth(t, now = Date.now()) {
   let h = 60; const flags = [];
   const top10 = num(t.top10), creator = num(t.creatorHoldingPercent), insider = num(t.insiderPct), lpb = num(t.lpBurnedPercent);
-  h += clamp((30 - top10) * .5, -25, 8); if (top10 >= 50) flags.push('top10');
+  if (t.top10 != null) { h += clamp((30 - top10) * .5, -25, 8); if (top10 >= 50) flags.push('top10'); }   // unknown (seed rows before the daily xrpl.to read): neutral
   h -= Math.min(15, creator * .6); if (creator >= 10) flags.push('creator');
   h -= Math.min(15, insider * .5); if (insider >= 10) flags.push('insider');
   h += Math.min(12, lpb * .12); if (lpb >= 90) flags.push('lp_burned');
@@ -92,7 +92,7 @@ function score(raw, now = Date.now()) {
     return { key: t.issuer + '-' + t.currency, name, label, issuer: t.issuer, currency: t.currency, md5: /^[0-9a-f]{32}$/.test(t.md5 || '') ? t.md5 : null,
       q, ms: r1(ms), hh: r1(hh), mom: r1(mom), alpha: r1(alpha), flags,
       mcap: Math.round(num(t.marketcap)), tvl: Math.round(num(t.tvl)), holders: Math.round(num(t.holders)), vol7d: Math.round(num(t.vol7dxrp)),
-      pro24h: Math.round(num(t.pro24h) * 100) / 100, pro7d: Math.round(num(t.pro7d) * 100) / 100, top10: r1(num(t.top10)), lp_burned: r1(num(t.lpBurnedPercent)), amm: typeof t.AMM === 'string' && /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(t.AMM) ? t.AMM : null };
+      pro24h: Math.round(num(t.pro24h) * 100) / 100, pro7d: Math.round(num(t.pro7d) * 100) / 100, top10: t.top10 == null ? null : r1(num(t.top10)), lp_burned: t.lpBurnedPercent == null ? null : r1(num(t.lpBurnedPercent)), amm: typeof t.AMM === 'string' && /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(t.AMM) ? t.AMM : null };
   });
   rows.sort((a, b) => (a.q === 'watchline') - (b.q === 'watchline') || b.alpha - a.alpha);
   let rank = 0; for (const r of rows) r.rank = r.q === 'watchline' ? null : ++rank;

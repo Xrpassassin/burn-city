@@ -99,6 +99,7 @@ void main(){vec2 d=vP-cen;float r=length(d);if(r>R+9.)discard;
   const road = new THREE.Mesh(new THREE.PlaneGeometry(12, roadLen, 1, 1), roadMat);
   road.rotation.set(-PI / 2, 0, Math.atan2(gateP.x - roadEnd.x, gateP.z - roadEnd.z));   // local +Y (the road's length) -> along gate - roadEnd
   road.position.set((gateP.x + roadEnd.x) / 2, .065, (gateP.z + roadEnd.z) / 2); road.renderOrder = 1; grp.add(road);
+  window.__memesCircle.market = { roadEnd, gate: gateP, turn: { x: cen.x + Math.cos(mkt) * (MC.QUARTER.PLAZA + 12), z: cen.z + Math.sin(mkt) * (MC.QUARTER.PLAZA + 12) }, cen, mkt };   // traffic.mjs wires Market Street into the road graph
 
   // ---- towers: one instanced box draw with a per-district facade shader
   const CAP = 128;   // Phase 2 headroom (all 150 at lower LOD will get their own instanced tier)

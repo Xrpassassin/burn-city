@@ -145,7 +145,7 @@ function build() {
         const along = s.type === 'line' ? p.u.get(s) * streetLen(s) : 1e9; if (s.type === 'line' && ((d > 0 && along < 8) || (d < 0 && streetLen(s) - along < 8))) continue;
         const [px, pz] = clearOfStreets(st, p.x - ax * 6.2 + rx * 3.1, p.z - az * 6.2 + rz * 3.1, 3.0), yaw = Math.atan2(-ax, -az);   // head faces oncoming traffic; pole stays on the sidewalk, clear of every street's lanes
         poles.push({ x: px, z: pz, yaw }); heads.push({ x: px, z: pz, yaw });
-        p.lamps.push({ i: lamps.length, s, x: px, z: pz, yaw }); lamps.push({ x: px, y: 3.62, z: pz, yaw });
+        p.lamps.push({ i: lamps.length, s, x: px, z: pz, yaw, lx: az, lz: -ax }); lamps.push({ x: px, y: 3.62, z: pz, yaw });   // lx/lz: the approaching driver's left (protected-arrow lamp side)
         claim(px, pz, .5);
         // crosswalk across this approach
         for (let j = -2; j <= 2; j++) walks.push({ x: p.x - ax * 4.6 + rx * j * 1, z: p.z - az * 4.6 + rz * j * 1, y: .125, yaw: Math.atan2(ax, az) });
@@ -153,6 +153,8 @@ function build() {
     }
   });
   L.signals = X;
+  // protected left-arrow lamps (traffic.mjs signal plan): one extra lamp per head in the same instanced draw, parked out of sight until lit
+  if (!/[?&]traffic=classic/.test(location.search)) for (const p of X) for (const l of p.lamps) { l.ai = lamps.length; lamps.push({ x: l.x, y: -50, z: l.z, yaw: l.yaw }); }
   inst(merge([cyl(.08, .1, 3.9, 0, 1.95, 0, 0x2a2e36, 8), box(.04, 2.4, .05, 0, 2.2, .09, 0x5fe6ff)]), mat, poles, 'sigpoles');
   inst(merge([box(.34, 1.0, .26, 0, 3.32, .05, 0x1a1c22), ...[3.62, 3.32, 3.02].map(y => colored(new THREE.CylinderGeometry(.11, .11, .04, 10).rotateX(Math.PI / 2).translate(0, y, .19), 0x30302c)), box(.5, .06, .3, 0, 3.86, .12, 0x1a1c22)]), mat, heads, 'sigheads');
   const lampGeo = new THREE.SphereGeometry(.12, 10, 8); lampGeo.translate(0, 0, .2);
@@ -162,13 +164,14 @@ function build() {
 
   // signal phase: 2 groups; green 10 s, yellow 2.5 s, all-red 0.8 s
   const G = 10, Y = 2.5, AR = .8, CYC = 2 * (G + Y + AR);
-  const phase = (p, t, grp) => { const k = (t + p.off) % CYC, a = grp ? (k + CYC / 2) % CYC : k; return a < G ? 'g' : a < G + Y ? 'y' : 'r'; };
+  const phase = (p, t, grp) => { if (L.phaseFn) return L.phaseFn(p, t, grp); const k = (t + p.off) % CYC, a = grp ? (k + CYC / 2) % CYC : k; return a < G ? 'g' : a < G + Y ? 'y' : 'r'; };   // L.phaseFn: traffic.mjs plan (protected left, longer yellow)
   L.phase = phase;
   const COLS = { g: new THREE.Color(.15, 1.6, .5), y: new THREE.Color(1.6, 1.1, .1), r: new THREE.Color(1.8, .12, .06) }, HY = { g: 3.02, y: 3.32, r: 3.62 };
   let lastPh = -1;
   function updSignals(t) {
     if (!lampIM) return; const tick = Math.floor(t * 4); if (tick === lastPh) return; lastPh = tick;
-    for (const p of X) for (const l of p.lamps) { const ph = phase(p, t, p.group.get(l.s)); q.setFromAxisAngle(up, l.yaw); m4.compose(v.set(l.x, HY[ph], l.z), q, one); lampIM.setMatrixAt(l.i, m4); lampIM.setColorAt(l.i, COLS[ph]); }
+    for (const p of X) for (const l of p.lamps) { const ph = phase(p, t, p.group.get(l.s)); q.setFromAxisAngle(up, l.yaw); m4.compose(v.set(l.x, HY[ph], l.z), q, one); lampIM.setMatrixAt(l.i, m4); lampIM.setColorAt(l.i, COLS[ph]);
+      if (l.ai != null) { const ar = L.arrowFn ? L.arrowFn(p, t, p.group.get(l.s)) : null; m4.compose(v.set(l.x + l.lx * .32, ar ? 3.02 : -50, l.z + l.lz * .32), q, one); lampIM.setMatrixAt(l.ai, m4); lampIM.setColorAt(l.ai, ar === 'y' ? COLS.y : COLS.g); } }
     lampIM.instanceMatrix.needsUpdate = true; lampIM.instanceColor.needsUpdate = true;
   }
 
@@ -381,12 +384,13 @@ function build() {
     const shop = L.shops.find(shop => shop.id === id);
     if (shop) shop.closed = closed;
   };
+  const shut = sp => !sp || sp.closed || sp.afterHours;   // closed by a story (citizens) or after hours (traffic.mjs shop clock)
   L.shoppersInside = () => shoppers.filter(s => s.state === 'inside').length;
   L.shopperStates = () => shoppers.reduce((o, s) => (o[s.state] = (o[s.state] || 0) + 1, o), {});
   function updShoppers(dt, t) {
     if (!shopIM) return;
     shoppers.forEach((sh, i) => {
-      if (L.shops[sh.shop]?.closed && (sh.state === 'toShop' || sh.state === 'enter')) {
+      if (shut(L.shops[sh.shop]) && (sh.state === 'toShop' || sh.state === 'enter')) {
         sh.state = 'walk';
         sh.tgt = sidewalk(Math.random(), sh.shop);
       }
@@ -402,11 +406,11 @@ function build() {
         else if (Math.random() < .55) {
           const nearby = [];
           L.shops.forEach((sp, k) => {
-            if (!sp.closed && Math.hypot(sp.x - sh.x, sp.z - sh.z) < 40) nearby.push(k);
+            if (!shut(sp) && Math.hypot(sp.x - sh.x, sp.z - sh.z) < 40) nearby.push(k);
           });
           const k = nearby.length ? nearby[(Math.random() * nearby.length) | 0] : sh.home;
           const sp = L.shops[k];
-          if (sp.closed) sh.tgt = sidewalk(Math.random(), sh.home);
+          if (shut(sp)) sh.tgt = sidewalk(Math.random(), sh.home);
           else {
             sh.shop = sh.home = k;
             sh.state = 'toShop';

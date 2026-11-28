@@ -136,7 +136,7 @@ function build() {
   // ---------- dispatch: route a vehicle to a scene and back
   function dispatch(v, x, z, onArrive) {
     const a = nearestNode(G, v.home.x, v.home.z), b = nearestNode(G, x, z); const pts = route(G, a, b); if (!pts) return false;
-    const path = [{ x: v.home.x, z: v.home.z }, ...lane(pts, 1.3)];
+    const path = [{ x: v.home.x, z: v.home.z }, ...lane(pts, window.__traffic && window.__traffic.on ? .3 : 1.3)];   // with traffic realism on, sirens take the centre line while cars pull to the curb
     // pull up beside the scene
     const last = path[path.length - 1], dx = x - last.x, dz = z - last.z, d = Math.hypot(dx, dz); if (d > 3) path.push({ x: last.x + dx / d * Math.min(d - 4, 3.2), z: last.z + dz / d * Math.min(d - 4, 3.2) });
     v.path = path; v.i = 0; v.state = 'out'; v.siren = true; v.onArrive = onArrive; v.scene = { x, z }; v.trips = (v.trips || 0) + 1; return true;
@@ -153,6 +153,8 @@ function build() {
     }
     if (v.i >= v.path.length - 1) { v.path = null; if (v.state === 'out') { v.state = 'scene'; v.onArrive && v.onArrive(v); } else if (v.state === 'back') park(v); }
   }
+  const UNIT_LEN = { police: 4.6, fire: 8.6, ambulance: 6 };
+  EV.units = () => vehicles.filter(v => v.state !== 'parked').map(v => ({ x: v.g.position.x, z: v.g.position.z, siren: !!(v.siren && v.state === 'out'), len: UNIT_LEN[v.kind] || 5, kind: v.kind }));   // traffic.mjs: cars pull over for sirens, never drive into a unit
   EV.yieldAt = (x, z) => { for (const v of vehicles) if (v.siren && v.state === 'out') { const p = v.g.position; if (Math.abs(p.x - x) < 28 && Math.abs(p.z - z) < 28) return true; } return false; };
 
   // ---------- incident location: a sidewalk spot near a district (or a given point)

@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as MC from './memes-circle-core.mjs';
+import { shapeMode } from './tower-shape-core.mjs';
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('memestest') || Q.get('debug') === '1';
@@ -105,18 +106,24 @@ void main(){vec2 d=vP-cen;float r=length(d);if(r>R+9.)discard;
 
   // ---- towers: one instanced box draw with a per-district facade shader
   const CAP = 128;   // Phase 2 headroom (all 150 at lower LOD will get their own instanced tier)
-  const boxG = new THREE.BoxGeometry(1, 1, 1).translate(0, .5, 0);
+  // tower shape (tower-shape-core.mjs): base = AMM liquidity, height = mcap. The box is two stacked parts; aInfo.w = grade
+  // (0 plain, 1 standard, 2 grand): a grand tower pulls its top quarter in (a setback with a lit ledge) and lights more windows,
+  // all in this same one draw (the grade is an instanced attribute, not shader text).
+  const boxG = (() => { const lo = new THREE.BoxGeometry(1, .75, 1).translate(0, .375, 0), hi = new THREE.BoxGeometry(1, .25, 1).translate(0, .875, 0);
+    lo.setAttribute('aTop', new THREE.Float32BufferAttribute(new Float32Array(lo.attributes.position.count), 1));
+    hi.setAttribute('aTop', new THREE.Float32BufferAttribute(new Float32Array(hi.attributes.position.count).fill(1), 1));
+    return mergeGeometries([lo, hi]); })();
   const aInfo = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 4), 4); boxG.setAttribute('aInfo', aInfo);
   const towerMat = new THREE.ShaderMaterial({ fog: true, uniforms: { ...fogU(), t: uni.t, day: uni.day },
-    vertexShader: `attribute vec4 aInfo;varying vec3 vL,vN,vS,vW;varying vec4 vI;${FOGV}
-void main(){mat4 im=instanceMatrix;vS=vec3(length(im[0].xyz),length(im[1].xyz),length(im[2].xyz));vL=position*vS;vN=normal;vI=aInfo;
- vec4 wp=modelMatrix*im*vec4(position,1.);vW=wp.xyz;vec4 mvPosition=viewMatrix*wp;gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
+    vertexShader: `attribute vec4 aInfo;attribute float aTop;varying vec3 vL,vN,vS,vW;varying vec4 vI;${FOGV}
+void main(){mat4 im=instanceMatrix;vS=vec3(length(im[0].xyz),length(im[1].xyz),length(im[2].xyz));vec3 p=position;p.xz*=1.-.22*aTop*step(1.5,aInfo.w);vL=p*vS;vN=normal;vI=aInfo;
+ vec4 wp=modelMatrix*im*vec4(p,1.);vW=wp.xyz;vec4 mvPosition=viewMatrix*wp;gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
     fragmentShader: `uniform float t,day;varying vec3 vL,vN,vS,vW;varying vec4 vI;${FOGF}\n${NOISE}
 void main(){int z=int(vI.x+.5);float seed=vI.y;vec3 N=normalize(vN);float night=1.-smoothstep(.15,.6,day);
  bool roof=N.y>.5;float u=abs(N.x)>.5?vL.z:vL.x,hw=abs(N.x)>.5?vS.z*.5:vS.x*.5,v=vL.y,H=vS.y;
  vec3 V=normalize(cameraPosition-vW);float lam=.55+.45*abs(dot(N,normalize(vec3(.4,.7,.3))));
  vec2 cs=z==0?vec2(1.9,3.2):z==1?vec2(2.6,3.6):z==2?vec2(3.2,4.):vec2(2.4,3.4);vec2 f=fract(vec2(u,v)/cs);vec2 ci=floor(vec2(u+hw*3.1+seed*31.,v)/cs);
- vec2 mw=z==0?vec2(.045,.07):vec2(.1,.17);float win=step(mw.x,f.x)*step(f.x,1.-mw.x)*step(mw.y,f.y)*step(f.y,1.-mw.y);float lit=step(z==0?.66:z==2?.82:.6,h21(ci+seed*7.13+floor(t*.02+seed)));
+ vec2 mw=z==0?vec2(.045,.07):vec2(.1,.17);float win=step(mw.x,f.x)*step(f.x,1.-mw.x)*step(mw.y,f.y)*step(f.y,1.-mw.y);float gr=step(1.5,vI.w);float lit=step((z==0?.66:z==2?.82:.6)-.1*gr,h21(ci+seed*7.13+floor(t*.02+seed)));
  vec3 c;vec3 e=vec3(0.);
  if(z==0){float fr=pow(1.-abs(dot(V,N)),2.);vec3 sky=mix(vec3(1.,.6,.25),vec3(.45,.5,.7),clamp(v/130.,0.,1.));float pv=h21(ci*1.7+seed);c=mix(vec3(.035,.04,.06),vec3(.08,.1,.14)*(.8+.4*pv),day)*lam+sky*(.12+.55*fr)*(.45+.35*day)*(.85+.3*pv);
   c=mix(c,vec3(.95,.7,.28)*(.35+.3*day),(1.-win)*.75);e+=vec3(1.,.74,.38)*win*lit*night*.6;e+=vec3(1.,.7,.25)*step(fract(v/24.),.03)*(.35+.6*night);}
@@ -129,6 +136,7 @@ void main(){int z=int(vI.x+.5);float seed=vI.y;vec3 N=normalize(vN);float night=
   e+=vec3(1.,.15,.1)*step(fract(v/15.),.03)*.45;e+=vec3(.7,.8,1.)*win*lit*night*.35;}
  if(vI.z>.5){e+=vec3(1.,.35,.05)*step(fract(v/9.+t*.05),.06)*1.4;}   // BURN: ember bands
  if(roof){c=mix(vec3(.03),vec3(.2),day);e=vec3(0.);}
+ e+=vec3(1.,.82,.45)*gr*smoothstep(.6,.1,abs(v-H*.75))*(.25+.45*night);   // grand: lit setback ledge
  gl_FragColor=vec4(c+e,1.);\n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n#include <fog_fragment>\n}` });
   const towers = new THREE.InstancedMesh(boxG, towerMat, CAP); towers.count = 0; towers.frustumCulled = false; grp.add(towers);
   const crownG = new THREE.ConeGeometry(.5, 1, 4).translate(0, .5, 0).rotateY(PI / 4);
@@ -280,16 +288,17 @@ void main(){float P=3.4,b=aZ.x,tt=t+b*P/6.,cyc=floor(tt/P),age=mod(tt,P);float s
     fitText(g, `Data by xrpl.to · XRPLMeta · updated ${ts ? ts.toISOString().slice(0, 16).replace('T', ' ') + ' UTC' : '—'} · on-chain data signals, not financial advice`, 28 * s, h - 22 * s, w - 56 * s);
     billTex.needsUpdate = true; }
   function apply(d) {
-    const list = MC.pickTowers(d); placed = MC.layoutTowers(list, cen, a0, R);
+    const list = MC.pickTowers(d); placed = MC.layoutTowers(list, cen, a0, R, { shape: shapeMode(location.search) });   // ?shape=classic = old relative ruler
     for (const o of towerColl) { const i = c.colliders.indexOf(o); if (i >= 0) c.colliders.splice(i, 1); } towerColl = [];
     let gi = 0; glows.forEach(g => { g.w = -1; });
     // a token promoted to a full city district (window.__memesPromote) keeps its slot as a POINTER: a short plinth whose crown
     // lies flat and points at its district, so the token never stands twice
     const proBy = new Map(((window.__memesPromote && window.__memesPromote.nodes) || []).map(n => [n.key, n]));
-    placed.forEach((p, i) => { if (i >= CAP) return; p.ptr = proBy.get(p.t.key) || null; if (p.ptr) { p.w = Math.min(p.w, 2.4); p.h = 5; }
+    placed.forEach((p, i) => { if (i >= CAP) return; p.ptr = proBy.get(p.t.key) || null; if (p.ptr) { p.w = Math.min(p.w, 2.4); p.h = 5; p.grade = 'standard'; p.pencil = false; }
       Qt.setFromAxisAngle(UP, -p.face + PI / 2); M4.compose(V.set(p.x, 0, p.z), Qt, SC.set(p.w, p.h, p.w)); towers.setMatrixAt(i, M4);
-      aInfo.setXYZW(i, ZI[p.zone], (i * .618) % 1, p.t.name === 'BURN' ? 1 : 0, 0);
-      const ch = p.zone === 'kings' ? 7 + p.w * .8 : p.zone === 'grinders' ? 5 : p.zone === 'degens' ? 2.5 : 2, cw = p.zone === 'kings' ? p.w * .35 : p.zone === 'grinders' ? .25 : p.zone === 'degens' ? p.w * .72 : .9;
+      aInfo.setXYZW(i, ZI[p.zone], (i * .618) % 1, p.t.name === 'BURN' ? 1 : 0, p.grade === 'grand' ? 2 : p.grade === 'plain' ? 0 : 1);
+      let ch = p.zone === 'kings' ? 7 + p.w * .8 : p.zone === 'grinders' ? 5 : p.zone === 'degens' ? 2.5 : 2, cw = p.zone === 'kings' ? p.w * .35 : p.zone === 'grinders' ? .25 : p.zone === 'degens' ? p.w * .72 : .9;
+      if (p.grade === 'grand') { ch *= 1.6; cw *= (p.zone === 'degens' ? .78 : 1.15) * .78; } else if (p.pencil) { cw = p.w * .7; ch = Math.max(ch, p.w * 2.2); }   // grand: taller crown on the set-back top; pencil: a sharpened tip
       if (p.ptr) { const dx = p.ptr.x - p.x, dz = p.ptr.z - p.z, L = Math.hypot(dx, dz) || 1; const q2 = new THREE.Quaternion().setFromUnitVectors(UP, V.set(dx / L, 0, dz / L)); M4.compose(V.set(p.x, p.h + 1.4, p.z), q2, SC.set(1.4, 4.2, 1.4)); }
       else M4.compose(V.set(p.x, p.h, p.z), Qt, SC.set(cw, ch, cw)); crowns.setMatrixAt(i, M4);
       crowns.setColorAt(i, new THREE.Color(p.zone === 'kings' ? 0xffc44d : p.zone === 'grinders' ? 0x6bff9a : p.zone === 'degens' ? 0xd86bff : 0xff2a20));
